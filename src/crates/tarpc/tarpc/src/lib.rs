@@ -255,11 +255,14 @@ pub use crate::transport::sealed::Transport;
 
 use anyhow::Context as _;
 use futures::task::*;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
+// use std::error::Request;
+use self::Request as OwnReq;
+use alohomora::{AlohomoraType, AlohomoraTypeEnum};
 use std::{error::Error, fmt::Display, io, time::SystemTime};
 
 /// A message from a client to a server.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde1", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
 pub enum ClientMessage<T> {
@@ -284,6 +287,48 @@ pub enum ClientMessage<T> {
     },
 }
 
+impl<T: AlohomoraType> AlohomoraType for ClientMessage<T>{
+    type Out = ClientMessage<T::Out>;
+    
+    fn to_enum(self) -> AlohomoraTypeEnum {
+        match self{
+            ClientMessage::Request(req) => req.to_enum(),
+            ClientMessage::Cancel { trace_context, request_id } => {
+                let mut hmap = HashMap::new();
+                hmap.insert("trace_context".to_string(), AlohomoraTypeEnum::Value(Box::new(trace_context)));
+                hmap.insert("request_id".to_string(), AlohomoraTypeEnum::Value(Box::new(request_id)));
+                AlohomoraTypeEnum::Struct(hmap)
+            }
+        }
+    }
+    
+    fn from_enum(e: AlohomoraTypeEnum) -> Result<Self::Out, ()> {
+        match e {
+            AlohomoraTypeEnum::Struct(mut hmap) => {
+                let probe_cancel = hmap.remove(&"trace_context".to_string());
+                match probe_cancel {
+                    //We have a cancel message
+                    Some(t) => {
+                        let request_id = hmap.remove(&"request_id".to_string()).unwrap();
+                        let trace_context = match t.coerce::<trace::Context>() {
+                            Ok(e) => e,
+                            Err(()) => panic!("Couldn't coerce trace information")
+                        };
+                        let outed_client_message = ClientMessage::Cancel { 
+                            trace_context , 
+                            request_id: request_id.coerce::<u64>().unwrap()};
+                        Ok(outed_client_message)
+                    },
+                    None => Ok(ClientMessage::Request(<OwnReq<T> as AlohomoraType>::from_enum(AlohomoraTypeEnum::Struct(hmap))?))
+                }
+            },
+            _ => Err(())
+        }
+    }
+
+
+}
+
 /// A request from a client to a server.
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
@@ -297,6 +342,42 @@ pub struct Request<T> {
     pub message: T,
 }
 
+impl<T: AlohomoraType> AlohomoraType for OwnReq<T> {
+    type Out = OwnReq<T::Out>;
+    fn to_enum(self) -> alohomora::AlohomoraTypeEnum {
+        //Return Enum::Struct({
+        //Hashmap {
+        //"context" : Enum::Value,
+        //"id" : Enum::Value,
+        //"message": message.to_enum()
+        //}
+        //})
+        let mut hmap = HashMap::new();
+        hmap.insert("context".to_string(), AlohomoraTypeEnum::Value(Box::new(self.context)));
+        hmap.insert("id".to_string(), AlohomoraTypeEnum::Value(Box::new(self.id)));
+        hmap.insert("message".to_string(), self.message.to_enum());
+        AlohomoraTypeEnum::Struct(hmap)
+    }
+
+    fn from_enum(e: AlohomoraTypeEnum) -> Result<Self::Out, ()> {
+        match e {
+            AlohomoraTypeEnum::Struct(mut hmap) => {
+                let context = hmap
+                    .remove(&"context".to_string()).unwrap()
+                    .coerce::<context::Context>()
+                    .unwrap();
+                let id = hmap.remove(&"id".to_string()).unwrap().coerce::<u64>().unwrap();
+                let res = OwnReq {
+                    context,
+                    id,
+                    message: T::from_enum(hmap.remove(&"message".to_string()).unwrap()).unwrap(),
+                };
+                Ok(res)
+            }
+            _ => Err(()),
+        }
+    }
+}
 /// A response from a server to a client.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -308,6 +389,56 @@ pub struct Response<T> {
     pub message: Result<T, ServerError>,
 }
 
+
+impl<T: AlohomoraType + Clone> AlohomoraType for Response<T> {
+    type Out = Response<T::Out>;
+    fn to_enum(self) -> alohomora::AlohomoraTypeEnum {
+        let message: AlohomoraTypeEnum = match self.message {
+            Ok(t) => t.to_enum(),
+            Err(e) => AlohomoraTypeEnum::Value(Box::new(e)),
+        };
+        let mut hmap = HashMap::new();
+        hmap.insert(
+            "request_id".to_string(),
+            AlohomoraTypeEnum::Value(Box::new(self.request_id)),
+        );
+        hmap.insert("message".to_string(), message);
+        AlohomoraTypeEnum::Struct(hmap)
+    }
+
+    fn from_enum(e: AlohomoraTypeEnum) -> Result<Self::Out, ()> {
+        match e {
+            AlohomoraTypeEnum::Struct(mut hmap) => {
+                let req_id = hmap.remove("request_id").unwrap().coerce::<u64>().unwrap();
+                let message = hmap.remove("message").unwrap();
+                let message = match message {
+                    AlohomoraTypeEnum::Value(e) => {
+                        let tmp = match AlohomoraTypeEnum::Value(e).coerce::<ServerError>() {
+                            Ok(t) => Err(t),
+                            _ => panic!("Expected a server error, got an enum value from another type"),
+                        };
+                        tmp
+                    }
+                    AlohomoraTypeEnum::Struct(e) => {
+                        Ok(T::from_enum(AlohomoraTypeEnum::Struct(e)).unwrap())
+                    }
+                    AlohomoraTypeEnum::Vec(e) => {
+                        Ok(T::from_enum(AlohomoraTypeEnum::Vec(e)).unwrap())
+                    }
+                    AlohomoraTypeEnum::BBox(e) => {
+                        Ok(T::from_enum(AlohomoraTypeEnum::BBox(e)).unwrap())
+                    }
+                };
+                let res = Response {
+                    request_id: req_id,
+                    message,
+                };
+                Ok(res)
+            }
+            _ => Err(()),
+        }
+    }
+}
 /// An error indicating the server aborted the request early, e.g., due to request throttling.
 #[derive(thiserror::Error, Clone, Debug, PartialEq, Eq, Hash)]
 #[error("{kind:?}: {detail}")]

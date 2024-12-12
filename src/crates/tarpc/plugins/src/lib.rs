@@ -26,6 +26,7 @@ use syn::{
     Visibility,
 };
 
+// use alohomora::AlohomoraType;
 /// Accumulates multiple errors into a result.
 /// Only use this for recoverable errors, i.e. non-parse errors. Fatal errors should early exit to
 /// avoid further complications.
@@ -461,7 +462,7 @@ impl<'a> ServiceGenerator<'a> {
         quote! {
             /// The request sent over the wire from the client to the server.
             #[allow(missing_docs)]
-            #[derive(Debug)]
+            #[derive(Debug, Clone)]
             #derive_serialize
             #vis enum #request_ident {
                 #( #camel_case_idents{ #( #args ),* } ),*
@@ -479,13 +480,40 @@ impl<'a> ServiceGenerator<'a> {
             ..
         } = self;
 
+        let out_response_ident = format_ident!("{}Out", response_ident);
+
+        let first_service = camel_case_idents.iter().next().unwrap();
+        let first_return = return_types.iter().next().unwrap();
+
         quote! {
             /// The response sent over the wire from the server to the client.
             #[allow(missing_docs)]
-            #[derive(Debug)]
+            #[derive(Debug, Clone)]
             #derive_serialize
             #vis enum #response_ident {
                 #( #camel_case_idents(#return_types) ),*
+            }
+
+
+            #[derive(Serialize)]
+            pub enum #out_response_ident {
+                #( #camel_case_idents(<#return_types as AlohomoraType>::Out)),*
+            }
+
+            impl AlohomoraType for #response_ident {
+                type Out = #out_response_ident;
+
+                fn to_enum(self) -> alohomora::AlohomoraTypeEnum {
+                    match self {
+                        # (Self::#camel_case_idents(e) => e.to_enum() ),*
+                    }
+                }
+
+                fn from_enum(e: alohomora::AlohomoraTypeEnum) -> Result<Self::Out, ()> {
+                    Ok(#out_response_ident::#first_service(#first_return::from_enum(e)?))
+                }
+
+
             }
         }
     }
