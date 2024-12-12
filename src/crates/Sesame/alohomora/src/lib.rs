@@ -26,6 +26,7 @@ pub mod fold;
 pub mod pcr;
 pub mod pure;
 pub mod unbox;
+pub mod tarpc_serde;
 
 // Export this directly under alohomora::
 mod r#type;
