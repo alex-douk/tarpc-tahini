@@ -1,3 +1,6 @@
 [submodule "tarpc"]
 	path = tarpc
 	url = https://github.com/google/tarpc.git
+[submodule "Sesame"]
+	path = Sesame
+	url = https://github.com/brownsys/Sesame.git
