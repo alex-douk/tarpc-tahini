@@ -56,16 +56,17 @@ impl Inference for InferenceServer {
             locked_model.run(unboxed_prompt.as_str(), prompt.nb_token as usize)
         });
 
-        let serializer: Pin<&mut Json< UserPrompt, UserPrompt>>  = std::pin::pin!(Json::default());
-        let bytes = serializer.serialize(&prompt).expect("Tried to serialize when impossible");
-
-        println!("In application, we serialized {:?}", String::from_utf8(bytes.to_vec()));
+        // //TODO: Douk:  Hide the serializer behind the transport instantation!!
+        // let serializer: Pin<&mut Json< UserPrompt, UserPrompt>>  = std::pin::pin!(Json::default());
+        // let bytes = serializer.serialize(&prompt).expect("Tried to serialize when impossible");
+        //
+        // println!("In application, we serialized {:?}", String::from_utf8(bytes.to_vec()));
 
 
         let mut writer = Vec::with_capacity(128);
         let mut ser = serde_json::ser::Serializer::new(&mut writer);
         let _ =prompt.serialize(&mut ser);
-        println!("{:?}", String::from_utf8(writer));
+        println!("Using naive serializer, we get : {:?}", String::from_utf8(writer));
         let boxed_response = prompt.prompt.into_ppr(inf);
 
         let rsp = LLMResponse {
