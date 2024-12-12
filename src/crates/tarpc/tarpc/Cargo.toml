@@ -60,6 +60,7 @@ tracing = { version = "0.1", default-features = false, features = [
 ] }
 tracing-opentelemetry = { version = "0.18.0", default-features = false }
 opentelemetry = { version = "0.18.0", default-features = false }
+alohomora = { version = "0.1.0", path = "../../Sesame/alohomora", default-features = false, features = ["alohomora_derive"] }
 
 
 [dev-dependencies]
@@ -117,3 +118,6 @@ required-features = ["serde-transport"]
 [[test]]
 name = "dataservice"
 required-features = ["serde-transport", "tcp"]
+
+[patch.crates-io]
+funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }
