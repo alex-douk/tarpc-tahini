@@ -92,15 +92,17 @@ impl TextGeneration {
             }
             if let Some(t) = self.tokenizer.next_token(next_token)? {
                 llm_output.push_str(&t);
-                println!("{t}");
+                print!("{t}");
                 std::io::stdout().flush()?;
             }
         }
         let dt = start_gen.elapsed();
         if let Some(rest) = self.tokenizer.decode_rest().map_err(E::msg)? {
             llm_output.push_str(&rest);
-            println!("{rest}");
+            print!("{rest}");
         }
+        print!("\n");
+
         std::io::stdout().flush()?;
         println!(
             "\n{generated_tokens} tokens generated ({:.2} token/s)",
