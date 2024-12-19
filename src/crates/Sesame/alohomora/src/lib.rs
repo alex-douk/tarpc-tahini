@@ -1,6 +1,7 @@
 #![feature(box_into_inner)]
 #![feature(specialization)]
 #![feature(core_intrinsics)]
+#![allow(async_fn_in_trait)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -26,7 +27,7 @@ pub mod fold;
 pub mod pcr;
 pub mod pure;
 pub mod unbox;
-pub mod tarpc_serde;
+mod json_serde;
 
 // Export this directly under alohomora::
 mod r#type;
