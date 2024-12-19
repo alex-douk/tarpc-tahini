@@ -23,7 +23,7 @@ travis-ci = { repository = "google/tarpc" }
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = { version = "1.0", features = ["full"] }
-alohomora = { version = "0.1.0", path = "../../Sesame/alohomora", default-features = false, features = ["alohomora_derive"] }
+# alohomora = { version = "0.1.0", path = "../../Sesame/alohomora", default-features = false, features = ["alohomora_derive"] }
 
 [lib]
 proc-macro = true
@@ -34,5 +34,5 @@ futures = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 tarpc = { path = "../tarpc", features = ["serde1"] }
 
-[patch.crates-io]
-funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }
+# [patch.crates-io]
+# funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }

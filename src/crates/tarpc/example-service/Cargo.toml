@@ -27,7 +27,7 @@ tracing = { version = "0.1" }
 tracing-opentelemetry = "0.22.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 opentelemetry_sdk = "0.21.1"
-alohomora = { version = "0.1.0", path = "../../Sesame/alohomora", default-features = false, features = ["alohomora_derive"] }
+# alohomora = { version = "0.1.0", path = "../../Sesame/alohomora", default-features = false, features = ["alohomora_derive"] }
 
 [lib]
 name = "service"
@@ -41,5 +41,5 @@ path = "src/server.rs"
 name = "client"
 path = "src/client.rs"
 
-[patch.crates-io]
-funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }
+# [patch.crates-io]
+# funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }

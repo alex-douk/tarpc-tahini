@@ -495,26 +495,26 @@ impl<'a> ServiceGenerator<'a> {
             }
 
 
-            #[derive(Serialize)]
-            pub enum #out_response_ident {
-                #( #camel_case_idents(<#return_types as AlohomoraType>::Out)),*
-            }
-
-            impl AlohomoraType for #response_ident {
-                type Out = #out_response_ident;
-
-                fn to_enum(self) -> alohomora::AlohomoraTypeEnum {
-                    match self {
-                        # (Self::#camel_case_idents(e) => e.to_enum() ),*
-                    }
-                }
-
-                fn from_enum(e: alohomora::AlohomoraTypeEnum) -> Result<Self::Out, ()> {
-                    Ok(#out_response_ident::#first_service(#first_return::from_enum(e)?))
-                }
-
-
-            }
+            // #[derive(Serialize)]
+            // pub enum #out_response_ident {
+            //     #( #camel_case_idents(<#return_types as AlohomoraType>::Out)),*
+            // }
+            //
+            // impl AlohomoraType for #response_ident {
+            //     type Out = #out_response_ident;
+            //
+            //     fn to_enum(self) -> alohomora::AlohomoraTypeEnum {
+            //         match self {
+            //             # (Self::#camel_case_idents(e) => e.to_enum() ),*
+            //         }
+            //     }
+            //
+            //     fn from_enum(e: alohomora::AlohomoraTypeEnum) -> Result<Self::Out, ()> {
+            //         Ok(#out_response_ident::#first_service(#first_return::from_enum(e)?))
+            //     }
+            //
+            //
+            // }
         }
     }
 
