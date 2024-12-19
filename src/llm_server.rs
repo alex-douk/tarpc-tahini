@@ -3,7 +3,6 @@
 use std::{pin::Pin, sync::Arc};
 //Internal LLM functionings
 use crate::model_backend::{create_pipeline, TextGeneration};
-use crate::types::{LLMResponse, UserPrompt};
 use anyhow::Error as E;
 
 use serde::Serialize;
@@ -14,6 +13,8 @@ use futures::{Future, StreamExt, future::{self, Ready}};
 use tarpc::serde_transport::new as new_transport;
 use tarpc::server::Channel;
 use tarpc::tokio_serde::Serializer;
+use tarpc::tokio_serde::formats::Bincode;
+use types::{LLMResponseClean, UserPrompt, LLMResponse, UserPromptClean};
 
 use crate::rpc::Inference;
 use std::net::{IpAddr, Ipv4Addr};
@@ -21,7 +22,7 @@ use tarpc::server::BaseChannel;
 use tokio::net::TcpListener;
 use tokio_util::codec::LengthDelimitedCodec;
 // use crate::rpc::serde::json::Json as BBoxJson;
-use alohomora::{bbox::BBox, policy::NoPolicy, tarpc_serde::json::Json};
+use alohomora::{bbox::BBox, policy::NoPolicy};
 use alohomora::pure::PrivacyPureRegion;
 
 mod model_backend;
@@ -49,8 +50,24 @@ impl Inference for InferenceServer {
     // type InferenceFut = Ready<LLMResponse>;
     // type InferenceFut = Ready<String>;
 
-    async fn inference(self, _context: tarpc::context::Context, prompt: UserPrompt) -> LLMResponse {
+    async fn inference(self, _context: tarpc::context::Context, prompt: UserPromptClean) -> LLMResponseClean {
         println!("Got a request");
+
+
+        //TODO: Douk: Replace this function with an inference that only works on unboxed types:
+        // inference(self, _context : Context, prompt : UserPromptOut) -> LLMResponseOut {
+        // let prompt = BBox::new(prompt, NoPolicy::default())
+        // //Do the protected stuff
+        // rsp.discard_box()
+        // }
+        //
+        // Next step is to extract the code that puts stuff into and out of PCons out of the
+        // function (into tarpc code?)
+        //
+        // Next step after that is to extract PCon code outside of tarpc, and into Sesame. 
+        // Sesame can have tarpc has a dependency, and we export an API that does the shenanigans
+        // for us :) 
+        //
         let mut locked_model = self.model.lock_owned().await;
         let inf = PrivacyPureRegion::new( move |unboxed_prompt: String| { 
             locked_model.run(unboxed_prompt.as_str(), prompt.nb_token as usize)
@@ -61,7 +78,13 @@ impl Inference for InferenceServer {
         // let bytes = serializer.serialize(&prompt).expect("Tried to serialize when impossible");
         //
         // println!("In application, we serialized {:?}", String::from_utf8(bytes.to_vec()));
+        //
 
+        let prompt = UserPrompt {
+            user: prompt.user,
+            prompt : BBox::new(prompt.prompt, NoPolicy::default()),
+            nb_token: prompt.nb_token
+        };
 
         let mut writer = Vec::with_capacity(128);
         let mut ser = serde_json::ser::Serializer::new(&mut writer);
@@ -77,7 +100,10 @@ impl Inference for InferenceServer {
                 }
             }))
         };
-        rsp
+        
+        LLMResponseClean{
+            infered_tokens : rsp.infered_tokens.discard_box()
+        }
     }
 }
 
@@ -103,7 +129,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Accepted a connection");
                 let framed = codec_builder.new_framed(stream);
                 
-                let transport = new_transport(framed, Json::default());
+                let transport = new_transport(framed, Bincode::default());
 
                 // let transport = new_transport(framed, Bincode::default());
                 let fut = BaseChannel::with_defaults(transport)

@@ -10,8 +10,24 @@ pub struct UserPrompt {
     pub nb_token: u32
 }
 
+// impl AnyPolicy for LLMPolicy
+//
+// impl NetworkPolicy for LLMPolicy
+
 #[derive(Deserialize, Serialize, AlohomoraType, Debug, Clone)]
 #[alohomora_out_type(to_derive=[Serialize, Debug, Deserialize])]
 pub struct LLMResponse {
     pub infered_tokens: BBox<String, NoPolicy>
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct UserPromptClean {
+    pub user : String,
+    pub prompt: String,
+    pub nb_token: u32
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct LLMResponseClean {
+    pub infered_tokens: String
 }

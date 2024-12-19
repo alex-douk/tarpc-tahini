@@ -25,7 +25,7 @@ use std::{pin::Pin,
     sync::Arc,
     iter::FromFn};
 
-use crate::types::{LLMResponse, LLMResponseOut, UserPrompt};
+use crate::types::*;
 // use tokio::sync::Mutex; // Tokio's async Mutex
 
 #[macro_use]
@@ -36,16 +36,17 @@ pub mod tcp;
 
 #[service]
 pub trait Inference {
-    async fn inference(prompt: UserPrompt) -> LLMResponse;
+    // #[tahini_unchecked]
+    async fn inference(prompt: UserPromptClean) -> LLMResponseClean;
 }
 
 
-#[derive(Deserialize, Serialize)]
-pub enum InferenceRequestOut {
-    Inference {
-        prompt: <UserPrompt as AlohomoraType>::Out
-    }
-}
+// #[derive(Deserialize, Serialize)]
+// pub enum InferenceRequestOut {
+//     Inference {
+//         prompt: <UserPrompt as AlohomoraType>::Out
+//     }
+// }
 
 // #[derive(Serialize)]
 // pub enum InferenceResponseOut {
@@ -53,38 +54,16 @@ pub enum InferenceRequestOut {
 // }
 
 
-impl AlohomoraType for InferenceRequest {
-    type Out = InferenceRequestOut;
-
-    fn to_enum(self) -> alohomora::AlohomoraTypeEnum {
-        match self {
-            InferenceRequest::Inference { prompt } => prompt.to_enum()
-        }
-    }
-
-    fn from_enum(e: alohomora::AlohomoraTypeEnum) -> Result<Self::Out, ()> {
-        Ok(InferenceRequestOut::Inference { prompt: UserPrompt::from_enum(e)?})
-    }
-}
-
-// impl AlohomoraType for InferenceResponse {
-//     type Out = InferenceResponseOut;
+// impl AlohomoraType for InferenceRequest {
+//     type Out = InferenceRequestOut;
 //
 //     fn to_enum(self) -> alohomora::AlohomoraTypeEnum {
 //         match self {
-//             InferenceResponse::Inference(rsp) => rsp.to_enum()
+//             InferenceRequest::Inference { prompt } => prompt.to_enum()
 //         }
 //     }
 //
 //     fn from_enum(e: alohomora::AlohomoraTypeEnum) -> Result<Self::Out, ()> {
-//         Ok(InferenceResponseOut::Inference(LLMResponse::from_enum(e)?))
+//         Ok(InferenceRequestOut::Inference { prompt: UserPrompt::from_enum(e)?})
 //     }
 // }
-
-// #[tarpc::service]
-// pub trait Database {
-//     async fn store_prompt(prompt: String) -> bool;
-// }
-//
-// #[derive(Clone, Copy)]
-// pub struct DatabaseServer {}
