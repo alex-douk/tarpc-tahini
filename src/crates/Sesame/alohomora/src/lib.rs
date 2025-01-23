@@ -27,10 +27,11 @@ pub mod pcr;
 pub mod pure;
 pub mod unbox;
 pub mod tarpc_serde;
+pub mod tarpc;
 
 // Export this directly under alohomora::
 mod r#type;
 pub use r#type::*;
 
 #[cfg(feature = "alohomora_derive")]
-pub use alohomora_derive::{AlohomoraType};
+pub use alohomora_derive::{AlohomoraType, tahini};
