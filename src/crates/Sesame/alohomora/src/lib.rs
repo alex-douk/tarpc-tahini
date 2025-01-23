@@ -34,4 +34,4 @@ mod r#type;
 pub use r#type::*;
 
 #[cfg(feature = "alohomora_derive")]
-pub use alohomora_derive::{AlohomoraType, tahini};
+pub use alohomora_derive::{AlohomoraType};
