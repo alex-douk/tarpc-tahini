@@ -22,6 +22,9 @@ pub(crate) async fn wait_upon(fut: impl Future<Output =  ()> + Send + 'static) {
 #[derive(Clone, Copy)]
 pub struct SimpleServer;
 
+///Tahini-protected trait: Goal is to have
+///trait definition at application level and have it annotated by 
+///#[tahini]
 impl SimpleService for SimpleServer{
 
     async fn increment(self, context:tarpc::context::Context, x:PCon<i32, NoPolicy>) -> PCon<i32, NoPolicy> {
@@ -34,7 +37,7 @@ impl SimpleService for SimpleServer{
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
-    //Application defined server. Can be used to store application state
+    //Setup for connection
     let listener = TcpListener::bind(&(SERVER_ADDRESS, 5003)).await.unwrap();
 
     loop{
@@ -53,8 +56,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         //Execute the RPC and send response to the client
         //
         let server = BaseChannel::with_defaults(transport);
-
-        tokio::spawn(server.execute(SimpleServer.serve())
+        //Everything until here is standard code, nothing new!!
+        //
+        tokio::spawn(server.execute(
+            //Every change is behind the following line
+                SimpleServer.serve()
+                )
             .for_each(wait_upon));
-        }
+    }
 }

@@ -18,17 +18,22 @@ static SENSITIVE_VALUE: i32 = 987654321;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let stream = TcpStream::connect((SERVER_ADDRESS, 5003)).await?;
 
-    //Build transport channel: Code is similar to the server side
+    //Standard tarpc code
+    let stream = TcpStream::connect((SERVER_ADDRESS, 5003)).await?;
     let codec_builder = LengthDelimitedCodec::builder();
     let transport = new_transport(codec_builder.new_framed(stream), Bincode::default());
+
+
+    //Modified client instance
     let response = TahiniSimpleClient::new(Default::default(), transport)
+        //The spawn call comes from the `NewClient` type which is unchanged
         .spawn()
-        // .increment(tarpc::context::current(), SENSITIVE_VALUE)
+        //This is a changed call: We redefine the service's Client API to be Tahini-protected.
+        //Note the API comes from the `TahiniSimpleClient` object, which is the only client
+        //available
         .increment(tarpc::context::current(), BBox::new(SENSITIVE_VALUE, NoPolicy::default()))
         .await?;
     println!("Increment is a PCon, but NoPolicy allows us to see inside : {}", response.discard_box());
-    // println!("Increment is {}", response);
     Ok(())
 }
