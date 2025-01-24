@@ -6,8 +6,9 @@ pub use inner::{
 };
 
 ///Private mod with controlled public re-exports to have manageable leak. Ugly but it works.
-///The entire Tahini "generated" code lives inside this mod, due to three reasons explained throughout the
-///code
+///The entire Tahini "generated" code lives inside this mod
+///To fall back to a fully exposed unprotected service, just remove the following line
+///and reexports above.
 mod inner {
 
     use crate::{
