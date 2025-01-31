@@ -28,6 +28,7 @@ pub mod pure;
 pub mod unbox;
 pub mod tarpc_serde;
 pub mod tarpc;
+pub mod tahini_pure;
 
 // Export this directly under alohomora::
 mod r#type;

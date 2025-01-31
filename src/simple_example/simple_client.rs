@@ -5,7 +5,12 @@ use tokio::net::TcpStream;
 use tarpc::tokio_serde::formats::Bincode;
 use alohomora::{bbox::BBox};
 use alohomora::pcr::{PrivacyCriticalRegion, Signature};
-use alohomora::tarpc::{ExamplePolicy, TahiniSimpleClient};
+use crate::service::ExamplePolicy;
+use alohomora::policy::AnyPolicy;
+use crate::service::TahiniSimpleClient;
+
+
+mod service;
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
@@ -18,6 +23,8 @@ async fn main() -> anyhow::Result<()> {
     let codec_builder = LengthDelimitedCodec::builder();
     let transport = new_transport(codec_builder.new_framed(stream), Bincode::default());
 
+    let policy = AnyPolicy::new(ExamplePolicy { field: 255});
+
     // Modified client instance
     let response = TahiniSimpleClient::new(Default::default(), transport)
         // The spawn call comes from the `NewClient` type which is unchanged
@@ -25,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
         // This is a changed call: We redefine the service's Client API to be Tahini-protected.
         // Note the API comes from the `TahiniSimpleClient` object, which is the only client
         // available
-        .increment(tarpc::context::current(), BBox::new(SENSITIVE_VALUE, ExamplePolicy { field: 10 }))
+        .increment(tarpc::context::current(), BBox::new(SENSITIVE_VALUE, policy))
         .await?;
 
     response.into_pcr(

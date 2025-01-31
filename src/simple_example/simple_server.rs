@@ -10,11 +10,13 @@ use tarpc::server::{BaseChannel, Channel};
 use tarpc::tokio_serde::formats::Bincode;
 
 use alohomora::pure::PrivacyPureRegion;
-use alohomora::{bbox::BBox as PCon, policy::NoPolicy};
-use alohomora::tarpc::{ExamplePolicy, SimpleService};
+use alohomora::{bbox::BBox as PCon, policy::NoPolicy, policy::AnyPolicy};
+// use alohomora::tarpc::{ExamplePolicy, SimpleService};
+use crate::service::{ExamplePolicy, SimpleService};
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
+mod service;
 
 pub(crate) async fn wait_upon(fut: impl Future<Output =  ()> + Send + 'static) {
     fut.await
@@ -27,7 +29,7 @@ pub struct SimpleServer;
 ///trait definition at application level and have it annotated by 
 ///#[tahini]
 impl SimpleService for SimpleServer {
-    async fn increment(self, _context: tarpc::context::Context, x:PCon<i32, ExamplePolicy>) -> PCon<i32, ExamplePolicy> {
+    async fn increment(self, _context: tarpc::context::Context, x:PCon<i32, AnyPolicy>) -> PCon<i32, AnyPolicy> {
         println!("Within the application level, we are operating on PCons.");
         x.into_ppr(PrivacyPureRegion::new(|val| val + 1))
     }
@@ -35,8 +37,7 @@ impl SimpleService for SimpleServer {
 
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Setup for connection
+async fn main() -> Result<(), Box<dyn std::error::Error>> { // Setup for connection
     let listener = TcpListener::bind(&(SERVER_ADDRESS, 5003)).await.unwrap();
 
     loop {
@@ -57,6 +58,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Execute the RPC and send response to the client
         let server = BaseChannel::with_defaults(transport);
         // Everything until here is standard code, nothing new!!
+        //
+        let resp = SimpleServer.serve();
 
         tokio::spawn(
             server.execute(
