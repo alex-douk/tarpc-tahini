@@ -156,6 +156,15 @@ impl<T: 'static, P: Policy + Clone + 'static> BBox<T, P> {
         BBox::new(Box::new(self.fb.mov()), AnyPolicy::new(self.p))
     }
 }
+impl BBox<Box<dyn Any>, AnyPolicy> {
+    pub fn specialize<T: 'static, P: Policy + Clone + 'static>(self) -> Result<BBox<T, P>, String> {
+        let (t, p) = self.consume();
+        Ok(BBox::new(
+            *t.downcast().map_err(|_| String::from("wrong type"))?, 
+            p.specialize()?
+        ))
+    }
+}
 
 // Specializing OptionPolicy.
 impl<T, P: Policy + Clone + 'static> BBox<T, OptionPolicy<P>> {

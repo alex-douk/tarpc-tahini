@@ -1,6 +1,7 @@
 #![feature(box_into_inner)]
 #![feature(specialization)]
 #![feature(core_intrinsics)]
+#![feature(type_changing_struct_update)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -26,7 +27,6 @@ pub mod fold;
 pub mod pcr;
 pub mod pure;
 pub mod unbox;
-pub mod tarpc_serde;
 pub mod tarpc;
 pub mod tahini_pure;
 
