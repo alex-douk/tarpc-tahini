@@ -29,14 +29,14 @@ serde_json = "1.0.132"
 tokio-stream = "0.1.16"
 educe = { version = "0.6.0", features = ["full"] }
 alohomora = { version = "0.1.0", path = "./src/crates/Sesame/alohomora", default-features = false, features = ["alohomora_derive"] }
-
-[[bin]]
-path = "./src/llm_server.rs"
-name = "llm_server"
-
-[[bin]]
-path = "./src/client.rs"
-name = "llm_client"
+#
+# [[bin]]
+# path = "./src/llm_server.rs"
+# name = "llm_server"
+#
+# [[bin]]
+# path = "./src/client.rs"
+# name = "llm_client"
 
 [[bin]]
 path = "./src/simple_example/simple_server.rs"
