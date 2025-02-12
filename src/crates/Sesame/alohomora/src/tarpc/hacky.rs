@@ -1,11 +1,28 @@
-use tarpc::Response;
-use serde_json::{Number, Value, Map};
+use crate::policy::{Policy, AnyPolicy};
 
-use crate::tarpc::traits::{serialize_tahini_type, TahiniType};
+#[derive(Default, serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct ExamplePolicy {
+    pub state: i32,
+}
 
-pub fn transform_message<Resp: TahiniType>(item: Response<Resp>) -> Response<<Resp as TahiniType>::Intermediate> {
-    let mut map = Map::new();
-    map.insert(String::from("request_id"), Value::Number(Number::from(item.request_id)));
-    map.insert(String::from("message"), serde_json::to_value(item.message.map(serialize_tahini_type)).unwrap());
-    serde_json::from_value(Value::Object(map)).unwrap()
+impl Policy for ExamplePolicy {
+    fn name(&self) -> String {
+        "".to_string()
+    }
+    fn check(
+        &self,
+        context: &crate::context::UnprotectedContext,
+        reason: crate::policy::Reason<'_>,
+    ) -> bool {
+        true
+    }
+    fn join(&self, other: AnyPolicy) -> Result<AnyPolicy, ()> {
+        todo!()
+    }
+    fn join_logic(&self, other: Self) -> Result<Self, ()>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
 }

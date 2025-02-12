@@ -15,13 +15,13 @@ use tarpc::client::RequestDispatch as TarpcRequestDispatch;
 use tarpc::client::{Config, RpcError};
 use tarpc::{context, ChannelError, ClientMessage, Response, Transport};
 
-pub struct TahiniChannel<Req: TahiniType, Resp: TahiniType> {
+pub struct TahiniChannel2<Req: TahiniType, Resp: TahiniType> {
     channel: TarpcChannel<TahiniSafeWrapper<Req>, Resp>,
     // phantom_req: PhantomData<Req>,
     // phantom_resp: PhantomData<Resp>,
 }
 
-impl<'a, Req: TahiniType, Resp: TahiniType> TahiniChannel<Req, Resp> {
+impl<'a, Req: TahiniType, Resp: TahiniType> TahiniChannel2<Req, Resp> {
     pub(crate) fn new(channel: TarpcChannel<TahiniSafeWrapper<Req>, Resp>) -> Self {
         Self {
             channel,
@@ -30,7 +30,7 @@ impl<'a, Req: TahiniType, Resp: TahiniType> TahiniChannel<Req, Resp> {
 }
 
 // mimics `tarpc::client::Stub`.
-pub trait TahiniStub {
+pub trait TahiniStub2 {
     type Req: TahiniType;
 
     /// The service response type.
@@ -45,7 +45,7 @@ pub trait TahiniStub {
     ) -> Result<Self::Resp, RpcError>;
 }
 
-impl<Req: TahiniType + Clone, Resp: TahiniType> TahiniStub for TahiniChannel<Req, Resp> {
+impl<Req: TahiniType + Clone, Resp: TahiniType> TahiniStub2 for TahiniChannel2<Req, Resp> {
     type Req = Req;
     type Resp = Resp;
 
@@ -150,7 +150,7 @@ where
 pub fn new<Req, Resp, Trans>(
     config: Config,
     transport: Trans,
-) -> TahiniNewClient<TahiniChannel<Req, Resp>, TahiniRequestDispatch<Req, Resp, Trans>>
+) -> TahiniNewClient<TahiniChannel2<Req, Resp>, TahiniRequestDispatch<Req, Resp, Trans>>
 where
     Req: TahiniType,
     Resp: TahiniType,
@@ -161,7 +161,7 @@ where
 {
     let client = tarpc::client::new(config, transport);
     TahiniNewClient {
-        client: TahiniChannel::new(client.client),
+        client: TahiniChannel2::new(client.client),
         dispatch: TahiniRequestDispatch::new(client.dispatch),
     }
 }
