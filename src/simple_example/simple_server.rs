@@ -1,17 +1,20 @@
 use std::net::{Ipv4Addr, IpAddr};
 
-use alohomora::tarpc::server::{TahiniBaseChannel, TahiniChannel};
+// use alohomora::tarpc::server::{TahiniBaseChannel, TahiniChannel};
+use alohomora::tarpc::server::{TahiniChannel, TahiniBaseChannel};
+// use alohomora::tarpc::server2::{TahiniBaseChannel2, TahiniChannel2};
 use futures::future::{Future};
 use futures::StreamExt;
 use tokio::net::TcpListener;
 use tokio_util::codec::LengthDelimitedCodec;
 use tarpc::serde_transport::new as new_transport;
 use tarpc::tokio_serde::formats::Bincode;
+use tarpc::tokio_serde::formats::Json;
 
 mod service;
 mod policy;
 
-use crate::service::{SimpleService2, SimpleService2Server};
+use crate::service::{SimpleService, SimpleServiceServer};
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
@@ -32,10 +35,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> { // Setup for connect
         let framed = codec_builder.new_framed(stream);
 
         // Bincode represents the codec for ser/de over the wire.
-        let transport = new_transport(framed, Bincode::default());
+        // let transport = new_transport(framed, Bincode::default());
+        let transport = new_transport(framed, Json::default());
+        let server = TahiniBaseChannel::with_defaults(transport);
+        tokio::spawn(server.execute(SimpleServiceServer.serve()).for_each(wait_upon));
 
         // Execute the RPC and send response to the client
-        let server = TahiniBaseChannel::with_defaults(transport);
-        tokio::spawn(server.execute(SimpleService2Server.serve()).for_each(wait_upon));
+        // let server = TahiniBaseChannel::with_defaults(transport);
+        // tokio::spawn(server.execute(SimpleService2Server.serve()).for_each(wait_upon));
     }
 }

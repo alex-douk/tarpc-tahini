@@ -6,6 +6,7 @@ use alohomora::policy::{AnyPolicy, Policy, Reason};
 pub struct ExamplePolicy {
     pub field: u32,
 }
+
 impl Policy for ExamplePolicy {
     fn name(&self) -> String {
         String::from("ExamplePolicy")
