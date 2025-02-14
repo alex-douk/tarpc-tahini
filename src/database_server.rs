@@ -83,15 +83,15 @@ impl Database for DatabaseServer {
         ctxt: tarpc::context::Context,
         user: String,
         uuid: DBUUID,
-    ) -> DatabaseRecord {
+    ) -> Option<DatabaseRecord> {
         let mut locked_map = self.map.lock_owned().await;
         let mut opt_user_hist = locked_map.get_mut(&user.clone());
         let pol = uuid.policy().clone();
         match opt_user_hist {
-            None => DatabaseRecord{
-                user: user.clone(),
-                full_prompt : PCon::new("No such user in the DB".to_string(), pol),
-            },
+            None => {println!("User not found"); None}, //DatabaseRecord{
+            //     user: user.clone(),
+            //     full_prompt : PCon::new("No such user in the DB".to_string(), pol),
+            // },
             Some(mut table) => {
                 let unbox = PrivacyCriticalRegion::new(
                     |x: u32, _p, _c| x,
@@ -110,14 +110,21 @@ impl Database for DatabaseServer {
                 );
                 let unboxed_uuid = uuid.into_pcr(unbox, ());
 
-                DatabaseRecord{
-                    user,
-                    full_prompt: match table.get(&unboxed_uuid) {
-                        //TODO(douk): Fix so that we can actually return None
-                        None => PCon::new("No conversation at that UUID".to_string(), pol),
-                        Some(s) => s.clone()
-                    }
+                match table.get(&unboxed_uuid) {
+                    None => {println!("UUID not found for that user"); None},
+                    Some(s) => Some(DatabaseRecord {
+                        user,
+                        full_prompt: s.clone()
+                    })
                 }
+                // DatabaseRecord{
+                //     user,
+                //     full_prompt: match table.get(&unboxed_uuid) {
+                //         //TODO(douk): Fix so that we can actually return None
+                //         None => PCon::new("No conversation at that UUID".to_string(), pol),
+                //         Some(s) => s.clone()
+                //     }
+                // }
             }
         }
     }

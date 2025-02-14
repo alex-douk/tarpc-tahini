@@ -22,7 +22,7 @@ use tarpc::{
 pub trait Database: Sized + Clone {
     async fn store_prompt(self, ctxt: Context, prompt: DatabaseSubmit) -> DBUUID;
 
-    async fn retrieve_prompt(self, ctxt: Context, user: String, uuid: DBUUID) -> DatabaseRecord;
+    async fn retrieve_prompt(self, ctxt: Context, user: String, uuid: DBUUID) -> Option<DatabaseRecord>;
 
     //This is autogened
     fn serve(self) -> DatabaseServe<Self> {
@@ -43,7 +43,7 @@ pub enum DatabaseRequest {
 #[derive(Deserialize, Clone)]
 pub enum DatabaseResponse {
     Store(DBUUID),
-    Retrieve(DatabaseRecord),
+    Retrieve(Option<DatabaseRecord>),
 }
 impl TahiniType for DatabaseRequest {
     fn to_enum(&self) -> TahiniEnum {
@@ -137,7 +137,7 @@ impl DatabaseClient {
         ctx: ::tarpc::context::Context,
         username: String,
         uuid: DBUUID,
-    ) -> Result<DatabaseRecord, RpcError> {
+    ) -> Result<Option<DatabaseRecord>, RpcError> {
         let request = DatabaseRequest::Retrieve(username, uuid);
         match self
             .0
