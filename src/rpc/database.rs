@@ -1,4 +1,4 @@
-use crate::types::database_types::{DatabaseForm, DBUUID};
+use crate::types::database_types::{DatabaseSubmit, DatabaseRecord, DBUUID};
 
 use alohomora::{
     tarpc::{
@@ -20,9 +20,9 @@ use tarpc::{
 //Developer written code
 //#[tahini_service]
 pub trait Database: Sized + Clone {
-    async fn store_prompt(self, ctxt: Context, prompt: DatabaseForm) -> DBUUID;
+    async fn store_prompt(self, ctxt: Context, prompt: DatabaseSubmit) -> DBUUID;
 
-    async fn retrieve_prompt(self, ctxt: Context, user: String, uuid: DBUUID) -> DatabaseForm;
+    async fn retrieve_prompt(self, ctxt: Context, user: String, uuid: DBUUID) -> DatabaseRecord;
 
     //This is autogened
     fn serve(self) -> DatabaseServe<Self> {
@@ -35,7 +35,7 @@ pub trait Database: Sized + Clone {
 //#[derive(TahiniType)]
 #[derive(Deserialize, Clone)]
 pub enum DatabaseRequest {
-    Store(DatabaseForm),
+    Store(DatabaseSubmit),
     Retrieve(String, DBUUID),
 }
 
@@ -43,7 +43,7 @@ pub enum DatabaseRequest {
 #[derive(Deserialize, Clone)]
 pub enum DatabaseResponse {
     Store(DBUUID),
-    Retrieve(DatabaseForm),
+    Retrieve(DatabaseRecord),
 }
 impl TahiniType for DatabaseRequest {
     fn to_enum(&self) -> TahiniEnum {
@@ -119,7 +119,7 @@ impl DatabaseClient {
     pub async fn store_prompt(
         &self,
         ctx: ::tarpc::context::Context,
-        prompt: DatabaseForm,
+        prompt: DatabaseSubmit,
     ) -> Result<DBUUID, RpcError> {
         let request = DatabaseRequest::Store(prompt);
         match self
@@ -137,7 +137,7 @@ impl DatabaseClient {
         ctx: ::tarpc::context::Context,
         username: String,
         uuid: DBUUID,
-    ) -> Result<DatabaseForm, RpcError> {
+    ) -> Result<DatabaseRecord, RpcError> {
         let request = DatabaseRequest::Retrieve(username, uuid);
         match self
             .0

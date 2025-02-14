@@ -5,7 +5,7 @@ use alohomora::bbox::BBox;
 use tarpc::serde::{Deserialize, Serialize};
 
 use crate::policies::PromptPolicy;
-use super::database_types::{DatabaseForm, DBUUID};
+use super::database_types::{DatabaseSubmit, DBUUID};
 
 //#[derive(TahiniType)]
 #[derive(Deserialize, Clone, Debug)]

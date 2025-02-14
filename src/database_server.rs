@@ -31,7 +31,7 @@ mod types;
 
 use crate::rpc::database::Database;
 //Database import
-use crate::types::database_types::{DatabaseForm, DBUUID};
+use crate::types::database_types::{DatabaseSubmit, DatabaseRecord, DBUUID};
 
 pub type UserMap<T> = HashMap<String, T>;
 pub type ChatHistory = HashMap<u32, PCon<String, PromptPolicy>>;
@@ -54,7 +54,7 @@ impl DatabaseServer {
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 impl Database for DatabaseServer {
-    async fn store_prompt(self, ctxt: tarpc::context::Context, form: DatabaseForm) -> DBUUID {
+    async fn store_prompt(self, ctxt: tarpc::context::Context, form: DatabaseSubmit) -> DBUUID {
         let mut user_table = self.map.lock_owned().await;
         let username = form.user;
         let mut dbuuid = self.uuid.lock().await;
@@ -83,12 +83,12 @@ impl Database for DatabaseServer {
         ctxt: tarpc::context::Context,
         user: String,
         uuid: DBUUID,
-    ) -> DatabaseForm {
+    ) -> DatabaseRecord {
         let mut locked_map = self.map.lock_owned().await;
         let mut opt_user_hist = locked_map.get_mut(&user.clone());
         let pol = uuid.policy().clone();
         match opt_user_hist {
-            None => DatabaseForm{
+            None => DatabaseRecord{
                 user: user.clone(),
                 full_prompt : PCon::new("No such user in the DB".to_string(), pol),
             },
@@ -110,7 +110,7 @@ impl Database for DatabaseServer {
                 );
                 let unboxed_uuid = uuid.into_pcr(unbox, ());
 
-                DatabaseForm{
+                DatabaseRecord{
                     user,
                     full_prompt: match table.get(&unboxed_uuid) {
                         //TODO(douk): Fix so that we can actually return None

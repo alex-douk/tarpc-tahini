@@ -8,14 +8,16 @@ use crate::policies::PromptPolicy;
 
 //#[derive(TahiniType)]
 #[derive(Deserialize, Clone)]
-pub struct DatabaseForm {
+pub struct DatabaseSubmit {
     pub user: String,
     pub full_prompt: BBox<String, PromptPolicy>
 }
 
 pub type DBUUID = BBox<u32, PromptPolicy>;
 
-impl TahiniType for DatabaseForm {
+pub type DatabaseRecord = DatabaseSubmit;
+
+impl TahiniType for DatabaseSubmit {
     fn to_enum(&self) -> TahiniEnum {
         let mut map = HashMap::new();
         map.insert("user", TahiniEnum::Value(Box::new(self.user.clone())));
