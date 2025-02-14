@@ -1,0 +1,28 @@
+use std::collections::HashMap;
+
+use alohomora::tarpc::{TahiniEnum, TahiniType};
+use alohomora::bbox::BBox;
+use tarpc::serde::{Deserialize, Serialize};
+
+use crate::policies::PromptPolicy;
+
+//#[derive(TahiniType)]
+#[derive(Deserialize, Clone)]
+pub struct DatabaseForm {
+    pub user: String,
+    pub full_prompt: BBox<String, PromptPolicy>
+}
+
+pub type DBUUID = BBox<u32, PromptPolicy>;
+
+impl TahiniType for DatabaseForm {
+    fn to_enum(&self) -> TahiniEnum {
+        let mut map = HashMap::new();
+        map.insert("user", TahiniEnum::Value(Box::new(self.user.clone())));
+        map.insert("full_prompt", <BBox<_, _> as TahiniType>::to_enum(&self.full_prompt));
+        TahiniEnum::Struct("DatabaseForm", map)
+    }
+}
+
+
+//No need for impl TahiniType for DBUUID
