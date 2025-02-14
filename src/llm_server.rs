@@ -1,33 +1,48 @@
 #![feature(auto_traits, negative_impls, min_specialization)]
-//Stream abstractions
-use std::{pin::Pin, sync::Arc};
-//Internal LLM functionings
+//Clone model just clones the reference
+use std::sync::Arc;
+use rpc::database::DatabaseClient;
+//Required for model locking across async tasks
+use tokio::sync::Mutex;
+
+
+
+//Channel transport Code
+use tokio_util::codec::LengthDelimitedCodec;
+use tarpc::serde_transport::new as new_transport;
+use tarpc::tokio_serde::formats::Json;
+use alohomora::{pure::execute_pure, tarpc::server::{TahiniBaseChannel, TahiniChannel}};
+use futures::{Future, StreamExt, future::{self, Ready}};
+
+//Network code
+use std::net::{IpAddr, Ipv4Addr};
+use tokio::net::TcpListener;
+use tokio::net::TcpStream;
+
+//Sesame basics
+use alohomora::bbox::BBox as PCon;
+use alohomora::pure::PrivacyPureRegion;
+use alohomora::fold::fold;
+
+//Application-wide mods
+mod rpc;
+mod types;
+mod policies;
+use crate::policies::PromptPolicy;
+
+//Inference import
+    //Internal LLM functionings
+mod model_backend;
+mod token_output_stream;
 use crate::model_backend::{create_pipeline, TextGeneration};
-use crate::types::{LLMResponse, UserPrompt};
 use anyhow::Error as E;
 
-use serde::Serialize;
-//Required for model locking across async tasks
-use tokio::sync::Mutex; // Tokio's async Mutex
-                        //
-use futures::{Future, StreamExt, future::{self, Ready}};
-use tarpc::serde_transport::new as new_transport;
-use tarpc::server::Channel;
-use tarpc::tokio_serde::Serializer;
+    //Tarpc + types
+use crate::types::inference_types::{LLMResponse, UserPrompt};
+use crate::rpc::inference::Inference;
 
-use crate::rpc::Inference;
-use std::net::{IpAddr, Ipv4Addr};
-use tarpc::server::BaseChannel;
-use tokio::net::TcpListener;
-use tokio_util::codec::LengthDelimitedCodec;
-// use crate::rpc::serde::json::Json as BBoxJson;
-use alohomora::{bbox::BBox, policy::NoPolicy, tarpc_serde::json::Json};
-use alohomora::pure::PrivacyPureRegion;
-
-mod model_backend;
-mod rpc;
-mod token_output_stream;
-mod types;
+//Database import
+use crate::types::database_types::{DatabaseForm, DBUUID};
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
@@ -44,38 +59,85 @@ impl InferenceServer {
     }
 }
 
+async fn store_to_database(user: String, prompt: PCon<String, PromptPolicy>) -> DBUUID {
+
+
+        let codec_builder = LengthDelimitedCodec::builder();
+        let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
+        let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+
+        let payload = DatabaseForm {
+            user,
+            full_prompt: prompt
+        };
+
+        let response = DatabaseClient::new(Default::default(), transport)
+            .spawn()
+            .store_prompt(tarpc::context::current(), payload)
+            .await.unwrap();
+        response
+}
+
 impl Inference for InferenceServer {
-    // type InferenceFut = Pin<dyn Future<Output = String>>;
-    // type InferenceFut = Ready<LLMResponse>;
-    // type InferenceFut = Ready<String>;
 
     async fn inference(self, _context: tarpc::context::Context, prompt: UserPrompt) -> LLMResponse {
         println!("Got a request");
+
+        let prompt_copy = prompt.prompt.clone();
+
         let mut locked_model = self.model.lock_owned().await;
+
+        //TODO(douk): Fix so that data-dependent control flow is decided by policy
+        //i.e. have a way to say "this is a result: if data is error, don't send"
+        //Could prove interesting to maintain this behavior actually, in case of content moderation
+        //policies. You might wish to store violations
         let inf = PrivacyPureRegion::new( move |unboxed_prompt: String| { 
-            locked_model.run(unboxed_prompt.as_str(), prompt.nb_token as usize)
+            let res = locked_model.run(unboxed_prompt.as_str(), prompt.nb_token as usize);
+            match res {
+                Ok(r) => r,
+                Err(e) => e.to_string()
+            }
         });
 
-        // //TODO: Douk:  Hide the serializer behind the transport instantation!!
-        // let serializer: Pin<&mut Json< UserPrompt, UserPrompt>>  = std::pin::pin!(Json::default());
-        // let bytes = serializer.serialize(&prompt).expect("Tried to serialize when impossible");
-        //
-        // println!("In application, we serialized {:?}", String::from_utf8(bytes.to_vec()));
-
-
-        let mut writer = Vec::with_capacity(128);
-        let mut ser = serde_json::ser::Serializer::new(&mut writer);
-        let _ =prompt.serialize(&mut ser);
-        println!("Using naive serializer, we get : {:?}", String::from_utf8(writer));
+        // Keeping it here in case i ever need it later
+        // let mut writer = Vec::with_capacity(128);
+        // let mut ser = serde_json::ser::Serializer::new(&mut writer);
+        // let _ =prompt.serialize(&mut ser);
+        // println!("Using naive serializer, we get : {:?}", String::from_utf8(writer));
         let boxed_response = prompt.prompt.into_ppr(inf);
 
+        let pair = fold((prompt_copy, boxed_response.clone())).unwrap();
+        let pair = pair.specialize_policy::<PromptPolicy>().unwrap();
+
+
+
+        // let send_and_ret = PrivacyPureRegion::new(move |pair: (String, Result<String, E>)| {
+        //     let prompt = pair.0;
+        //     let infered = pair.1;
+        //     match infered {
+        //         Err(e) => 
+        //
+        //
+        //     }
+        //
+        //
+        //
+        // })
+        //
+        //TODO(douk): Find a way to elegantly merge two PCons into one.
+        //Also references the data-dependent control flow
+        let uuid = store_to_database(prompt.user, boxed_response.clone()).await;
+
         let rsp = LLMResponse {
-            infered_tokens : boxed_response.into_ppr(PrivacyPureRegion::new(|unboxed_rsp: Result<String, E>| {
-                match unboxed_rsp {
-                    Ok(tokens) => tokens,
-                    Err(e) => e.to_string()
-                }
-            }))
+            infered_tokens : boxed_response
+            //     .into_ppr(PrivacyPureRegion::new(|unboxed_rsp: Result<String, E>| {
+            //     match unboxed_rsp {
+            //         Ok(tokens) => tokens,
+            //         Err(e) => e.to_string()
+            //     }
+            // })),
+            ,
+        db_uuid : uuid
         };
         rsp
     }
@@ -106,7 +168,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let transport = new_transport(framed, Json::default());
 
                 // let transport = new_transport(framed, Bincode::default());
-                let fut = BaseChannel::with_defaults(transport)
+                let fut = TahiniBaseChannel::with_defaults(transport)
                 // .execute(server.serve());
                 .execute(server.clone().serve())
                 .for_each(wait_upon);
