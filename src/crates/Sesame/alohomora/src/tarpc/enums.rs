@@ -2,28 +2,27 @@ use std::any::Any;
 use std::collections::HashMap;
 
 use serde::de::DeserializeOwned;
-use serde::ser::{Serialize, SerializeSeq, SerializeStruct, SerializeStructVariant};
+use serde::ser::{Serialize, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTupleVariant};
 use tokio_util::bytes::{Buf, BytesMut};
 
 use crate::bbox::BBox;
 // use crate::policy::AnyPolicy;
 // use crate::policy::{Policy, RefTahiniPolicy};
+use crate::policy::TahiniPolicy;
 use crate::pure::PrivacyPureRegion;
-use crate::tarpc::traits::TahiniType;
 use crate::tarpc::hacky::ExamplePolicy;
-use crate::policy::{TahiniPolicy};
+use crate::tarpc::traits::TahiniType;
 
 pub enum TahiniEnum {
     Value(Box<dyn erased_serde::Serialize>),
-    //TODO(douk): Generalize policies. Not in the mood right now
     BBox(BBox<Box<dyn erased_serde::Serialize>, TahiniPolicy>),
     Vec(Vec<TahiniEnum>),
     Struct(&'static str, HashMap<&'static str, TahiniEnum>),
     // Add potential enum variant if tarpc decides to generate a struct based on parameters?
     // EnumStruct(String, u32, String, Box<dyn TahiniType2>),
     EnumNewType(&'static str, u32, &'static str, Box<TahiniEnum>),
+    EnumTuple(&'static str, u32, &'static str, Vec<TahiniEnum>),
 }
-
 
 //Only messy part here is to have two different wrappers operating the same function
 //The real reason is that it gives explicit typing to our structs.
@@ -50,7 +49,7 @@ impl<'a> serde::Serialize for PrivEnumWrapper<'a> {
                 bbox_ser.serialize_field("fb", &(*t))?;
                 bbox_ser.serialize_field("p", &p)?;
                 bbox_ser.end()
-            },
+            }
             TahiniEnum::Vec(vec) => {
                 let mut vec_ser = serializer.serialize_seq(Some(vec.len()))?;
                 for e in vec.iter() {
@@ -65,10 +64,8 @@ impl<'a> serde::Serialize for PrivEnumWrapper<'a> {
                 }
                 struct_ser.end()
             }
-            _ => panic!("")
-
+            _ => panic!(""),
         }
-
     }
 }
 
@@ -103,8 +100,24 @@ impl<T: TahiniType + Sized> serde::Serialize for TahiniSafeWrapper<T> {
                 }
                 struct_ser.end()
             }
-            TahiniEnum::EnumNewType(enum_name, variant_nb, variant_name, val) => {
-                serializer.serialize_newtype_variant(enum_name, variant_nb , variant_name, &PrivEnumWrapper(&(*val)))
+            TahiniEnum::EnumNewType(enum_name, variant_nb, variant_name, val) => serializer
+                .serialize_newtype_variant(
+                    enum_name,
+                    variant_nb,
+                    variant_name,
+                    &PrivEnumWrapper(&(*val)),
+                ),
+            TahiniEnum::EnumTuple(enum_name, variant_nb, variant_name, val) => {
+                let mut tuple_ser = serializer.serialize_tuple_variant(
+                    enum_name,
+                    variant_nb,
+                    variant_name,
+                    val.len(),
+                )?;
+                for e in val.iter() {
+                    tuple_ser.serialize_field(&PrivEnumWrapper(e))?;
+                }
+                tuple_ser.end()
             }
         }
     }
