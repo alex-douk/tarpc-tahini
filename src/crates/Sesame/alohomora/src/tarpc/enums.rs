@@ -1,6 +1,8 @@
 use std::any::Any;
 use std::collections::HashMap;
 
+use chrono::naive::serde::ts_microseconds::serialize;
+use erased_serde::serialize_trait_object;
 use serde::de::DeserializeOwned;
 use serde::ser::{Serialize, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTupleVariant};
 use tokio_util::bytes::{Buf, BytesMut};
@@ -20,9 +22,14 @@ pub enum TahiniEnum {
     Struct(&'static str, HashMap<&'static str, TahiniEnum>),
     // Add potential enum variant if tarpc decides to generate a struct based on parameters?
     // EnumStruct(String, u32, String, Box<dyn TahiniType2>),
+    EnumStruct(&'static str, u32, &'static str, HashMap<&'static str, TahiniEnum>),
     EnumNewType(&'static str, u32, &'static str, Box<TahiniEnum>),
     EnumTuple(&'static str, u32, &'static str, Vec<TahiniEnum>),
+    Option(Option<Box<TahiniEnum>>),
+    //Results are not serializable
+    // Result(Result<TahiniEnum, Box<dyn std::error::Error>>)
 }
+
 
 //Only messy part here is to have two different wrappers operating the same function
 //The real reason is that it gives explicit typing to our structs.
@@ -64,6 +71,15 @@ impl<'a> serde::Serialize for PrivEnumWrapper<'a> {
                 }
                 struct_ser.end()
             }
+            TahiniEnum::Option(opt) => {
+                match opt {
+                    None => None::<PrivEnumWrapper>.serialize(serializer),
+                    Some(val) => Some(PrivEnumWrapper(&val)).serialize(serializer)
+                }                // opt.map(move |val| PrivEnumWrapper(&val)).serialize(serializer)
+            }
+            // TahiniEnum::Result(res) => {
+            //     res.map(|val| PrivEnumWrapper(&val)).serialize(serializer)
+            // }
             _ => panic!(""),
         }
     }
@@ -100,6 +116,13 @@ impl<T: TahiniType + Sized> serde::Serialize for TahiniSafeWrapper<T> {
                 }
                 struct_ser.end()
             }
+            TahiniEnum::EnumStruct(enum_name,  variant_nb, variant_name, map) => {
+                let mut struct_ser = serializer.serialize_struct_variant(enum_name, variant_nb, variant_name, map.len())?;
+                for (k, v) in map.iter() {
+                    struct_ser.serialize_field(k, &PrivEnumWrapper(v))?;
+                }
+                struct_ser.end()
+            }
             TahiniEnum::EnumNewType(enum_name, variant_nb, variant_name, val) => serializer
                 .serialize_newtype_variant(
                     enum_name,
@@ -119,6 +142,15 @@ impl<T: TahiniType + Sized> serde::Serialize for TahiniSafeWrapper<T> {
                 }
                 tuple_ser.end()
             }
+            TahiniEnum::Option(opt) => {
+                match opt {
+                    None => None::<PrivEnumWrapper>.serialize(serializer),
+                    Some(val) => Some(PrivEnumWrapper(&val)).serialize(serializer)
+                }                // opt.map(move |val| PrivEnumWrapper(&val)).serialize(serializer)
+            }
+            // TahiniEnum::Result(res) => {
+            //     res.map(|val| PrivEnumWrapper(&val))
+            // }
         }
     }
 }

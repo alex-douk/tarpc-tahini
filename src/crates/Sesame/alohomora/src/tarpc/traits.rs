@@ -21,12 +21,14 @@ impl<T: Serialize + DeserializeOwned + Clone + Send + 'static, P: Policy + Clone
     }
 }
 
-// impl<T: TahiniType + Serialize + Clone + 'static> TahiniType for Option<T> {
-//     fn to_enum(&self) -> TahiniEnum {
-//         match &self {
-//             None => TahiniEnum::Value(Box::new(None::<T>)),
-//             //Works for primitive types but not for BBox's
-//             Some(x) => TahiniEnum::Value(Box::new(Some(x.clone())))
-//         }
-//     }
-// }
+impl<T: TahiniType + Clone + 'static> TahiniType for Option<T> {
+    fn to_enum(&self) -> TahiniEnum {
+        TahiniEnum::Option(self.as_ref().map(|x| Box::new(x.to_enum())))
+        // match &self {
+        //
+        //     None => TahiniEnum::Option(None::<T>),
+        //     //Works for primitive types but not for BBox's
+        //     Some(x) => TahiniEnum::Value(Box::new(Some(x.clone())))
+        // }
+    }
+}
