@@ -20,3 +20,13 @@ impl<T: Serialize + DeserializeOwned + Clone + Send + 'static, P: Policy + Clone
         TahiniEnum::BBox(BBox::new(anybox, TahiniPolicy::new(p.clone())))
     }
 }
+
+// impl<T: TahiniType + Serialize + Clone + 'static> TahiniType for Option<T> {
+//     fn to_enum(&self) -> TahiniEnum {
+//         match &self {
+//             None => TahiniEnum::Value(Box::new(None::<T>)),
+//             //Works for primitive types but not for BBox's
+//             Some(x) => TahiniEnum::Value(Box::new(Some(x.clone())))
+//         }
+//     }
+// }
