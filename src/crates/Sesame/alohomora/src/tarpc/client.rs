@@ -73,11 +73,7 @@ pin_project! {
 
 impl<Req: TahiniType, Resp: TahiniType, Trans> TahiniRequestDispatch<Req, Resp, Trans>
 where
-    Trans: TahiniTransport<Req, Resp>,
-    // Trans: Transport<
-    //     ClientMessage<SerWrapper<Req>>,
-    //     Response<Resp>,
-    // >,
+    Trans: tarpc::Transport<ClientMessage<TahiniSafeWrapper<Req>>, Response<Resp>>
 {
     pub(crate) fn new(dispatch: TarpcRequestDispatch<TahiniSafeWrapper<Req>, Resp, Trans>) -> Self {
         Self { dispatch }
@@ -130,10 +126,7 @@ pub fn new<Req, Resp, Trans>(
 where
     Req: TahiniType,
     Resp: TahiniType,
-    Trans: TahiniTransport<Req, Resp>, // Transport<
-                                       //     ClientMessage<SerWrapper<Req>>,
-                                       //     Response<Resp>,
-                                       // >
+    Trans: Transport<ClientMessage<TahiniSafeWrapper<Req>>,Response<Resp>>
 {
     let client = tarpc::client::new(config, transport);
     TahiniNewClient {
