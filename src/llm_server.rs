@@ -111,12 +111,17 @@ impl Inference for InferenceServer {
                 db_uuid: PCon::new(None::<u32>, pol.clone()),
             },
             Ok(boxed_infered) => {
+                let pair = fold((prompt_copy, boxed_infered.clone())).expect("Failed to combine PCons");
+                let full_conv = pair.into_ppr(PrivacyPureRegion::new(|pair: (String, String)| {
+                    format!("[USER]: {}\n[ASSISTANT]{}", pair.0, pair.1)
+                })).specialize_policy::<PromptPolicy>().expect("Failed to specialize policy");
+
                 //TODO(douk): Combine into a single conversation
-                let uuid = store_to_database(prompt.user, boxed_infered.clone()).await;
+                let uuid = store_to_database(prompt.user, full_conv).await;
                 let some_uuid = uuid.into_ppr(PrivacyPureRegion::new(|x| Some(x)));
                 LLMResponse {
                     infered_tokens: boxed_infered.into_ppr(PrivacyPureRegion::new(|x| Ok(x))),
-                    db_uuid: some_uuid
+                    db_uuid: some_uuid,
                 }
             }
         }
