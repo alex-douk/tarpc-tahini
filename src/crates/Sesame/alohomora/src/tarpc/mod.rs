@@ -5,5 +5,5 @@ pub mod traits;
 pub mod transport;
 mod hacky;
 
-pub use enums::TahiniEnum;
+pub use enums::{TahiniEnum, TahiniVariantsEnum};
 pub use traits::TahiniType;

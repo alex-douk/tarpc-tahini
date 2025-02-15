@@ -1,9 +1,7 @@
 use std::net::{Ipv4Addr, IpAddr};
 
-// use alohomora::tarpc::server::{TahiniBaseChannel, TahiniChannel};
 use alohomora::tarpc::server::{TahiniChannel, TahiniBaseChannel};
-// use alohomora::tarpc::server2::{TahiniBaseChannel2, TahiniChannel2};
-use futures::future::{Future};
+use futures::future::Future;
 use futures::StreamExt;
 use tokio::net::TcpListener;
 use tokio_util::codec::LengthDelimitedCodec;

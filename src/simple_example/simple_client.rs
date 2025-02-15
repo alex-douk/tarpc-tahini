@@ -32,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
     let x : MyType = MyType {
         a: 10,
         b: BBox::new(SENSITIVE_VALUE.to_string(), ExamplePolicy{ field : 255}),
-        c: InnerStruct { a: 100}
+        c: Ok(4)
     };
 
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());

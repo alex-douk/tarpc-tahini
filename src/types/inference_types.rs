@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use alohomora::tarpc::{TahiniEnum, TahiniType};
 use alohomora::bbox::BBox;
+use alohomora::AlohomoraType;
 use tarpc::serde::{Deserialize, Serialize};
 
 use crate::policies::PromptPolicy;
@@ -26,20 +27,20 @@ pub struct LLMResponse {
 
 //Auto-generated
 impl TahiniType for UserPrompt {
-    fn to_enum(&self) -> TahiniEnum {
+    fn to_tahini_enum(&self) -> TahiniEnum {
         let mut map = HashMap::new();
-        map.insert("user", TahiniEnum::Value(Box::new(self.user.clone())));
-        map.insert("prompt", <BBox<_, _> as TahiniType>::to_enum(&self.prompt));
-        map.insert("nb_token", TahiniEnum::Value(Box::new(self.nb_token)));
+        map.insert("user", self.user.to_tahini_enum());
+        map.insert("prompt", self.prompt.to_tahini_enum());
+        map.insert("nb_token", self.nb_token.to_tahini_enum());
         TahiniEnum::Struct("UserPrompt", map)
     }
 }
 
 impl TahiniType for LLMResponse {
-    fn to_enum(&self) -> TahiniEnum {
+    fn to_tahini_enum(&self) -> TahiniEnum {
         let mut map = HashMap::new();
-        map.insert("infered_tokens", self.infered_tokens.to_enum());
-        map.insert("db_uuid", self.db_uuid.to_enum()); 
+        map.insert("infered_tokens", self.infered_tokens.to_tahini_enum());
+        map.insert("db_uuid", self.db_uuid.to_tahini_enum());
         TahiniEnum::Struct("LLMResponse", map) 
     }
 }

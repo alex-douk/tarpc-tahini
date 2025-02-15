@@ -11,8 +11,8 @@ use alohomora::tarpc::client::{
 use alohomora::tarpc::server::TahiniServe;
 // use alohomora::tarpc::traits::{NamedTahiniType, TahiniType, TahiniType2};
 use alohomora::tarpc::{
-    traits::TahiniType,
-    enums::TahiniEnum
+    enums::{TahiniEnum, TahiniVariantsEnum},
+    traits::{TahiniError, TahiniType},
 };
 use alohomora::AlohomoraType;
 use serde::{Deserialize, Serialize};
@@ -24,31 +24,44 @@ use tarpc::{ClientMessage, Response, Transport};
 use crate::policy::ExamplePolicy;
 //
 #[derive(Debug, Deserialize, Clone)]
-pub struct InnerStruct{
-    pub a: u16
+pub struct InnerStruct {
+    pub a: u16,
 }
 
 impl TahiniType for InnerStruct {
-    fn to_enum(&self) -> TahiniEnum {
+    fn to_tahini_enum(&self) -> TahiniEnum {
         let mut map = HashMap::new();
         map.insert("a", TahiniEnum::Value(Box::new(self.a)));
         TahiniEnum::Struct("InnerStruct", map)
     }
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct MyError {}
+
+impl std::fmt::Display for MyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Generic error")
+    }
+}
+
+impl std::error::Error for MyError {}
+
+impl TahiniError for MyError {}
+
 #[derive(Debug, Deserialize, Clone)]
-pub struct MyType{
+pub struct MyType {
     pub a: i32,
     pub b: PCon<String, ExamplePolicy>,
-    pub c: InnerStruct
+    pub c: Result<i32, MyError>,
 }
 
 impl TahiniType for MyType {
-    fn to_enum(&self) -> TahiniEnum {
+    fn to_tahini_enum(&self) -> TahiniEnum {
         let mut map = HashMap::new();
-        map.insert("a", TahiniEnum::Value(Box::new(self.a)));
-        map.insert("b", <PCon<_, _> as TahiniType>::to_enum(&self.b));
-        map.insert("c", self.c.to_enum());
+        map.insert("a", self.a.to_tahini_enum());
+        map.insert("b", self.b.to_tahini_enum());
+        map.insert("c", self.c.to_tahini_enum());
         TahiniEnum::Struct("MyType", map)
     }
 }
@@ -68,11 +81,7 @@ pub trait SimpleService: Sized + Clone {
         SimpleServiceServe(self)
     }
 
-    async fn test_types(
-        self,
-        ctxt: tarpc::context::Context,
-        x: MyType
-    ) -> MyType;
+    async fn test_types(self, ctxt: tarpc::context::Context, x: MyType) -> MyType;
 }
 
 #[derive(Clone)]
@@ -86,11 +95,7 @@ impl SimpleService for SimpleServiceServer {
         println!("Within the application level, we are operating on PCons.");
         x.into_ppr(PrivacyPureRegion::new(|val| format!("{}", val + 1)))
     }
-    async fn test_types(
-            self,
-            ctxt: tarpc::context::Context,
-            mut x: MyType
-        ) -> MyType {
+    async fn test_types(self, ctxt: tarpc::context::Context, mut x: MyType) -> MyType {
         x.a = 0;
         x
     }
@@ -101,14 +106,14 @@ impl SimpleService for SimpleServiceServer {
 #[derive(Deserialize, Clone)]
 pub enum SimpleServiceRequest {
     Increment(PCon<i32, ExamplePolicy>),
-    TestType(MyType)
+    TestType(MyType),
 }
 
 // #[derive(TahiniType)]
 #[derive(Deserialize)]
 pub enum SimpleServiceResponse {
     Increment(PCon<String, ExamplePolicy>),
-    TestType(MyType)
+    TestType(MyType),
 }
 
 // Server-side generated code.
@@ -139,27 +144,40 @@ impl<S: SimpleService + Clone> TahiniServe for SimpleServiceServe<S> {
 }
 
 impl TahiniType for SimpleServiceRequest {
-    fn to_enum(&self) -> TahiniEnum {
+    fn to_tahini_enum(&self) -> TahiniEnum {
         match self {
-            SimpleServiceRequest::Increment(bbox) => TahiniEnum::EnumNewType(
-                "SimpleServiceRequest", 0, "Increment", Box::new(<PCon<_, _> as TahiniType>::to_enum(bbox))
-                ),
-            SimpleServiceRequest::TestType(test) => TahiniEnum::EnumNewType(
-                "SimpleServiceRequest", 1, "TestType", Box::new(test.to_enum())
-                ),
+            SimpleServiceRequest::Increment(bbox) => TahiniEnum::Enum(
+                "SimpleServiceRequest",
+                0,
+                "Increment",
+                TahiniVariantsEnum::NewType(Box::new(<PCon<_, _> as TahiniType>::to_tahini_enum(bbox))),
+            ),
+            SimpleServiceRequest::TestType(test) => TahiniEnum::Enum(
+                "SimpleServiceRequest",
+                1,
+                "TestType",
+                TahiniVariantsEnum::NewType(Box::new(test.to_tahini_enum())),
+            ),
             // SimpleService2Request::Increment(bbox) => bbox.to_enum(),
         }
     }
 }
 
 impl TahiniType for SimpleServiceResponse {
-    fn to_enum(&self) -> TahiniEnum {
+    fn to_tahini_enum(&self) -> TahiniEnum {
         match self {
-            SimpleServiceResponse::Increment(bbox) => TahiniEnum::EnumNewType(
-                "SimpleServiceResponse", 0, "Increment", Box::new(<PCon<_, _> as TahiniType>::to_enum(bbox))),
-            SimpleServiceResponse::TestType(test) => TahiniEnum::EnumNewType(
-                "SimpleServiceResponse", 1, "TestType", Box::new(test.to_enum())
-                ),
+            SimpleServiceResponse::Increment(bbox) => TahiniEnum::Enum(
+                "SimpleServiceResponse",
+                0,
+                "Increment",
+                TahiniVariantsEnum::NewType(Box::new(<PCon<_, _> as TahiniType>::to_tahini_enum(bbox))),
+            ),
+            SimpleServiceResponse::TestType(test) => TahiniEnum::Enum(
+                "SimpleServiceResponse",
+                1,
+                "TestType",
+                TahiniVariantsEnum::NewType(Box::new(test.to_tahini_enum())),
+            ),
         }
     }
 }
@@ -169,15 +187,11 @@ impl SimpleServiceClient {
     pub fn new<T>(
         config: Config,
         transport: T,
-    ) -> TahiniNewClient<
-        Self,
-        TahiniRequestDispatch<SimpleServiceRequest, SimpleServiceResponse, T>,
-    >
+    ) -> TahiniNewClient<Self, TahiniRequestDispatch<SimpleServiceRequest, SimpleServiceResponse, T>>
     where
         T: TahiniTransport<
             SimpleServiceRequest,
             SimpleServiceResponse, // ClientMessage<SimpleService2RequestIntermediate>,
-                                    // Response<SimpleService2ResponseIntermediate>,
         >,
     {
         let new_client = alohomora::tarpc::client::new(config, transport);
@@ -192,20 +206,16 @@ impl SimpleServiceClient {
         x: PCon<i32, ExamplePolicy>,
     ) -> Result<PCon<String, ExamplePolicy>, RpcError> {
         let request = SimpleServiceRequest::Increment(x);
-        match self
-            .0
-            .call(ctx, "SimpleService.increment", request)
-            .await?
-        {
+        match self.0.call(ctx, "SimpleService.increment", request).await? {
             SimpleServiceResponse::Increment(msg) => Ok(msg),
-            _ => panic!("Wrong result for call increment")
+            _ => panic!("Wrong result for call increment"),
         }
     }
 
     pub async fn test_types(
         &self,
         ctx: ::tarpc::context::Context,
-        x: MyType
+        x: MyType,
     ) -> Result<MyType, RpcError> {
         let request = SimpleServiceRequest::TestType(x);
         match self
@@ -214,7 +224,7 @@ impl SimpleServiceClient {
             .await?
         {
             SimpleServiceResponse::TestType(msg) => Ok(msg),
-            _ => panic!("Wrong result for call test")
+            _ => panic!("Wrong result for call test"),
         }
     }
 }

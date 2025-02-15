@@ -1,4 +1,4 @@
-use crate::types::database_types::{DatabaseSubmit, DatabaseRecord, DBUUID};
+use crate::types::database_types::{DatabaseRecord, DatabaseSubmit, DBUUID};
 
 use alohomora::{
     tarpc::{
@@ -6,7 +6,7 @@ use alohomora::{
             TahiniChannel, TahiniNewClient, TahiniRequestDispatch, TahiniStub, TahiniTransport,
         },
         server::TahiniServe,
-        TahiniEnum, TahiniType,
+        TahiniEnum, TahiniType, TahiniVariantsEnum,
     },
     AlohomoraType,
 };
@@ -22,7 +22,12 @@ use tarpc::{
 pub trait Database: Sized + Clone {
     async fn store_prompt(self, ctxt: Context, prompt: DatabaseSubmit) -> DBUUID;
 
-    async fn retrieve_prompt(self, ctxt: Context, user: String, uuid: DBUUID) -> Option<DatabaseRecord>;
+    async fn retrieve_prompt(
+        self,
+        ctxt: Context,
+        user: String,
+        uuid: DBUUID,
+    ) -> Option<DatabaseRecord>;
 
     //This is autogened
     fn serve(self) -> DatabaseServe<Self> {
@@ -46,30 +51,44 @@ pub enum DatabaseResponse {
     Retrieve(Option<DatabaseRecord>),
 }
 impl TahiniType for DatabaseRequest {
-    fn to_enum(&self) -> TahiniEnum {
+    fn to_tahini_enum(&self) -> TahiniEnum {
         match self {
-            DatabaseRequest::Store(prompt) => {
-                TahiniEnum::EnumNewType("DatabaseRequest", 0, "Store", Box::new(prompt.to_enum()))
-            }
+            DatabaseRequest::Store(prompt) => TahiniEnum::Enum(
+                "DatabaseRequest",
+                0,
+                "Store",
+                TahiniVariantsEnum::NewType(Box::new(prompt.to_tahini_enum())),
+            ),
             DatabaseRequest::Retrieve(username, uuid) => {
                 let mut vec = Vec::new();
                 vec.push(TahiniEnum::Value(Box::new(username.clone())));
-                vec.push(uuid.to_enum());
-                TahiniEnum::EnumTuple("DatabaseRequest", 0, "Retrieve", vec)
+                vec.push(uuid.to_tahini_enum());
+                TahiniEnum::Enum(
+                    "DatabaseRequest",
+                    0,
+                    "Retrieve",
+                    TahiniVariantsEnum::Tuple(vec),
+                )
             }
         }
     }
 }
 //
 impl TahiniType for DatabaseResponse {
-    fn to_enum(&self) -> TahiniEnum {
+    fn to_tahini_enum(&self) -> TahiniEnum {
         match self {
-            DatabaseResponse::Store(resp) => {
-                TahiniEnum::EnumNewType("DatabaseResponse", 0, "Store", Box::new(resp.to_enum()))
-            }
-            DatabaseResponse::Retrieve(form) => {
-                TahiniEnum::EnumNewType("DatabaseResponse", 0, "Retrieve", Box::new(form.to_enum()))
-            }
+            DatabaseResponse::Store(resp) => TahiniEnum::Enum(
+                "DatabaseResponse",
+                0,
+                "Store",
+                TahiniVariantsEnum::NewType(Box::new(resp.to_tahini_enum())),
+            ),
+            DatabaseResponse::Retrieve(form) => TahiniEnum::Enum(
+                "DatabaseResponse",
+                0,
+                "Retrieve",
+                TahiniVariantsEnum::NewType(Box::new(form.to_tahini_enum())),
+            ),
         }
     }
 }

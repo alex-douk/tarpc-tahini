@@ -117,6 +117,7 @@ async fn main() -> anyhow::Result<()> {
 
     parse_conv(true_prompt);
     
+    println!("Sending wrong data");
     let no_conv = get_entry("malte".to_string(), response.db_uuid).await.expect("Database retrieval failed");
 
     parse_conv(no_conv);

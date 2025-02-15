@@ -18,10 +18,10 @@ pub type DBUUID = BBox<u32, PromptPolicy>;
 pub type DatabaseRecord = DatabaseSubmit;
 
 impl TahiniType for DatabaseSubmit {
-    fn to_enum(&self) -> TahiniEnum {
+    fn to_tahini_enum(&self) -> TahiniEnum {
         let mut map = HashMap::new();
         map.insert("user", TahiniEnum::Value(Box::new(self.user.clone())));
-        map.insert("full_prompt", <BBox<_, _> as TahiniType>::to_enum(&self.full_prompt));
+        map.insert("full_prompt", <BBox<_, _> as TahiniType>::to_tahini_enum(&self.full_prompt));
         TahiniEnum::Struct("DatabaseForm", map)
     }
 }

@@ -2,7 +2,7 @@ use crate::types::inference_types::{LLMResponse, UserPrompt};
 use alohomora::tarpc::{
     client::{TahiniChannel, TahiniNewClient, TahiniRequestDispatch, TahiniTransport, TahiniStub},
     server::TahiniServe,
-    TahiniEnum, TahiniType,
+    TahiniEnum, TahiniVariantsEnum, TahiniType,
 };
 use tarpc::{client::{Config, RpcError}, context::Context};
 use tarpc::serde::Deserialize;
@@ -33,26 +33,26 @@ pub enum InferenceResponse {
 }
 
 impl TahiniType for InferenceRequest {
-    fn to_enum(&self) -> TahiniEnum {
+    fn to_tahini_enum(&self) -> TahiniEnum {
         match self {
-            InferenceRequest::Inference(prompt) => TahiniEnum::EnumNewType(
+            InferenceRequest::Inference(prompt) => TahiniEnum::Enum(
                 "InferenceRequest",
                 0,
                 "Inference",
-                Box::new(prompt.to_enum()),
+                TahiniVariantsEnum::NewType(Box::new(prompt.to_tahini_enum())),
             ),
         }
     }
 }
 
 impl TahiniType for InferenceResponse {
-    fn to_enum(&self) -> TahiniEnum {
+    fn to_tahini_enum(&self) -> TahiniEnum {
         match self {
-            InferenceResponse::Inference(resp) => TahiniEnum::EnumNewType(
+            InferenceResponse::Inference(resp) => TahiniEnum::Enum(
                 "InferenceResponse",
                 0,
                 "Inference",
-                Box::new(resp.to_enum()),
+                TahiniVariantsEnum::NewType(Box::new(resp.to_tahini_enum())),
             ),
         }
     }
