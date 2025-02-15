@@ -1,11 +1,15 @@
 use crate::types::inference_types::{LLMResponse, UserPrompt};
 use alohomora::tarpc::{
-    client::{TahiniChannel, TahiniNewClient, TahiniRequestDispatch, TahiniTransport, TahiniStub},
+    client::{TahiniChannel, TahiniNewClient, TahiniRequestDispatch, TahiniStub},
     server::TahiniServe,
-    TahiniEnum, TahiniVariantsEnum, TahiniType,
+    TahiniEnum, TahiniType, TahiniVariantsEnum,
+    enums::TahiniSafeWrapper
 };
-use tarpc::{client::{Config, RpcError}, context::Context};
-use tarpc::serde::Deserialize;
+use tarpc::{
+    client::{Config, RpcError},
+    context::Context,
+};
+use tarpc::{serde::Deserialize, ClientMessage, Transport, Response};
 
 //Developer written code
 //#[tahini_service]
@@ -87,7 +91,10 @@ impl InferenceClient {
         transport: T,
     ) -> TahiniNewClient<Self, TahiniRequestDispatch<InferenceRequest, InferenceResponse, T>>
     where
-        T: TahiniTransport<InferenceRequest, InferenceResponse>,
+        T: Transport<
+            ClientMessage<TahiniSafeWrapper<InferenceRequest>>,
+            Response<InferenceResponse>,
+        >,
     {
         let new_client = alohomora::tarpc::client::new(config, transport);
         TahiniNewClient {

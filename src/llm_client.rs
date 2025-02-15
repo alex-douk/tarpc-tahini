@@ -31,7 +31,9 @@ static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 async fn get_entry(user: String, uuid: DBUUID) -> Result<Option<DatabaseRecord>, RpcError> {
     let codec_builder = LengthDelimitedCodec::builder();
 
-    let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.expect("Couldn't connect to database");
+    let stream = TcpStream::connect((SERVER_ADDRESS, 5002))
+        .await
+        .expect("Couldn't connect to database");
 
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
 
@@ -41,7 +43,6 @@ async fn get_entry(user: String, uuid: DBUUID) -> Result<Option<DatabaseRecord>,
         .await?;
 
     Ok(retrieved_conv)
-
 }
 
 fn parse_conv(conv: Option<DatabaseRecord>) {
@@ -68,7 +69,6 @@ fn parse_conv(conv: Option<DatabaseRecord>) {
             (),
         ),
     }
-
 }
 
 #[tokio::main]
@@ -92,36 +92,52 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     //
     // Print output to screen.
-    response.infered_tokens.into_pcr(
-        PrivacyCriticalRegion::new(
-            |v, p, _c| {
-                println!("[ASSISTANT]: {}", v);
-            },
-            Signature {
-                username: "",
-                signature: "",
-            },
-            Signature {
-                username: "",
-                signature: "",
-            },
-            Signature {
-                username: "",
-                signature: "",
-            },
-        ),
-        (),
-    );
 
-    let true_prompt = get_entry("alex".to_string(), response.db_uuid.clone()).await.expect("Database retrieval failed");
+    match response.infered_tokens.transpose() {
+        Ok(tokens) => {
+            tokens.into_pcr(
+                PrivacyCriticalRegion::new(
+                    |v, p, _c| {
+                        println!("[ASSISTANT]: {}", v);
+                    },
+                    Signature {
+                        username: "",
+                        signature: "",
+                    },
+                    Signature {
+                        username: "",
+                        signature: "",
+                    },
+                    Signature {
+                        username: "",
+                        signature: "",
+                    },
+                ),
+                (),
+            );
+        }
+        Err(e) => println!("Got error : {}", e.to_string()),
+    }
 
-    parse_conv(true_prompt);
-    
+    match response.db_uuid.clone().transpose() {
+        None => println!("No uuid, can't retrieve"),
+        Some(uuid) => {
+            let true_prompt = get_entry("alex".to_string(), uuid)
+                .await
+                .expect("Database retrieval failed");
+            parse_conv(true_prompt);
+        }
+    }
+
     println!("Sending wrong data");
-    let no_conv = get_entry("malte".to_string(), response.db_uuid).await.expect("Database retrieval failed");
-
-    parse_conv(no_conv);
-
-    // println!("{}", response);
+    match response.db_uuid.clone().transpose() {
+        None => println!("No uuid, can't retrieve"),
+        Some(uuid) => {
+            let no_conv = get_entry("malte".to_string(), uuid)
+                .await
+                .expect("Database retrieval failed");
+            parse_conv(no_conv);
+        }
+    }
     Ok(())
 }

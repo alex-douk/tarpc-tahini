@@ -3,15 +3,13 @@ use std::collections::HashMap;
 use alohomora::bbox::BBox as PCon;
 use alohomora::pure::PrivacyPureRegion;
 // use alohomora::tarpc::client::{TahiniChannel, TahiniNewClient, TahiniRequestDispatch, TahiniStub};
-use alohomora::tarpc::client::{
-    TahiniChannel, TahiniNewClient, TahiniRequestDispatch, TahiniStub, TahiniTransport,
-};
+use alohomora::tarpc::client::{TahiniChannel, TahiniNewClient, TahiniRequestDispatch, TahiniStub};
 // use alohomora::tarpc::enums::{DeboxedTahiniEnum, TahiniEnum, TahiniEnum2};
 // use alohomora::tarpc::server::TahiniServe;
 use alohomora::tarpc::server::TahiniServe;
 // use alohomora::tarpc::traits::{NamedTahiniType, TahiniType, TahiniType2};
 use alohomora::tarpc::{
-    enums::{TahiniEnum, TahiniVariantsEnum},
+    enums::{TahiniEnum, TahiniSafeWrapper, TahiniVariantsEnum},
     traits::{TahiniError, TahiniType},
 };
 use alohomora::AlohomoraType;
@@ -150,7 +148,9 @@ impl TahiniType for SimpleServiceRequest {
                 "SimpleServiceRequest",
                 0,
                 "Increment",
-                TahiniVariantsEnum::NewType(Box::new(<PCon<_, _> as TahiniType>::to_tahini_enum(bbox))),
+                TahiniVariantsEnum::NewType(Box::new(<PCon<_, _> as TahiniType>::to_tahini_enum(
+                    bbox,
+                ))),
             ),
             SimpleServiceRequest::TestType(test) => TahiniEnum::Enum(
                 "SimpleServiceRequest",
@@ -170,7 +170,9 @@ impl TahiniType for SimpleServiceResponse {
                 "SimpleServiceResponse",
                 0,
                 "Increment",
-                TahiniVariantsEnum::NewType(Box::new(<PCon<_, _> as TahiniType>::to_tahini_enum(bbox))),
+                TahiniVariantsEnum::NewType(Box::new(<PCon<_, _> as TahiniType>::to_tahini_enum(
+                    bbox,
+                ))),
             ),
             SimpleServiceResponse::TestType(test) => TahiniEnum::Enum(
                 "SimpleServiceResponse",
@@ -189,9 +191,9 @@ impl SimpleServiceClient {
         transport: T,
     ) -> TahiniNewClient<Self, TahiniRequestDispatch<SimpleServiceRequest, SimpleServiceResponse, T>>
     where
-        T: TahiniTransport<
-            SimpleServiceRequest,
-            SimpleServiceResponse, // ClientMessage<SimpleService2RequestIntermediate>,
+        T: Transport<
+            ClientMessage<TahiniSafeWrapper<SimpleServiceRequest>>,
+            Response<SimpleServiceResponse>,
         >,
     {
         let new_client = alohomora::tarpc::client::new(config, transport);

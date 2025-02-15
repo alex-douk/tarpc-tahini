@@ -2,8 +2,9 @@ use crate::types::database_types::{DatabaseRecord, DatabaseSubmit, DBUUID};
 
 use alohomora::{
     tarpc::{
+        enums::TahiniSafeWrapper,
         client::{
-            TahiniChannel, TahiniNewClient, TahiniRequestDispatch, TahiniStub, TahiniTransport,
+            TahiniChannel, TahiniNewClient, TahiniRequestDispatch, TahiniStub,
         },
         server::TahiniServe,
         TahiniEnum, TahiniType, TahiniVariantsEnum,
@@ -11,7 +12,7 @@ use alohomora::{
     AlohomoraType,
 };
 
-use tarpc::serde::Deserialize;
+use tarpc::{serde::Deserialize, ClientMessage, Response, Transport};
 use tarpc::{
     client::{Config, RpcError},
     context::Context,
@@ -126,7 +127,8 @@ impl DatabaseClient {
         transport: T,
     ) -> TahiniNewClient<Self, TahiniRequestDispatch<DatabaseRequest, DatabaseResponse, T>>
     where
-        T: TahiniTransport<DatabaseRequest, DatabaseResponse>,
+        T: Transport<ClientMessage<TahiniSafeWrapper<DatabaseRequest>>, Response<DatabaseResponse>>
+        // T: TahiniTransport<DatabaseRequest, DatabaseResponse>,
     {
         let new_client = alohomora::tarpc::client::new(config, transport);
         TahiniNewClient {
