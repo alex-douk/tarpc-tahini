@@ -13,8 +13,6 @@ pub struct DatabaseSubmit {
     pub full_prompt: BBox<String, PromptPolicy>
 }
 
-//TODO(douk): Create Database record type that optionally contains the conversation
-
 pub type DBUUID = BBox<u32, PromptPolicy>;
 
 pub type DatabaseRecord = DatabaseSubmit;

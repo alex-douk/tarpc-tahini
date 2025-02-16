@@ -22,7 +22,7 @@ use tokio::net::TcpListener;
 //Sesame basics
 use alohomora::bbox::BBox as PCon;
 use alohomora::pcr::{PrivacyCriticalRegion, Signature};
-use alohomora::pure::PrivacyPureRegion;
+use alohomora::pure::PrivacyPureRegion as PPR;
 
 //Application-wide mods
 mod policies;

@@ -26,7 +26,7 @@ use tokio::net::TcpStream;
 //Sesame basics
 use alohomora::bbox::BBox as PCon;
 use alohomora::fold::fold;
-use alohomora::pure::PrivacyPureRegion;
+use alohomora::pure::PrivacyPureRegion as PPR;
 
 //Application-wide mods
 mod policies;
@@ -63,7 +63,7 @@ impl InferenceServer {
     }
 }
 
-async fn store_to_database(user: String, prompt: PCon<String, PromptPolicy>) -> DBUUID {
+async fn store_to_database(user: String, prompt: PCon<String, PromptPolicy>) -> Option<DBUUID> {
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
@@ -76,9 +76,12 @@ async fn store_to_database(user: String, prompt: PCon<String, PromptPolicy>) -> 
     let response = DatabaseClient::new(Default::default(), transport)
         .spawn()
         .store_prompt(tarpc::context::current(), payload)
-        .await
-        .unwrap();
-    response
+        .await;
+
+    match response {
+        Ok(res) => Some(res),
+        Err(_) => None,
+    }
 }
 
 impl Inference for InferenceServer {
@@ -86,11 +89,11 @@ impl Inference for InferenceServer {
         println!("Got a request");
 
         let prompt_copy = prompt.prompt.clone();
-        let pol = prompt_copy.policy();
+        let pol = prompt_copy.policy().clone();
 
         let mut locked_model = self.model.lock_owned().await;
 
-        let inf = PrivacyPureRegion::new(move |unboxed_prompt: String| {
+        let inf = PPR::new(move |unboxed_prompt: String| {
             locked_model.run(unboxed_prompt.as_str(), prompt.nb_token as usize)
         });
 
@@ -111,16 +114,24 @@ impl Inference for InferenceServer {
                 db_uuid: PCon::new(None::<u32>, pol.clone()),
             },
             Ok(boxed_infered) => {
-                let pair = fold((prompt_copy, boxed_infered.clone())).expect("Failed to combine PCons");
-                let full_conv = pair.into_ppr(PrivacyPureRegion::new(|pair: (String, String)| {
-                    format!("[USER]: {}\n[ASSISTANT]{}", pair.0, pair.1)
-                })).specialize_policy::<PromptPolicy>().expect("Failed to specialize policy");
+                let pair =
+                    fold((prompt_copy, boxed_infered.clone())).expect("Failed to combine PCons");
+                let full_conv = pair
+                    .into_ppr(PPR::new(|pair: (String, String)| {
+                        format!("[USER]: {}\n[ASSISTANT]{}", pair.0, pair.1)
+                    }))
+                    .specialize_policy::<PromptPolicy>()
+                    .expect("Failed to specialize policy");
 
-                //TODO(douk): Combine into a single conversation
                 let uuid = store_to_database(prompt.user, full_conv).await;
-                let some_uuid = uuid.into_ppr(PrivacyPureRegion::new(|x| Some(x)));
+                
+                //Man just makes this easier already. 
+                let some_uuid = match uuid {
+                    Some(b) => b.into_ppr(PPR::new(|x| Some(x))),
+                    None => PCon::new(None::<u32>, pol.clone())
+                };
                 LLMResponse {
-                    infered_tokens: boxed_infered.into_ppr(PrivacyPureRegion::new(|x| Ok(x))),
+                    infered_tokens: boxed_infered.into_ppr(PPR::new(|x| Ok(x))),
                     db_uuid: some_uuid,
                 }
             }

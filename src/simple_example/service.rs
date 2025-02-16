@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use alohomora::bbox::BBox as PCon;
-use alohomora::pure::PrivacyPureRegion;
+use alohomora::pure::PrivacyPureRegion as PPR;
 // use alohomora::tarpc::client::{TahiniChannel, TahiniNewClient, TahiniRequestDispatch, TahiniStub};
 use alohomora::tarpc::client::{TahiniChannel, TahiniNewClient, TahiniRequestDispatch, TahiniStub};
 // use alohomora::tarpc::enums::{DeboxedTahiniEnum, TahiniEnum, TahiniEnum2};
@@ -91,7 +91,7 @@ impl SimpleService for SimpleServiceServer {
         x: PCon<i32, ExamplePolicy>,
     ) -> PCon<String, ExamplePolicy> {
         println!("Within the application level, we are operating on PCons.");
-        x.into_ppr(PrivacyPureRegion::new(|val| format!("{}", val + 1)))
+        x.into_ppr(PPR::new(|val| format!("{}", val + 1)))
     }
     async fn test_types(self, ctxt: tarpc::context::Context, mut x: MyType) -> MyType {
         x.a = 0;
