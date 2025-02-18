@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use alohomora::bbox::BBox;
 use alohomora::tarpc::{TahiniEnum, TahiniType};
-use alohomora::AlohomoraType;
+use alohomora::{AlohomoraType, TahiniType};
 use tarpc::serde::{Deserialize, Serialize};
 
 use super::database_types::{DatabaseSubmit, DBUUID};
 use crate::policies::PromptPolicy;
 
 //#[derive(TahiniType)]
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, TahiniType)]
 pub struct UserPrompt {
     pub user: String,
     pub prompt: BBox<String, PromptPolicy>,
@@ -17,7 +17,7 @@ pub struct UserPrompt {
 }
 
 //#[derive(TahiniType)]
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, TahiniType)]
 pub struct LLMResponse {
     pub infered_tokens: BBox<Result<String, LLMError>, PromptPolicy>,
     // Why do we attach the same policy?
@@ -39,23 +39,3 @@ impl std::fmt::Display for LLMError {
 
 impl std::error::Error for LLMError {}
 impl alohomora::tarpc::traits::TahiniError for LLMError {}
-
-//Auto-generated
-impl TahiniType for UserPrompt {
-    fn to_tahini_enum(&self) -> TahiniEnum {
-        let mut map = HashMap::new();
-        map.insert("user", self.user.to_tahini_enum());
-        map.insert("prompt", self.prompt.to_tahini_enum());
-        map.insert("nb_token", self.nb_token.to_tahini_enum());
-        TahiniEnum::Struct("UserPrompt", map)
-    }
-}
-
-impl TahiniType for LLMResponse {
-    fn to_tahini_enum(&self) -> TahiniEnum {
-        let mut map = HashMap::new();
-        map.insert("infered_tokens", self.infered_tokens.to_tahini_enum());
-        map.insert("db_uuid", self.db_uuid.to_tahini_enum());
-        TahiniEnum::Struct("LLMResponse", map)
-    }
-}
