@@ -15,7 +15,7 @@ mod service;
 mod policy;
 
 // use crate::policy::ExamplePolicy;
-use crate::service::SimpleServiceClient;
+use crate::service::TahiniSimpleServiceClient;
 use crate::service::{MyType, InnerStruct};
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
@@ -39,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
     //
     // // Modified client instance
     //
-    let response = SimpleServiceClient::new(Default::default(), transport)
+    let response = TahiniSimpleServiceClient::new(Default::default(), transport)
         // The spawn call comes from the `NewClient` type which is unchanged
         .spawn()
         // // // This is a changed call: We redefine the service's Client API to be Tahini-protected.

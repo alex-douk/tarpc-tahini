@@ -20,6 +20,8 @@ async fn wait_upon(fut: impl Future<Output =  ()> + Send + 'static) {
     fut.await
 }
 
+pub struct SimpleServer;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> { // Setup for connection
     let listener = TcpListener::bind(&(SERVER_ADDRESS, 5003)).await.unwrap();
