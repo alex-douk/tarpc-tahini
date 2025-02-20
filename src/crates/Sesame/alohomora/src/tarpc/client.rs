@@ -15,6 +15,7 @@ use tarpc::client::RequestDispatch as TarpcRequestDispatch;
 use tarpc::client::{Config, RpcError};
 use tarpc::{context, ChannelError, ClientMessage, Response, Transport};
 
+#[derive(Clone)]
 pub struct TahiniChannel<Req: TahiniType, Resp: TahiniType> {
     channel: TarpcChannel<TahiniSafeWrapper<Req>, Resp>,
     // phantom_req: PhantomData<Req>,

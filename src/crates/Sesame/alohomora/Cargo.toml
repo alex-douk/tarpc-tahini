@@ -61,6 +61,7 @@ default = ["derive"]
 derive = ["alohomora_derive"]
 orm = ["sea-orm"]
 sandbox_timing = ["alohomora_sandbox/sandbox_timing"]
+tahini = []
 
 [[test]]
 name = "orm"

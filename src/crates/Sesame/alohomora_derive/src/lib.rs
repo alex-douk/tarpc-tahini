@@ -15,6 +15,7 @@ mod alohomora_type;
 mod tahini_type;
 mod sandbox;
 mod json;
+mod tahini_service;
 
 #[proc_macro_derive(BBoxRender)]
 pub fn derive_boxed_serialize(input: TokenStream) -> TokenStream {
@@ -108,15 +109,6 @@ pub fn derive_sandboxable(input: TokenStream) -> TokenStream {
     }
 }
 
-#[proc_macro_derive(TahiniType)]
-pub fn derive_tahini_type(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    match tahini_type::derive_tahini_type_impl(input){
-        Ok(tokens) => tokens.into(),
-        Err((span, err)) => quote_spanned!(span => compile_error!(#err)).into(),
-    }
-}
-
 
 #[proc_macro_derive(RequestBBoxJson)]
 pub fn derive_request_bbox_json(input: TokenStream) -> TokenStream {
@@ -134,4 +126,18 @@ pub fn dervie_response_bbox_json(input: TokenStream) -> TokenStream {
         Ok(tokens) => tokens.into(),
         Err((span, err)) => quote_spanned!(span => compile_error!(#err)).into(),
     }
+}
+
+#[proc_macro_derive(TahiniType)]
+pub fn derive_tahini_type(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    match tahini_type::derive_tahini_type_impl(input){
+        Ok(tokens) => tokens.into(),
+        Err((span, err)) => quote_spanned!(span => compile_error!(#err)).into(),
+    }
+}
+
+#[proc_macro_attribute]
+pub fn tahini_service(args: TokenStream, input: TokenStream) -> TokenStream {
+    tahini_service::service(args, input)
 }
