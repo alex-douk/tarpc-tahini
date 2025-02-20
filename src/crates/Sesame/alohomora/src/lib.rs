@@ -27,8 +27,9 @@ pub mod fold;
 pub mod pcr;
 pub mod pure;
 pub mod unbox;
+
+#[cfg(feature = "tahini")]
 pub mod tarpc;
-pub mod tahini_pure;
 
 // Export this directly under alohomora::
 mod r#type;
