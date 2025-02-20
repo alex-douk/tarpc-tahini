@@ -1,6 +1,6 @@
 #![feature(auto_traits, negative_impls, min_specialization)]
 //Clone model just clones the reference
-use rpc::database::DatabaseClient;
+use rpc::database::TahiniDatabaseClient;
 use std::sync::Arc;
 //Required for model locking across async tasks
 use tokio::sync::Mutex;
@@ -73,7 +73,7 @@ async fn store_to_database(user: String, prompt: PCon<String, PromptPolicy>) -> 
         full_prompt: prompt,
     };
 
-    let response = DatabaseClient::new(Default::default(), transport)
+    let response = TahiniDatabaseClient::new(Default::default(), transport)
         .spawn()
         .store_prompt(tarpc::context::current(), payload)
         .await;

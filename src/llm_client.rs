@@ -12,8 +12,8 @@ use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
-use rpc::database::{Database, DatabaseClient};
-use rpc::inference::{Inference, InferenceClient};
+use rpc::database::{Database, TahiniDatabaseClient};
+use rpc::inference::{Inference, TahiniInferenceClient};
 // use rpc::serde::json::Json;
 
 use alohomora::pcr::{PrivacyCriticalRegion, Signature};
@@ -37,7 +37,7 @@ async fn get_entry(user: String, uuid: DBUUID) -> Result<Option<DatabaseRecord>,
 
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
 
-    let retrieved_conv = DatabaseClient::new(Default::default(), transport)
+    let retrieved_conv = TahiniDatabaseClient::new(Default::default(), transport)
         .spawn()
         .retrieve_prompt(Context::current(), user, uuid)
         .await?;
@@ -86,7 +86,7 @@ async fn main() -> anyhow::Result<()> {
 
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
 
-    let response = InferenceClient::new(Default::default(), transport)
+    let response = TahiniInferenceClient::new(Default::default(), transport)
         .spawn()
         .inference(tarpc::context::current(), test_prompt)
         .await?;

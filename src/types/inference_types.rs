@@ -16,7 +16,6 @@ pub struct UserPrompt {
     pub nb_token: u32,
 }
 
-//#[derive(TahiniType)]
 #[derive(Deserialize, Clone, Debug, TahiniType)]
 pub struct LLMResponse {
     pub infered_tokens: BBox<Result<String, LLMError>, PromptPolicy>,
