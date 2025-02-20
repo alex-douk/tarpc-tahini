@@ -4,8 +4,6 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-#![recursion_limit = "512"]
-
 extern crate proc_macro;
 extern crate proc_macro2;
 extern crate quote;
@@ -328,27 +326,6 @@ impl Parse for DeriveMeta {
     }
 }
 
-/// A helper attribute to avoid a direct dependency on Serde.
-///
-/// Adds the following annotations to the annotated item:
-///
-/// ```rust
-/// #[derive(::tarpc::serde::Serialize, ::tarpc::serde::Deserialize)]
-/// #[serde(crate = "tarpc::serde")]
-/// # struct Foo;
-/// ```
-// #[proc_macro_attribute]
-// #[cfg(feature = "serde1")]
-pub fn derive_serde(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let mut gen: proc_macro2::TokenStream = quote! {
-        #[derive(::serde::Serialize, serde::Deserialize)]
-        // #[derive(::tarpc::serde::Serialize, ::tarpc::serde::Deserialize)]
-        // #[serde(crate = "::tarpc::serde")]
-    };
-    gen.extend(proc_macro2::TokenStream::from(item));
-    proc_macro::TokenStream::from(gen)
-}
-
 fn collect_cfg_attrs(rpcs: &[RpcMethod]) -> Vec<Vec<&Attribute>> {
     rpcs.iter()
         .map(|rpc| {
@@ -368,51 +345,6 @@ fn collect_cfg_attrs(rpcs: &[RpcMethod]) -> Vec<Vec<&Attribute>> {
         .collect::<Vec<_>>()
 }
 
-/// This macro generates the machinery used by both the client and server.
-///
-/// Namely, it produces:
-///   - a serve fn inside the trait
-///   - client stub struct
-///   - Request and Response enums
-///
-/// # Example
-///
-/// ```no_run
-/// use tarpc::{client, transport, service, server::{self, Channel}, context::Context};
-///
-/// #[service]
-/// pub trait Calculator {
-///     async fn add(a: i32, b: i32) -> i32;
-/// }
-///
-/// // The request type looks like the following.
-/// // Note, you don't have to interact with this type directly outside
-/// // of testing, it is used by the client and server implementation
-/// let req = CalculatorRequest::Add {a: 5, b: 7};
-///
-/// // This would be the associated response, again you don't ofent use this,
-/// // it is only shown for educational purposes.
-/// let resp = CalculatorResponse::Add(12);
-///
-/// // This could be any transport.
-/// let (client_side, server_side) = transport::channel::unbounded();
-///
-/// // A client can be made like so:
-/// let client = CalculatorClient::new(client::Config::default(), client_side);
-///
-/// // And a server like so:
-/// #[derive(Clone)]
-/// struct CalculatorServer;
-/// impl Calculator for CalculatorServer {
-///     async fn add(self, context: Context, a: i32, b: i32) -> i32 {
-///         a + b
-///     }
-/// }
-///
-/// // You would usually spawn on an async runtime.
-/// let server = server::BaseChannel::with_defaults(server_side);
-/// let _ = server.execute(CalculatorServer.serve());
-/// ```
 pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
     let derive_meta = parse_macro_input!(attr as DeriveMeta);
     let unit_type: &Type = &parse_quote!(());
@@ -453,16 +385,7 @@ pub fn service(attr: TokenStream, input: TokenStream) -> TokenStream {
                 None
             }
         }
-        _ => None, // None => {
-                   //     if cfg!(feature = "serde1") {
-                   //         Some(quote! {
-                   //             #[derive(::tarpc::serde::Serialize, ::tarpc::serde::Deserialize)]
-                   //             #[serde(crate = "::tarpc::serde")]
-                   //         })
-                   //     } else {
-                   //         None
-                   //     }
-                   // }
+        _ => None,
     };
 
     let methods = rpcs.iter().map(|rpc| &rpc.ident).collect::<Vec<_>>();
@@ -786,6 +709,7 @@ impl<'a> ServiceGenerator<'a> {
             camel_case_idents_str.push(var.as_str());
         }
 
+        //TODO(douk):Do we actually need a dedicated stub? I don't believe though
         quote! {
             // impl<Stub> #client_ident<Stub>
             //     where Stub: ::tarpc::client::stub::Stub<

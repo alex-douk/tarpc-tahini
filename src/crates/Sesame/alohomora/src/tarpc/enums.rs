@@ -22,9 +22,6 @@ pub enum TahiniEnum {
     BBox(BBox<Box<dyn erased_serde::Serialize>, TahiniPolicy>),
     Vec(Vec<TahiniEnum>),
     Struct(&'static str, HashMap<&'static str, TahiniEnum>),
-    // Add potential enum variant if tarpc decides to generate a struct based on parameters?
-    // EnumStruct(String, u32, String, Box<dyn TahiniType2>),
-    // EnumUnit(&'static str, u32, &'static str),
     Enum(&'static str, u32, &'static str, TahiniVariantsEnum),
     Option(Option<Box<TahiniEnum>>),
     //Results are not serializable
@@ -115,12 +112,8 @@ impl<'a> serde::Serialize for PrivEnumWrapper<'a> {
                 Some(val) => Some(PrivEnumWrapper(&val)).serialize(serializer),
             },
             TahiniEnum::Result(res) => {
-                // let mut ser_res: Result<S::Ok, S::Error>;
                 res.as_ref().map(|v| PrivEnumWrapper(v)).serialize(serializer)
             }
-            // TahiniEnum::Result(res) => {
-            // }
-            // TahiniEnum::Result(res) => res.map(|val| PrivEnumWrapper(&val)).serialize(serializer),
         }
     }
 }
@@ -137,80 +130,5 @@ impl<T: TahiniType + Sized> serde::Serialize for TahiniSafeWrapper<T> {
         S: serde::Serializer,
     {
         PrivEnumWrapper(&self.0.to_tahini_enum()).serialize(serializer)
-        // match self.0.to_enum() {
-        //     //Required because we can't infer type from the val here
-        //     TahiniEnum::Value(val) => erased_serde::serialize(&val, serializer),
-        //     TahiniEnum::BBox(bbox) => {
-        //         let t = bbox.data();
-        //         let p = bbox.policy();
-        //         // let mut bbox_ser = erased_serde::serialize(value, serializer)
-        //         let mut bbox_ser = serializer.serialize_struct("BBox", 2)?;
-        //         bbox_ser.serialize_field("fb", &(*t))?;
-        //         bbox_ser.serialize_field("p", &p)?;
-        //         bbox_ser.end()
-        //     }
-        //     TahiniEnum::Vec(vec) => {
-        //         let mut vec_ser = serializer.serialize_seq(Some(vec.len()))?;
-        //         for e in vec.iter() {
-        //             vec_ser.serialize_element(&PrivEnumWrapper(e))?;
-        //         }
-        //         vec_ser.end()
-        //     }
-        //     TahiniEnum::Struct(struct_name, map) => {
-        //         let mut struct_ser = serializer.serialize_struct(struct_name, map.len())?;
-        //         for (k, v) in map.iter() {
-        //             struct_ser.serialize_field(k, &PrivEnumWrapper(v))?;
-        //         }
-        //         struct_ser.end()
-        //     }
-        //     TahiniEnum::EnumUnit(enum_name, variant_nb, variant_name) => {
-        //         serializer.serialize_unit_variant(enum_name, variant_nb, variant_name)
-        //     }
-        //     TahiniEnum::EnumStruct(enum_name, variant_nb, variant_name, map) => {
-        //         let mut struct_ser = serializer.serialize_struct_variant(
-        //             enum_name,
-        //             variant_nb,
-        //             variant_name,
-        //             map.len(),
-        //         )?;
-        //         for (k, v) in map.iter() {
-        //             struct_ser.serialize_field(k, &PrivEnumWrapper(v))?;
-        //         }
-        //         struct_ser.end()
-        //     }
-        //     TahiniEnum::EnumNewType(enum_name, variant_nb, variant_name, val) => serializer
-        //         .serialize_newtype_variant(
-        //             enum_name,
-        //             variant_nb,
-        //             variant_name,
-        //             &PrivEnumWrapper(&(*val)),
-        //         ),
-        //     TahiniEnum::EnumTuple(enum_name, variant_nb, variant_name, val) => {
-        //         let mut tuple_ser = serializer.serialize_tuple_variant(
-        //             enum_name,
-        //             variant_nb,
-        //             variant_name,
-        //             val.len(),
-        //         )?;
-        //         for e in val.iter() {
-        //             tuple_ser.serialize_field(&PrivEnumWrapper(e))?;
-        //         }
-        //         tuple_ser.end()
-        //     } // TahiniEnum::Option(opt) => {
-        //       //     match opt {
-        //       //         None => None::<PrivEnumWrapper>.serialize(serializer),
-        //       //         Some(val) => Some(PrivEnumWrapper(&val)).serialize(serializer)
-        //       //     }                // opt.map(move |val| PrivEnumWrapper(&val)).serialize(serializer)
-        //       // }
-        //       // TahiniEnum::Result(res) => {
-        //       //     match res {
-        //       //         Ok(th_enum) => Ok::<P(PrivEnumWrapper(&(*th_enum))).serialize(serializer),
-        //       //         Err(e) => Err(e).serialize(serializer)
-        //       //     }
-        //       // }
-        //       // TahiniEnum::Result(res) => {
-        //       //     res.map(|val| PrivEnumWrapper(&val))
-        //       // }
-        // }
     }
 }
