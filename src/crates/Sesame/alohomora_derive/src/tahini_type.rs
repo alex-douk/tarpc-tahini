@@ -1,6 +1,6 @@
 use attribute_derive::FromAttr;
 use proc_macro2::{Span, TokenStream};
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{
     spanned::Spanned, Data, DataStruct, DeriveInput, Field, Fields, Ident, ItemEnum, ItemStruct,
     Variant, Visibility,
@@ -80,7 +80,7 @@ pub fn derive_tahini_type_impl(input: DeriveInput) -> Result<TokenStream, Error>
     }
 }
 
-fn generate_hashmap(attrs: AlohomoraTypeArgs, f: Fields) -> TokenStream {
+fn generate_hashmap(attrs: AlohomoraTypeArgs, f: Fields, for_enum : bool) -> TokenStream {
     let fields: Vec<_> = f
         .iter()
         .map(|field| {
@@ -133,13 +133,20 @@ fn generate_hashmap(attrs: AlohomoraTypeArgs, f: Fields) -> TokenStream {
     for triplet in verbatium_fields.iter() {
         verbatim_fields_strings.push(triplet.1.as_str());
     }
-
-    quote! {
-            ::std::collections::HashMap::from([
-            #((#tahini_fields_strings, <#tahini_fields_types as TahiniType>::to_tahini_enum(&self.#tahini_fields_idents)),)*
-            // #((#verbatim_fields_strings, <#tahini_fields_types as TahiniType>::to_tahini_enum(&self.#verbatim_fields_strings)),)*
-            #((#verbatim_fields_strings, ::alohomora::tarpc::TahiniEnum::Value(Box::new(self.#verbatim_fields_idents))),)*
-            ])
+    if for_enum {
+        quote! {
+                ::std::collections::HashMap::from([
+                #((#tahini_fields_strings, <#tahini_fields_types as TahiniType>::to_tahini_enum(#tahini_fields_idents)),)*
+                #((#verbatim_fields_strings, ::alohomora::tarpc::TahiniEnum::Value(Box::new(#verbatim_fields_idents))),)*
+                ])
+        }
+    }else {
+        quote! {
+                ::std::collections::HashMap::from([
+                #((#tahini_fields_strings, <#tahini_fields_types as TahiniType>::to_tahini_enum(&self.#tahini_fields_idents)),)*
+                #((#verbatim_fields_strings, ::alohomora::tarpc::TahiniEnum::Value(Box::new(&self.#verbatim_fields_idents))),)*
+                ])
+        }
     }
 }
 fn handle_struct(attrs: AlohomoraTypeArgs, input: ItemStruct) -> Result<TokenStream, Error> {
@@ -148,7 +155,7 @@ fn handle_struct(attrs: AlohomoraTypeArgs, input: ItemStruct) -> Result<TokenStr
     // Expand needed variables.
     let input_ident = &input.ident;
 
-    let body = generate_hashmap(attrs, input.fields);
+    let body = generate_hashmap(attrs, input.fields, false);
 
     let binding = input_ident.to_string();
     let ident_str = binding.as_str();
@@ -229,7 +236,7 @@ fn parse_variant_ident(var: &Variant) -> TokenStream {
                 .iter()
                 .map(|x| x.ident.clone().expect("Couldn't unwrap ident #3"))
                 .collect();
-            quote! { #name(#(#field_names),*)}
+            quote! { #name{#(#field_names),*}}
         }
         Fields::Unnamed(..) => quote! {#name(x)},
         Fields::Unit => quote! {#name},
@@ -267,12 +274,10 @@ fn handle_unnamed_variant(var: &Variant) -> Result<TokenStream, Error> {
 
 fn handle_named_variant(attrs: AlohomoraTypeArgs, var: &Variant) -> TokenStream {
     let fields = var.fields.clone();
-    let body = generate_hashmap(attrs, fields);
-    let ident_str = var.ident.to_string();
-    let ident_str = ident_str.as_str();
+    let body = generate_hashmap(attrs, fields, true);
     quote! {
         {
-            ::alohomora::tarpc::enums::TahiniVariantsEnum::Struct(#ident_str, #body)
+            ::alohomora::tarpc::enums::TahiniVariantsEnum::Struct(#body)
         }
     }
 }
