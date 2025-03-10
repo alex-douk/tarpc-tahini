@@ -37,10 +37,9 @@ tokio-serde = { version = "0.8.0", features = ["serde_json", "json"] }
 tokio-util = "0.7.13"
 tokio-macros = "2.4.0"
 educe = { version = "0.6.0", features = ["full"] }
-tarpc = { version = "0.34.0", path = "../../tarpc/tarpc", features = ["full"] }
+tarpc = { version = "0.34.0", features = ["full"]}
 
 [dev-dependencies]
-tokio = "1.37.0"
 tokio-test = "0.4.0"
 
 [dependencies.rocket_dyn_templates]
@@ -62,6 +61,7 @@ default = ["derive"]
 derive = ["alohomora_derive"]
 orm = ["sea-orm"]
 sandbox_timing = ["alohomora_sandbox/sandbox_timing"]
+tahini = ["alohomora_derive/tahini"]
 
 [[test]]
 name = "orm"

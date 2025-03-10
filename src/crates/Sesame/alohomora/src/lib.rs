@@ -1,7 +1,7 @@
 #![feature(box_into_inner)]
 #![feature(specialization)]
 #![feature(core_intrinsics)]
-#![allow(async_fn_in_trait)]
+#![feature(type_changing_struct_update)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -27,11 +27,16 @@ pub mod fold;
 pub mod pcr;
 pub mod pure;
 pub mod unbox;
-mod json_serde;
+
+#[cfg(feature = "tahini")]
+pub mod tarpc;
 
 // Export this directly under alohomora::
 mod r#type;
 pub use r#type::*;
 
 #[cfg(feature = "alohomora_derive")]
-pub use alohomora_derive::{AlohomoraType};
+pub use alohomora_derive::AlohomoraType;
+
+#[cfg(feature = "tahini")]
+pub use alohomora_derive::{TahiniType, tahini_service};
