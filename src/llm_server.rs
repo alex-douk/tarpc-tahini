@@ -125,7 +125,6 @@ impl Inference for InferenceServer {
 
                 let uuid = store_to_database(prompt.user, full_conv).await;
                 
-                //Man just makes this easier already. 
                 let some_uuid = match uuid {
                     Some(b) => b.into_ppr(PPR::new(|x| Some(x))),
                     None => PCon::new(None::<u32>, pol.clone())

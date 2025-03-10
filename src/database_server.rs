@@ -62,11 +62,11 @@ impl Database for DatabaseServer {
 
         println!("Generated UUID {}", *dbuuid);
         let pconed_uuid: DBUUID = PCon::new(dbuuid.clone(), form.full_prompt.policy().clone());
-        let mut opt_user_hist = user_table.get(&username);
+        let opt_user_hist = user_table.get(&username);
         match opt_user_hist {
             //Create chat history table
             None => {
-                let mut chat_history = HashMap::new();
+                let chat_history = HashMap::new();
                 user_table.insert(username.clone(), chat_history);
             }
             _ => (),
