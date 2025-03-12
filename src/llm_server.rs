@@ -160,7 +160,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Accepted a connection");
                 let framed = codec_builder.new_framed(stream);
 
-                // let transport = new_transport(framed, Bincode::default());
+                let transport = new_transport(framed, Json::default());
                 let fut = TahiniBaseChannel::with_defaults(transport)
                     // .execute(server.serve());
                     .execute(server.clone().serve())
