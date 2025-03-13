@@ -1,59 +1,10 @@
-[package]
-name = "tarpc-tahini"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-anyhow = "1.0.94"
-futures = "0.3.31"
-futures-util = "0.3.31"
-serde = { version = "1.0.215", features = ["derive"] }
-# tarpc = { version = "0.34.0", path = "./src/crates/tarpc032/tarpc", features = ["full"]}
-tarpc = {version = "0.34.0", features = ["full"]}
-tarpc-plugins = { version = "0.13.0", features = ["serde1"]}
-# tarpc = {version = "0.32.0", path = "./src/crates/tarpc032/tarpc/", features = ["full"]}
-# tarpc-plugins = { version = "0.12.0", path = "./src/crates/tarpc032/plugins"}
-# tarpc-plugins = { version = "0.13.0", path = "./src/crates/tarpc/plugins"}
-tokio = { version = "1.42.0", features = ["full", "rt", "rt-multi-thread", "tokio-macros"] }
-tokio-macros = "2.4.0"
-# tokio-serde = { version = "0.9.0", features = ["bincode"] }
-tokio-util = "0.7.13"
-# candle = { git = "https://github.com/huggingface/candle.git", version = "0.7.2"} 
-candle-transformers = "0.7.2"
-tokenizers = "0.20.1"
-hf-hub = "0.3.2"
-candle-nn = "0.7.2"
-candle-examples = "0.7.2"
-candle-core = "0.7.2"
-serde_json = "1.0.132"
-tokio-stream = "0.1.16"
-educe = { version = "0.6.0", features = ["full"] }
-alohomora = { version = "0.1.0", path = "src/crates/Sesame/alohomora", default-features = false, features = ["alohomora_derive", "derive", "tahini"] }
-#
-[[bin]]
-path = "./src/llm_server.rs"
-name = "llm_server"
-
-[[bin]]
-path = "./src/llm_client.rs"
-name = "llm_client"
-
-[[bin]]
-path = "./src/database_server.rs"
-name = "llm_db"
-
-[[bin]]
-path = "./src/simple_example/simple_server.rs"
-name = "simple_server"
-
-[[bin]]
-path = "./src/simple_example/simple_client.rs"
-name = "simple_client"
+[workspace]
+members=["fronting", "llm_server", "db_server", "simple_example", "utils"]
 
 [patch.crates-io]
 funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }
 
 [workspace.metadata.dylint]
 libraries = [  
-   { path = "./src/crates/Sesame/alohomora_lints" },
+   { path = "./Sesame/alohomora_lints" },
 ]
