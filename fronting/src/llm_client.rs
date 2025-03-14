@@ -1,3 +1,4 @@
+use alohomora::policy::CloneableAny;
 use futures::{Future, StreamExt};
 use tarpc::client::RpcError;
 use tarpc::context::Context;
@@ -23,6 +24,7 @@ use services_utils::types::inference_types::{LLMResponse, UserPrompt};
 
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
+static USERNAME: &str = "alexandre_doukhan@brown.edu";
 
 async fn get_entry(user: String, uuid: DBUUID) -> Result<Option<DatabaseRecord>, RpcError> {
     let codec_builder = LengthDelimitedCodec::builder();
@@ -69,10 +71,14 @@ fn parse_conv(conv: Option<DatabaseRecord>) {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let policy = PromptPolicy { consent: true };
+    let policy = PromptPolicy { 
+        no_storage: true, //Won't go to the DB
+        marketing_consent: true, //Goes to marketing
+        unprotected_image_gen: false //Does not goes to unprotected service
+    };
     let test_prompt = UserPrompt {
-        user: "alex".to_string(),
-        prompt: BBox::new("Say to me a funny joke.".to_string(), policy),
+        user: USERNAME.to_string(),
+        prompt: BBox::new("Tell me a funny joke.".to_string(), policy),
         nb_token: 30,
     };
 
@@ -118,7 +124,7 @@ async fn main() -> anyhow::Result<()> {
     match response.db_uuid.clone().transpose() {
         None => println!("No uuid, can't retrieve"),
         Some(uuid) => {
-            let true_prompt = get_entry("alex".to_string(), uuid)
+            let true_prompt = get_entry(USERNAME.to_string(), uuid)
                 .await
                 .expect("Database retrieval failed");
             parse_conv(true_prompt);
@@ -129,7 +135,7 @@ async fn main() -> anyhow::Result<()> {
     match response.db_uuid.clone().transpose() {
         None => println!("No uuid, can't retrieve"),
         Some(uuid) => {
-            let no_conv = get_entry("malte".to_string(), uuid)
+            let no_conv = get_entry("malte@brown.edu".to_string(), uuid)
                 .await
                 .expect("Database retrieval failed");
             parse_conv(no_conv);
