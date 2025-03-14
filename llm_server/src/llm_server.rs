@@ -1,6 +1,6 @@
 #![feature(auto_traits, negative_impls, min_specialization)]
 //Clone model just clones the reference
-use services_utils::rpc::database::TahiniDatabaseClient;
+use services_utils::{policies::inference_policy::InferenceReason, rpc::{database::TahiniDatabaseClient, marketing::TahiniAdvertisementClient}, types::marketing_types::MarketingData};
 use std::sync::Arc;
 //Required for model locking across async tasks
 use tokio::sync::Mutex;
@@ -26,10 +26,14 @@ use tokio::net::TcpStream;
 //Sesame basics
 use alohomora::bbox::BBox as PCon;
 use alohomora::fold::fold;
+use alohomora::policy::{Policy, Reason};
 use alohomora::pure::PrivacyPureRegion as PPR;
+use alohomora::context::UnprotectedContext;
+use alohomora::pcr::{PrivacyCriticalRegion as PCR, Signature};
 
 //Application-wide mods
-use services_utils::policies::PromptPolicy;
+use services_utils::policies::{PromptPolicy, MarketingPolicy};
+
 
 //Inference import
 //Internal LLM functionings
@@ -40,6 +44,7 @@ use anyhow::Error as E;
 
 //Tarpc + types
 use services_utils::rpc::inference::Inference;
+use services_utils::rpc::marketing::Advertisement;
 use services_utils::types::inference_types::{LLMResponse, UserPrompt, LLMError};
 
 //Database import
@@ -60,6 +65,7 @@ impl InferenceServer {
     }
 }
 
+
 async fn store_to_database(user: String, prompt: PCon<String, PromptPolicy>) -> Option<DBUUID> {
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
@@ -79,6 +85,57 @@ async fn store_to_database(user: String, prompt: PCon<String, PromptPolicy>) -> 
         Ok(res) => Some(res),
         Err(_) => None,
     }
+}
+
+fn change_marketing_policy(input: PCon<String, PromptPolicy>) -> PCon<String, MarketingPolicy> {
+    let unboxed = input.into_pcr(
+        PCR::new(
+            |v, p, _c| (v, p),
+            Signature {
+                username: "",
+                signature: "",
+            },
+            Signature {
+                username: "",
+                signature: "",
+            },
+            Signature {
+                username: "",
+                signature: "",
+            },
+        ),
+        (),
+    );
+    let new_pol = MarketingPolicy {
+        no_storage: unboxed.1.no_storage,
+        email_consent: true,
+        third_party_processing: false
+    };
+    PCon::new(unboxed.0, new_pol)
+}
+
+async fn send_to_marketing(email: String, prompt: PCon<String, PromptPolicy>) {
+    let codec_builder = LengthDelimitedCodec::builder();
+    let stream = TcpStream::connect((SERVER_ADDRESS, 8002)).await.unwrap();
+    // let context = UnprotectedContext {
+    //     route: "".to_string(),
+    //     data: Box::new(0),
+    // };
+    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+
+    //VERBOTTEN
+    // if !prompt.policy().check(&context, Reason::Custom(Box::new(InferenceReason::SendToMarketing))) {
+    //     return;
+    // }
+
+    let payload = MarketingData {
+        email,
+        prompt: change_marketing_policy(prompt)
+    };
+    let _ = TahiniAdvertisementClient::new(Default::default(), transport)
+        .spawn()
+        .email(tarpc::context::current(), payload).await;
+    ()
 }
 
 impl Inference for InferenceServer {
@@ -120,6 +177,7 @@ impl Inference for InferenceServer {
                     .specialize_policy::<PromptPolicy>()
                     .expect("Failed to specialize policy");
 
+                send_to_marketing(prompt.user.clone(), full_conv.clone()).await;
                 let uuid = store_to_database(prompt.user, full_conv).await;
                 
                 let some_uuid = match uuid {

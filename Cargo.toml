@@ -1,5 +1,5 @@
 [workspace]
-members=["fronting", "llm_server", "db_server", "simple_example", "utils"]
+members=["fronting", "llm_server", "db_server", "simple_example", "utils", "ad_server"]
 
 [patch.crates-io]
 funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }

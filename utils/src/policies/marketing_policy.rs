@@ -2,15 +2,15 @@ use alohomora::policy::{Policy, Reason};
 use tarpc::serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct PromptPolicy {
+pub struct MarketingPolicy {
     pub no_storage: bool,
-    pub marketing_consent: bool,
-    pub unprotected_image_gen: bool
+    pub email_consent: bool,
+    pub third_party_processing: bool
 }
 
-impl Policy for PromptPolicy {
+impl Policy for MarketingPolicy {
     fn name(&self) -> String {
-        "PromptPolicy".to_string()
+        "MarketingPolicy".to_string()
     }
 
     fn check(&self, context: &alohomora::context::UnprotectedContext, reason: alohomora::policy::Reason<'_>) -> bool {
@@ -18,17 +18,17 @@ impl Policy for PromptPolicy {
             Reason::DB(_, _) => !self.no_storage,
             Reason::Response => true,
             //If we have a custom  reason, it needs to be an inference reason
-            Reason::Custom(reason) => match reason.cast().downcast_ref::<InferenceReason>() {
-                None => false,
+            Reason::Custom(reason) => match reason.cast().downcast_ref::<MarketingReason>() {
+                None => {println!("We are failing the downcast to MarketingReason"); false},
                 Some(reason) => match reason {
                     //If it is, we check the inference reason
-                    InferenceReason::SendToMarketing => self.marketing_consent,
-                    InferenceReason::SendToImageGen => self.unprotected_image_gen
+                    MarketingReason::Email => self.email_consent,
+                    MarketingReason::ThirdPartyProcessing => self.third_party_processing,
                 }
             }
             //If it is not as a direct query response, a DB request, or an inference specific
             //purpose, we deny
-            _ => false
+            _ => {println!("We are invoking for no good reason!"); false}
         }
     }
 
@@ -42,8 +42,8 @@ impl Policy for PromptPolicy {
 }
 
 #[derive(Clone)]
-pub enum InferenceReason {
-    SendToMarketing,
-    SendToImageGen,
+pub enum MarketingReason {
+    Email,
+    ThirdPartyProcessing
 }
 
