@@ -7,7 +7,6 @@ use tokio::sync::Mutex;
 
 //Channel transport Code
 use alohomora::{
-    pure::execute_pure,
     tarpc::server::{TahiniBaseChannel, TahiniChannel},
 };
 use futures::{
@@ -114,19 +113,23 @@ fn change_marketing_policy(input: PCon<String, PromptPolicy>) -> PCon<String, Ma
     PCon::new(unboxed.0, new_pol)
 }
 
+fn verify_if_send_to_marketing<P: Policy>(p: &P) -> bool {
+    let context = UnprotectedContext {
+        route: "".to_string(),
+        data: Box::new(0),
+    };
+    p.check(&context, Reason::Custom(Box::new(InferenceReason::SendToMarketing)))
+}
+
 async fn send_to_marketing(email: String, prompt: PCon<String, PromptPolicy>) {
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 8002)).await.unwrap();
-    // let context = UnprotectedContext {
-    //     route: "".to_string(),
-    //     data: Box::new(0),
-    // };
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
 
     //VERBOTTEN
-    // if !prompt.policy().check(&context, Reason::Custom(Box::new(InferenceReason::SendToMarketing))) {
-    //     return;
-    // }
+    if !verify_if_send_to_marketing(prompt.policy()) {
+        return;
+    }
 
     let payload = MarketingData {
         email,
@@ -177,7 +180,7 @@ impl Inference for InferenceServer {
                     .specialize_policy::<PromptPolicy>()
                     .expect("Failed to specialize policy");
 
-                send_to_marketing(prompt.user.clone(), full_conv.clone()).await;
+                // send_to_marketing(prompt.user.clone(), full_conv.clone()).await;
                 let uuid = store_to_database(prompt.user, full_conv).await;
                 
                 let some_uuid = match uuid {
