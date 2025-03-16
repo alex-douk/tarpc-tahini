@@ -72,7 +72,7 @@ impl Advertisement for AdServer {
             .check(&context, Reason::Custom(Box::new(MarketingReason::Email)))
         {
             true => {
-                // println!("Policy check is succesful! About to send that email!");
+                println!("Policy check is succesful! About to send that email!");
                 // send_email(
                 //     "BIGADVERTISEMENTFIRM@ME.COM".to_string(),
                 //     vec![email],

@@ -14,7 +14,6 @@ use tokio_util::codec::LengthDelimitedCodec;
 
 use services_utils::rpc::database::{Database, TahiniDatabaseClient};
 use services_utils::rpc::inference::{Inference, TahiniInferenceClient};
-// use rpc::serde::json::Json;
 
 use alohomora::pcr::{PrivacyCriticalRegion, Signature};
 use alohomora::{bbox::BBox, policy::NoPolicy};

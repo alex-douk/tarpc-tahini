@@ -1,7 +1,7 @@
 use alohomora::policy::{Policy, Reason};
 use tarpc::serde::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PromptPolicy {
     pub no_storage: bool,
     pub marketing_consent: bool,
