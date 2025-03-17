@@ -7,12 +7,19 @@ use services_utils::rpc::{
     database::{Database, TahiniDatabaseClient},
     inference::{Inference, TahiniInferenceClient},
 };
+use std::net::{IpAddr, Ipv4Addr};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 
 mod inference;
 mod policy;
+mod database;
+
+//TODO(douk): Hacky way of sharing a single host. 
+//Will have to get changed for static attestation for sure
+pub static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
+
 
 fn prepare_server() -> BBoxRocket<Build>{
     BBoxRocket::build().mount("/chat", routes![inference::inference])

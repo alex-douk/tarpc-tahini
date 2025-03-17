@@ -1704,21 +1704,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fronting"
-version = "0.1.0"
-dependencies = [
- "alohomora",
- "anyhow",
- "futures",
- "futures-util",
- "services_utils",
- "tarpc",
- "tokio",
- "tokio-macros",
- "tokio-util 0.7.14",
-]
-
-[[package]]
 name = "fronting2"
 version = "0.1.0"
 dependencies = [

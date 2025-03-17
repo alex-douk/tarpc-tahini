@@ -23,7 +23,8 @@ impl Policy for PromptPolicy {
                 Some(reason) => match reason {
                     //If it is, we check the inference reason
                     InferenceReason::SendToMarketing => self.marketing_consent,
-                    InferenceReason::SendToImageGen => self.unprotected_image_gen
+                    InferenceReason::SendToImageGen => self.unprotected_image_gen,
+                    InferenceReason::SendToDB => !self.no_storage
                 }
             }
             //If it is not as a direct query response, a DB request, or an inference specific
@@ -45,5 +46,6 @@ impl Policy for PromptPolicy {
 pub enum InferenceReason {
     SendToMarketing,
     SendToImageGen,
+    SendToDB
 }
 

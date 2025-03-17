@@ -160,6 +160,7 @@ impl Inference for InferenceServer {
         // let _ =prompt.serialize(&mut ser);
         // println!("Using naive serializer, we get : {:?}", String::from_utf8(writer));
         let boxed_response = prompt.prompt.into_ppr(inf).transpose();
+        
 
         match boxed_response {
             Err(e) => LLMResponse {
@@ -168,28 +169,11 @@ impl Inference for InferenceServer {
                     Err(LLMError::InternalError),
                     pol.clone(),
                 ),
-                db_uuid: PCon::new(None::<u32>, pol.clone()),
             },
             Ok(boxed_infered) => {
-                let pair =
-                    fold((prompt_copy, boxed_infered.clone())).expect("Failed to combine PCons");
-                let full_conv = pair
-                    .into_ppr(PPR::new(|pair: (String, String)| {
-                        format!("[USER]: {}\n[ASSISTANT]{}", pair.0, pair.1)
-                    }))
-                    .specialize_policy::<PromptPolicy>()
-                    .expect("Failed to specialize policy");
-
                 // send_to_marketing(prompt.user.clone(), full_conv.clone()).await;
-                let uuid = store_to_database(prompt.user, full_conv).await;
-                
-                let some_uuid = match uuid {
-                    Some(b) => b.into_ppr(PPR::new(|x| Some(x))),
-                    None => PCon::new(None::<u32>, pol.clone())
-                };
                 LLMResponse {
                     infered_tokens: boxed_infered.into_ppr(PPR::new(|x| Ok(x))),
-                    db_uuid: some_uuid,
                 }
             }
         }

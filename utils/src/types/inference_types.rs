@@ -17,10 +17,6 @@ pub struct UserPrompt {
 #[derive(Deserialize, Clone, Debug, TahiniType)]
 pub struct LLMResponse {
     pub infered_tokens: BBox<Result<String, LLMError>, PromptPolicy>,
-    // Why do we attach the same policy?
-    // Because same level of confidentality. Debatable
-    // Return a None for the uuid in case of an LLM error
-    pub db_uuid: BBox<Option<u32>, PromptPolicy>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
