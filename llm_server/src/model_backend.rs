@@ -44,6 +44,7 @@ impl TextGeneration {
     pub fn run(&mut self, prompt: &str, sample_len: usize) -> Result<String, E> {
         use std::io::Write;
         self.tokenizer.clear();
+        self.model.clear_kv_cache();
         let mut tokens = self
             .tokenizer
             .tokenizer()
@@ -65,6 +66,8 @@ impl TextGeneration {
             Some(token) => token,
             None => anyhow::bail!("cannot find the <|endoftext|> token"),
         };
+        println!("Starting generation");
+        std::io::stdout().flush()?;
         let start_gen = std::time::Instant::now();
         for index in 0..sample_len {
             let context_size = if index > 0 { 1 } else { tokens.len() };
@@ -97,7 +100,7 @@ impl TextGeneration {
             }
         }
         let dt = start_gen.elapsed();
-        if let Some(rest) = self.tokenizer.decode_rest().map_err(E::msg)? {
+        if let Some(rest) = self.tokenizer.decode_rest().map_err(E::new)? {
             llm_output.push_str(&rest);
             print!("{rest}");
         }

@@ -10,13 +10,21 @@ use crate::policies::PromptPolicy;
 #[derive(Deserialize, Clone, Debug, TahiniType)]
 pub struct UserPrompt {
     pub user: String,
-    pub prompt: BBox<String, PromptPolicy>,
+    pub conversation: BBoxConversation,
     pub nb_token: u32,
 }
 
 #[derive(Deserialize, Clone, Debug, TahiniType)]
 pub struct LLMResponse {
     pub infered_tokens: BBox<Result<String, LLMError>, PromptPolicy>,
+}
+
+pub type BBoxConversation = BBox<Vec<ConversationRound>, PromptPolicy>;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ConversationRound{
+    pub user: String,
+    pub assistant: String
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

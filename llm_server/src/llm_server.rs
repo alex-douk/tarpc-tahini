@@ -1,17 +1,19 @@
 #![feature(auto_traits, negative_impls, min_specialization)]
 //Clone model just clones the reference
-use services_utils::{policies::inference_policy::InferenceReason, rpc::{database::TahiniDatabaseClient, marketing::TahiniAdvertisementClient}, types::marketing_types::MarketingData};
+use services_utils::{
+    policies::inference_policy::InferenceReason,
+    rpc::{database::TahiniDatabaseClient, marketing::TahiniAdvertisementClient},
+    types::{inference_types::ConversationRound, marketing_types::MarketingData},
+};
 use std::sync::Arc;
 //Required for model locking across async tasks
 use tokio::sync::Mutex;
 
 //Channel transport Code
-use alohomora::{
-    tarpc::server::{TahiniBaseChannel, TahiniChannel},
-};
+use alohomora::tarpc::server::{TahiniBaseChannel, TahiniChannel};
 use futures::{
-    future::{self, Ready},
     Future, StreamExt,
+    future::{self, Ready},
 };
 use tarpc::serde_transport::new as new_transport;
 use tarpc::tokio_serde::formats::Json;
@@ -24,32 +26,32 @@ use tokio::net::TcpStream;
 
 //Sesame basics
 use alohomora::bbox::BBox as PCon;
+use alohomora::context::UnprotectedContext;
 use alohomora::fold::fold;
+use alohomora::pcr::{PrivacyCriticalRegion as PCR, Signature};
 use alohomora::policy::{Policy, Reason};
 use alohomora::pure::PrivacyPureRegion as PPR;
-use alohomora::context::UnprotectedContext;
-use alohomora::pcr::{PrivacyCriticalRegion as PCR, Signature};
 
 //Application-wide mods
-use services_utils::policies::{PromptPolicy, MarketingPolicy};
-
+use services_utils::policies::{MarketingPolicy, PromptPolicy};
 
 //Inference import
 //Internal LLM functionings
 mod model_backend;
 mod token_output_stream;
-use crate::model_backend::{create_pipeline, TextGeneration};
+use crate::model_backend::{TextGeneration, create_pipeline};
 use anyhow::Error as E;
 
 //Tarpc + types
 use services_utils::rpc::inference::Inference;
 use services_utils::rpc::marketing::Advertisement;
-use services_utils::types::inference_types::{LLMResponse, UserPrompt, LLMError};
+use services_utils::types::inference_types::{LLMError, LLMResponse, UserPrompt};
 
 //Database import
-use services_utils::types::database_types::{DatabaseSubmit, DBUUID};
+use services_utils::types::database_types::{DBUUID, DatabaseSubmit};
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
+static SYSTEM_PROMPT: &str = "<|im_start|>system\nYou are Qwenhini. You are a useful assistant that is privacy-preserving<|im_end|>\n";
 
 #[derive(Clone)]
 pub struct InferenceServer {
@@ -61,28 +63,6 @@ impl InferenceServer {
         InferenceServer {
             model: Arc::new(Mutex::new(tg)),
         }
-    }
-}
-
-
-async fn store_to_database(user: String, prompt: PCon<String, PromptPolicy>) -> Option<DBUUID> {
-    let codec_builder = LengthDelimitedCodec::builder();
-    let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
-    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-
-    let payload = DatabaseSubmit {
-        user,
-        full_prompt: prompt,
-    };
-
-    let response = TahiniDatabaseClient::new(Default::default(), transport)
-        .spawn()
-        .store_prompt(tarpc::context::current(), payload)
-        .await;
-
-    match response {
-        Ok(res) => Some(res),
-        Err(_) => None,
     }
 }
 
@@ -108,7 +88,7 @@ fn change_marketing_policy(input: PCon<String, PromptPolicy>) -> PCon<String, Ma
     let new_pol = MarketingPolicy {
         no_storage: unboxed.1.no_storage,
         email_consent: true,
-        third_party_processing: false
+        third_party_processing: false,
     };
     PCon::new(unboxed.0, new_pol)
 }
@@ -118,7 +98,10 @@ fn verify_if_send_to_marketing<P: Policy>(p: &P) -> bool {
         route: "".to_string(),
         data: Box::new(0),
     };
-    p.check(&context, Reason::Custom(Box::new(InferenceReason::SendToMarketing)))
+    p.check(
+        &context,
+        Reason::Custom(Box::new(InferenceReason::SendToMarketing)),
+    )
 }
 
 async fn send_to_marketing(email: String, prompt: PCon<String, PromptPolicy>) {
@@ -133,22 +116,46 @@ async fn send_to_marketing(email: String, prompt: PCon<String, PromptPolicy>) {
 
     let payload = MarketingData {
         email,
-        prompt: change_marketing_policy(prompt)
+        prompt: change_marketing_policy(prompt),
     };
     let _ = TahiniAdvertisementClient::new(Default::default(), transport)
         .spawn()
-        .email(tarpc::context::current(), payload).await;
+        .email(tarpc::context::current(), payload)
+        .await;
     ()
+}
+
+fn apply_chat_template(
+    conversation: PCon<Vec<ConversationRound>, PromptPolicy>,
+) -> PCon<String, PromptPolicy> {
+    fn parse_one_round(round: ConversationRound) -> String {
+        let tmp = format!(
+            "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n{}",
+            round.user, round.assistant
+        );
+        if round.assistant.len() != 0 {
+            return format!("{}<|im_end|>\n", tmp);
+        }
+        tmp
+    }
+    conversation.into_ppr(PPR::new(|rounds: Vec<ConversationRound>| {
+        rounds
+            .iter()
+            .map(|round| parse_one_round(round.clone()))
+            .collect::<Vec<String>>()
+            .join("")
+    }))
 }
 
 impl Inference for InferenceServer {
     async fn inference(self, _context: tarpc::context::Context, prompt: UserPrompt) -> LLMResponse {
         println!("Got a request");
 
-        let prompt_copy = prompt.prompt.clone();
-        let pol = prompt_copy.policy().clone();
+        let pol = prompt.conversation.policy().clone();
 
         let mut locked_model = self.model.lock_owned().await;
+
+        let conversation = apply_chat_template(prompt.conversation);
 
         let inf = PPR::new(move |unboxed_prompt: String| {
             locked_model.run(unboxed_prompt.as_str(), prompt.nb_token as usize)
@@ -159,17 +166,16 @@ impl Inference for InferenceServer {
         // let mut ser = serde_json::ser::Serializer::new(&mut writer);
         // let _ =prompt.serialize(&mut ser);
         // println!("Using naive serializer, we get : {:?}", String::from_utf8(writer));
-        let boxed_response = prompt.prompt.into_ppr(inf).transpose();
-        
+        let boxed_response = conversation.into_ppr(inf).transpose();
 
         match boxed_response {
-            Err(e) => LLMResponse {
-                //Can allow a fronting webserver to return a 500
-                infered_tokens: PCon::new(
-                    Err(LLMError::InternalError),
-                    pol.clone(),
-                ),
-            },
+            Err(e) => {
+                eprintln!("Got error {}", e);
+                LLMResponse {
+                    //Can allow a fronting webserver to return a 500
+                    infered_tokens: PCon::new(Err(LLMError::InternalError), pol.clone()),
+                }
+            }
             Ok(boxed_infered) => {
                 // send_to_marketing(prompt.user.clone(), full_conv.clone()).await;
                 LLMResponse {

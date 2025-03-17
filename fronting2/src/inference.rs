@@ -8,6 +8,8 @@ use alohomora::pcr::Signature;
 use alohomora::policy::NoPolicy;
 use alohomora::policy::Policy;
 use alohomora::pure::PrivacyPureRegion as PPR;
+use alohomora::rocket::BBoxJson;
+use alohomora::rocket::RequestBBoxJson;
 use alohomora::rocket::{BBoxForm, FromBBoxForm, JsonResponse, ResponseBBoxJson, route};
 use services_utils::policies::inference_policy::InferenceReason;
 use services_utils::policies::inference_policy::PromptPolicy;
@@ -16,7 +18,8 @@ use services_utils::rpc::{
     inference::{Inference, TahiniInferenceClient},
 };
 use services_utils::types::database_types::{DBUUID, DatabaseSubmit};
-use services_utils::types::inference_types::UserPrompt;
+use services_utils::types::inference_types::ConversationRound;
+use services_utils::types::inference_types::{UserPrompt, BBoxConversation};
 use std::collections::HashMap;
 
 use tarpc::serde_transport::new as new_transport;
@@ -27,14 +30,17 @@ use tokio_util::codec::LengthDelimitedCodec;
 use crate::SERVER_ADDRESS;
 use crate::database::store_to_database;
 use crate::policy::LocalInferencePolicy;
-#[derive(Clone, FromBBoxForm)]
+
+pub type LocalConversation =  Vec<BBox<String, LocalInferencePolicy>>;
+
+#[derive(Clone, RequestBBoxJson)]
 pub(crate) struct InferenceRequest {
     //TODO(douk): Change,  just have this here like this for now because idk how to handle cookies :(
-    pub user: BBox<String, NoPolicy>,
+    pub user: String,
     //Policy replacement is possible via implementation of Into<PromptPolicy>
     //Which might be itself a solution to our org-switching problem :p
     //There should be a way to forbid custom Into implementation
-    pub prompt: BBox<String, LocalInferencePolicy>,
+    pub conversation: BBox<Vec<ConversationRound>, LocalInferencePolicy>,
     pub nb_token: u32,
 }
 
@@ -80,15 +86,16 @@ async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<String, P
 
 #[route(POST, "/", data = "<data>")]
 pub(crate) async fn inference(
-    data: BBoxForm<InferenceRequest>,
+    data: BBoxJson<InferenceRequest>,
 ) -> alohomora::rocket::JsonResponse<InferenceResponse, ()> {
-    let user = data.user.clone().discard_box();
-    let fixed_prompt = fix_policy(data.prompt.clone());
+    let user = data.user.clone();
+    // let user = data.user.clone().discard_box();
+    let fixed_prompt = fix_policy(data.conversation.clone());
     let payload = UserPrompt {
         //TODO(douk): Remove from the datastructure as now the LLM can operate anonymously
         user: user.clone(),
-        prompt: fixed_prompt.clone(),
-        nb_token: 30,
+        conversation: fixed_prompt.clone(),
+        nb_token: data.nb_token,
     };
 
     let tokens = contact_llm_server(payload).await;
@@ -111,7 +118,9 @@ pub(crate) async fn inference(
                 tokens,
                 store_to_database(DatabaseSubmit {
                     user: user.clone(),
-                    full_prompt: format_for_db(fixed_prompt, tokens.clone()),
+                    //TODO(douk): Change database structures to store rounds together, and so no
+                    //need for formatting
+                    full_prompt: BBox::new("abcd".to_string(), PromptPolicy::default())//format_for_db(fixed_prompt, tokens.clone()),
                 })
                 .await,
             ),
