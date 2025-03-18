@@ -3,7 +3,10 @@
 use services_utils::{
     policies::inference_policy::InferenceReason,
     rpc::{database::TahiniDatabaseClient, marketing::TahiniAdvertisementClient},
-    types::{inference_types::ConversationRound, marketing_types::MarketingData},
+    types::{
+        inference_types::{BBoxConversation, Message},
+        marketing_types::MarketingData,
+    },
 };
 use std::sync::Arc;
 //Required for model locking across async tasks
@@ -48,7 +51,7 @@ use services_utils::rpc::marketing::Advertisement;
 use services_utils::types::inference_types::{LLMError, LLMResponse, UserPrompt};
 
 //Database import
-use services_utils::types::database_types::{DBUUID, DatabaseSubmit};
+use services_utils::types::database_types::{CHATUID, DatabaseStoreForm};
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 static SYSTEM_PROMPT: &str = "<|im_start|>system\nYou are Qwenhini. You are a useful assistant that is privacy-preserving<|im_end|>\n";
@@ -125,26 +128,40 @@ async fn send_to_marketing(email: String, prompt: PCon<String, PromptPolicy>) {
     ()
 }
 
-fn apply_chat_template(
-    conversation: PCon<Vec<ConversationRound>, PromptPolicy>,
-) -> PCon<String, PromptPolicy> {
-    fn parse_one_round(round: ConversationRound) -> String {
-        let tmp = format!(
-            "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n{}",
-            round.user, round.assistant
-        );
-        if round.assistant.len() != 0 {
-            return format!("{}<|im_end|>\n", tmp);
-        }
-        tmp
+fn validate_user(role: String) -> Result<String, LLMError> {
+    match role.as_str() {
+        role @ ("user" | "assistant") => Ok(role.to_string()),
+        _ => Err(LLMError::ValidationError),
     }
-    conversation.into_ppr(PPR::new(|rounds: Vec<ConversationRound>| {
-        rounds
-            .iter()
-            .map(|round| parse_one_round(round.clone()))
-            .collect::<Vec<String>>()
-            .join("")
-    }))
+}
+
+fn validate_body(body: String) -> Result<String, LLMError> {
+    match !(body.contains("<|im_start|>") || body.contains("<|im_end|>")) {
+        true => Ok(body),
+        false => Err(LLMError::ValidationError),
+    }
+}
+
+fn parse_message(message: Message) -> Result<String, LLMError> {
+    Ok(format!(
+        "<|im_start|>{}\n{}<|im_end|>\n",
+        validate_user(message.role)?,
+        validate_body(message.content)?
+    ))
+}
+
+fn apply_chat_template(
+    conversation: BBoxConversation,
+) -> Result<PCon<String, PromptPolicy>, LLMError> {
+    conversation
+        .into_ppr(PPR::new(|rounds: Vec<Message>| {
+            rounds
+                .into_iter()
+                .map(|x| parse_message(x.clone()))
+                .collect::<Result<Vec<_>, LLMError>>()
+                .map(|vec| vec.join(""))
+        }))
+        .transpose()
 }
 
 impl Inference for InferenceServer {
@@ -156,6 +173,15 @@ impl Inference for InferenceServer {
         let mut locked_model = self.model.lock_owned().await;
 
         let conversation = apply_chat_template(prompt.conversation);
+        match conversation {
+            Err(e) => {
+                return LLMResponse {
+                    infered_tokens: PCon::new(Err(e), pol.clone()),
+                };
+            }
+            _ => (),
+        };
+        let parsed_conversation = conversation.unwrap();
 
         let inf = PPR::new(move |unboxed_prompt: String| {
             locked_model.run(unboxed_prompt.as_str(), prompt.nb_token as usize)
@@ -166,20 +192,24 @@ impl Inference for InferenceServer {
         // let mut ser = serde_json::ser::Serializer::new(&mut writer);
         // let _ =prompt.serialize(&mut ser);
         // println!("Using naive serializer, we get : {:?}", String::from_utf8(writer));
-        let boxed_response = conversation.into_ppr(inf).transpose();
+        let boxed_response = parsed_conversation.into_ppr(inf).transpose();
 
         match boxed_response {
             Err(e) => {
                 eprintln!("Got error {}", e);
                 LLMResponse {
-                    //Can allow a fronting webserver to return a 500
                     infered_tokens: PCon::new(Err(LLMError::InternalError), pol.clone()),
                 }
             }
             Ok(boxed_infered) => {
                 // send_to_marketing(prompt.user.clone(), full_conv.clone()).await;
                 LLMResponse {
-                    infered_tokens: boxed_infered.into_ppr(PPR::new(|x| Ok(x))),
+                    infered_tokens: boxed_infered.into_ppr(PPR::new(|x| {
+                        Ok(Message {
+                            role: "assistant".to_string(),
+                            content: x,
+                        })
+                    })),
                 }
             }
         }

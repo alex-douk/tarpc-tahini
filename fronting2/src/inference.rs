@@ -17,9 +17,9 @@ use services_utils::rpc::{
     database::{Database, TahiniDatabaseClient},
     inference::{Inference, TahiniInferenceClient},
 };
-use services_utils::types::database_types::{DBUUID, DatabaseSubmit};
-use services_utils::types::inference_types::ConversationRound;
-use services_utils::types::inference_types::{UserPrompt, BBoxConversation};
+use services_utils::types::database_types::{CHATUID, DatabaseStoreForm};
+use services_utils::types::inference_types::Message;
+use services_utils::types::inference_types::{BBoxConversation, UserPrompt};
 use std::collections::HashMap;
 
 use tarpc::serde_transport::new as new_transport;
@@ -30,30 +30,30 @@ use tokio_util::codec::LengthDelimitedCodec;
 use crate::SERVER_ADDRESS;
 use crate::database::store_to_database;
 use crate::policy::LocalInferencePolicy;
+use crate::policy::LocalUserNamePolicy;
 
-pub type LocalConversation =  Vec<BBox<String, LocalInferencePolicy>>;
+pub type LocalConversation = BBox<Vec<Message>, LocalInferencePolicy>;
 
 #[derive(Clone, RequestBBoxJson)]
 pub(crate) struct InferenceRequest {
-    //TODO(douk): Change,  just have this here like this for now because idk how to handle cookies :(
-    pub user: String,
+    pub user: BBox<String, LocalUserNamePolicy>,
     //Policy replacement is possible via implementation of Into<PromptPolicy>
     //Which might be itself a solution to our org-switching problem :p
     //There should be a way to forbid custom Into implementation
-    pub conversation: BBox<Vec<ConversationRound>, LocalInferencePolicy>,
+    pub conversation: LocalConversation,
     pub nb_token: u32,
 }
 
 #[derive(Clone, ResponseBBoxJson)]
 pub(crate) struct InferenceResponse {
-    infered_tokens: BBox<String, PromptPolicy>,
-    db_uuid: Option<BBox<u32, PromptPolicy>>,
+    infered_tokens: BBox<Message, PromptPolicy>,
+    db_uuid: Option<CHATUID>,
 }
 
-fn fix_policy<T>(a: BBox<T, LocalInferencePolicy>) -> BBox<T, PromptPolicy> {
+fn fix_policy<T, P1: Policy + Into<P2>, P2: Policy>(a: BBox<T, P1>) -> BBox<T, P2> {
     a.into_pcr(
         PrivacyCriticalRegion::new(
-            |v, p: LocalInferencePolicy, _c| BBox::new(v, p.into()),
+            |v, p: P1, _c| BBox::new(v, p.into()),
             Signature {
                 username: "",
                 signature: "",
@@ -71,7 +71,7 @@ fn fix_policy<T>(a: BBox<T, LocalInferencePolicy>) -> BBox<T, PromptPolicy> {
     )
 }
 
-async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<String, PromptPolicy>> {
+async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, PromptPolicy>> {
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5000)).await?;
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
@@ -88,12 +88,10 @@ async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<String, P
 pub(crate) async fn inference(
     data: BBoxJson<InferenceRequest>,
 ) -> alohomora::rocket::JsonResponse<InferenceResponse, ()> {
-    let user = data.user.clone();
+    let fixed_user = fix_policy(data.user.clone());
     // let user = data.user.clone().discard_box();
     let fixed_prompt = fix_policy(data.conversation.clone());
     let payload = UserPrompt {
-        //TODO(douk): Remove from the datastructure as now the LLM can operate anonymously
-        user: user.clone(),
         conversation: fixed_prompt.clone(),
         nb_token: data.nb_token,
     };
@@ -108,7 +106,13 @@ pub(crate) async fn inference(
         Err(e) => {
             eprintln!("During LLM invokation: Encountered error {}", e);
             construct_answer(
-                &BBox::new("LLM Internal error".to_string(), PromptPolicy::default()),
+                &BBox::new(
+                    Message {
+                        role: "error".to_string(),
+                        content: "LLM Internal error".to_string(),
+                    },
+                    PromptPolicy::default(),
+                ),
                 None,
             )
         }
@@ -116,11 +120,9 @@ pub(crate) async fn inference(
             false => construct_answer(tokens, None),
             true => construct_answer(
                 tokens,
-                store_to_database(DatabaseSubmit {
-                    user: user.clone(),
-                    //TODO(douk): Change database structures to store rounds together, and so no
-                    //need for formatting
-                    full_prompt: BBox::new("abcd".to_string(), PromptPolicy::default())//format_for_db(fixed_prompt, tokens.clone()),
+                store_to_database(DatabaseStoreForm {
+                    user: fixed_user,
+                    full_prompt: fixed_prompt,
                 })
                 .await,
             ),
@@ -159,8 +161,8 @@ fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {
 }
 
 fn construct_answer(
-    inf_res: &BBox<String, PromptPolicy>,
-    uuid: Option<DBUUID>,
+    inf_res: &BBox<Message, PromptPolicy>,
+    uuid: Option<CHATUID>,
 ) -> JsonResponse<InferenceResponse, ()> {
     JsonResponse(
         InferenceResponse {

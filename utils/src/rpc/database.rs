@@ -1,4 +1,4 @@
-use crate::types::database_types::{DatabaseRecord, DatabaseSubmit, DBUUID};
+use crate::types::{database_types::{DatabaseRecord, DatabaseRetrieveForm, DatabaseStoreForm, CHATUID}, inference_types::BBoxConversation};
 
 use alohomora::{
     tahini_service,
@@ -8,6 +8,6 @@ use alohomora::{
 
 #[tahini_service]
 pub trait Database {
-    async fn store_prompt(prompt: DatabaseSubmit) -> DBUUID;
-    async fn retrieve_prompt(user: String, uuid: DBUUID) -> Option<DatabaseRecord>;
+    async fn store_prompt(prompt: DatabaseStoreForm) -> CHATUID;
+    async fn retrieve_prompt(retrieve: DatabaseRetrieveForm) -> Option<BBoxConversation>;
 }

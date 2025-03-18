@@ -1,18 +1,25 @@
-use std::collections::HashMap;
-
-use alohomora::tarpc::{TahiniEnum, TahiniType};
-use alohomora::bbox::BBox;
 use alohomora::TahiniType;
+use alohomora::bbox::BBox;
+use alohomora::tarpc::{TahiniEnum, TahiniType};
 use serde::{Deserialize, Serialize};
 
 use crate::policies::PromptPolicy;
+use crate::policies::shared_policies::UsernamePolicy;
+
+use super::inference_types::BBoxConversation;
 
 #[derive(Deserialize, Clone, TahiniType)]
-pub struct DatabaseSubmit {
-    pub user: String,
-    pub full_prompt: BBox<String, PromptPolicy>
+pub struct DatabaseStoreForm {
+    pub user: BBox<String, UsernamePolicy>,
+    pub full_prompt: BBoxConversation,
 }
 
-pub type DBUUID = BBox<u32, PromptPolicy>;
+#[derive(Deserialize, Clone, TahiniType)]
+pub struct DatabaseRetrieveForm {
+    pub user: BBox<String, UsernamePolicy>,
+    pub conv_id: CHATUID
+}
 
-pub type DatabaseRecord = DatabaseSubmit;
+pub type CHATUID = BBox<String, UsernamePolicy>;
+
+pub type DatabaseRecord = DatabaseStoreForm;
