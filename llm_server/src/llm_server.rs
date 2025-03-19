@@ -46,12 +46,12 @@ use crate::model_backend::{TextGeneration, create_pipeline};
 use anyhow::Error as E;
 
 //Tarpc + types
+use services_utils::funcs::parse_conversation;
 use services_utils::rpc::inference::Inference;
 use services_utils::rpc::marketing::Advertisement;
 use services_utils::types::inference_types::{LLMError, LLMResponse, UserPrompt};
 
 //Database import
-use services_utils::types::database_types::{CHATUID, DatabaseStoreForm};
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 static SYSTEM_PROMPT: &str = "<|im_start|>system\nYou are Qwenhini. You are a useful assistant that is privacy-preserving<|im_end|>\n";
@@ -128,39 +128,12 @@ async fn send_to_marketing(email: String, prompt: PCon<String, PromptPolicy>) {
     ()
 }
 
-fn validate_user(role: String) -> Result<String, LLMError> {
-    match role.as_str() {
-        role @ ("user" | "assistant") => Ok(role.to_string()),
-        _ => Err(LLMError::ValidationError),
-    }
-}
-
-fn validate_body(body: String) -> Result<String, LLMError> {
-    match !(body.contains("<|im_start|>") || body.contains("<|im_end|>")) {
-        true => Ok(body),
-        false => Err(LLMError::ValidationError),
-    }
-}
-
-fn parse_message(message: Message) -> Result<String, LLMError> {
-    Ok(format!(
-        "<|im_start|>{}\n{}<|im_end|>\n",
-        validate_user(message.role)?,
-        validate_body(message.content)?
-    ))
-}
 
 fn apply_chat_template(
     conversation: BBoxConversation,
 ) -> Result<PCon<String, PromptPolicy>, LLMError> {
     conversation
-        .into_ppr(PPR::new(|rounds: Vec<Message>| {
-            rounds
-                .into_iter()
-                .map(|x| parse_message(x.clone()))
-                .collect::<Result<Vec<_>, LLMError>>()
-                .map(|vec| vec.join(""))
-        }))
+        .into_ppr(PPR::new(|rounds: Vec<Message>| parse_conversation(rounds)))
         .transpose()
 }
 

@@ -38,6 +38,7 @@ use alohomora::pure::PrivacyPureRegion as PPR;
 
 use services_utils::rpc::database::Database;
 //Database import
+use services_utils::funcs::{parse_conversation, parse_stored_conversation};
 use services_utils::types::database_types::{CHATUID, DatabaseRecord, DatabaseStoreForm};
 
 pub type UserMap<T> = HashMap<String, T>;
@@ -60,10 +61,6 @@ impl DatabaseServer {
     }
 }
 
-fn parse_stored(stored_conv: String) -> Vec<Message> {
-    Vec::new()
-}
-
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 impl Database for DatabaseServer {
@@ -76,9 +73,14 @@ impl Database for DatabaseServer {
         let mut backend = self.conn.lock().await;
         let ret_pol = form.user.policy().clone();
         let user_uid = backend.get_user_id(form.user, Context::empty());
+        let parsed_conv = form
+            .full_prompt
+            .into_ppr(PPR::new(|conv| parse_conversation(conv)))
+            .transpose()
+            .expect("Malformed received conversation");
         backend.insert(
             "tahini",
-            (conv_uid.clone(), user_uid, "abcd".to_string()),
+            (conv_uid.clone(), user_uid, parsed_conv),
             Context::empty(),
         );
         drop(backend);
@@ -110,9 +112,11 @@ impl Database for DatabaseServer {
         );
         match conv {
             Err(_) => None,
-            Ok(conv) => conv
-                .transpose()
-                .map(|boxed_conv| boxed_conv.into_ppr(PPR::new(|unboxed| parse_stored(unboxed)))),
+            Ok(conv) => conv.transpose().map(|boxed_conv| {
+                boxed_conv.into_ppr(PPR::new(|unboxed| {
+                    parse_stored_conversation(unboxed).expect("Malformed stored conversation")
+                }))
+            }),
         }
     }
 
