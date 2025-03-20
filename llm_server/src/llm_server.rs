@@ -54,7 +54,7 @@ use services_utils::types::inference_types::{LLMError, LLMResponse, UserPrompt};
 //Database import
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
-static SYSTEM_PROMPT: &str = "<|im_start|>system\nYou are Qwenhini. You are a useful assistant that is privacy-preserving<|im_end|>\n";
+static SYSTEM_PROMPT: &str = "<|im_start|>system\nYou are Qwenhini. You are a useful assistant.<|im_end|>\n";
 
 #[derive(Clone)]
 pub struct InferenceServer {

@@ -3,7 +3,7 @@ use alohomora::bbox::BBox;
 use alohomora::tarpc::{TahiniEnum, TahiniType};
 use alohomora::{AlohomoraType, TahiniType};
 use tarpc::serde::{Deserialize, Serialize};
-use alohomora::rocket::ResponseBBoxJson;
+use alohomora::rocket::{RequestBBoxJson, ResponseBBoxJson};
 
 use crate::policies::PromptPolicy;
 
@@ -21,7 +21,7 @@ pub struct LLMResponse {
 
 pub type BBoxConversation = BBox<Vec<Message>, PromptPolicy>;
 
-#[derive(Serialize, Deserialize, Clone, Debug, ResponseBBoxJson)]
+#[derive(Serialize, RequestBBoxJson, Deserialize, Clone, Debug, ResponseBBoxJson)]
 pub struct Message{
     pub role: String,
     pub content: String

@@ -14,6 +14,7 @@ services_utils = {version = "0.1.0", path= "../utils"}
 anyhow = "1.0.94"
 tarpc = "0.34.0"
 rocket = { git = "https://github.com/KinanBab/Rocket.git", branch = "main", features = ["json"]}
+serde = { version = "1.0.219", features = ["derive", "serde_derive"] }
 
 [[bin]]
 name="webserver"

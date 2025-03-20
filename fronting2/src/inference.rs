@@ -13,6 +13,7 @@ use alohomora::rocket::RequestBBoxJson;
 use alohomora::rocket::{BBoxForm, FromBBoxForm, JsonResponse, ResponseBBoxJson, route};
 use services_utils::policies::inference_policy::InferenceReason;
 use services_utils::policies::inference_policy::PromptPolicy;
+use services_utils::policies::shared_policies::UsernamePolicy;
 use services_utils::rpc::{
     database::{Database, TahiniDatabaseClient},
     inference::{Inference, TahiniInferenceClient},
@@ -28,19 +29,22 @@ use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
 use crate::SERVER_ADDRESS;
+use crate::database::register_user;
 use crate::database::store_to_database;
-use crate::policy::LocalInferencePolicy;
-use crate::policy::LocalUserNamePolicy;
+use serde::Deserialize;
 
-pub type LocalConversation = BBox<Vec<Message>, LocalInferencePolicy>;
+#[derive(RequestBBoxJson, Clone, Deserialize)]
+pub struct LocalMessage {
+    role: String,
+    content: String,
+}
 
+pub type LocalConversation = BBox<Vec<LocalMessage>, PromptPolicy>;
 #[derive(Clone, RequestBBoxJson)]
 pub(crate) struct InferenceRequest {
-    pub user: BBox<String, LocalUserNamePolicy>,
-    //Policy replacement is possible via implementation of Into<PromptPolicy>
-    //Which might be itself a solution to our org-switching problem :p
-    //There should be a way to forbid custom Into implementation
-    pub conversation: LocalConversation,
+    pub user: BBox<String, UsernamePolicy>,
+    //TODO(douk): Add handling of username to UUID
+    pub conversation: BBoxConversation,
     pub nb_token: u32,
 }
 
@@ -88,9 +92,10 @@ async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, 
 pub(crate) async fn inference(
     data: BBoxJson<InferenceRequest>,
 ) -> alohomora::rocket::JsonResponse<InferenceResponse, ()> {
-    let fixed_user = fix_policy(data.user.clone());
-    // let user = data.user.clone().discard_box();
-    let fixed_prompt = fix_policy(data.conversation.clone());
+    // let fixed_user = fix_policy(data.user.clone());
+    // let fixed_user = BBox::new(data.user.clone(), UsernamePolicy{ targeted_ads_consent: false});
+    let uuid = register_user(data.user.clone()).await;
+    let fixed_prompt = data.conversation.clone();
     let payload = UserPrompt {
         conversation: fixed_prompt.clone(),
         nb_token: data.nb_token,
@@ -121,8 +126,9 @@ pub(crate) async fn inference(
             true => construct_answer(
                 tokens,
                 store_to_database(DatabaseStoreForm {
-                    user: fixed_user,
+                    uuid: uuid.clone(),
                     full_prompt: fixed_prompt,
+                    conv_id: BBox::new(None, uuid.policy().clone()),
                 })
                 .await,
             ),
@@ -137,17 +143,17 @@ pub(crate) async fn inference(
 //But the input to the LLM must be structured differently
 //Because special tokens separate user from assistant responses, and the LLM gotta understand those
 //And same goes for the DB, the DB must know how to hold a complete conversation.
-fn format_for_db(
-    user_prompt: BBox<String, PromptPolicy>,
-    infered_tokens: BBox<String, PromptPolicy>,
-) -> BBox<String, PromptPolicy> {
-    let pair = fold((user_prompt, infered_tokens)).expect("Failed to combine PCons");
-    pair.into_ppr(PPR::new(|pair: (String, String)| {
-        format!("[USER]: {}\n[ASSISTANT]{}", pair.0, pair.1)
-    }))
-    .specialize_policy::<PromptPolicy>()
-    .expect("Failed to specialize policy")
-}
+// fn format_for_db(
+//     user_prompt: BBox<String, PromptPolicy>,
+//     infered_tokens: BBox<String, PromptPolicy>,
+// ) -> BBox<String, PromptPolicy> {
+//     let pair = fold((user_prompt, infered_tokens)).expect("Failed to combine PCons");
+//     pair.into_ppr(PPR::new(|pair: (String, String)| {
+//         format!("[USER]: {}\n[ASSISTANT]{}", pair.0, pair.1)
+//     }))
+//     .specialize_policy::<PromptPolicy>()
+//     .expect("Failed to specialize policy")
+// }
 
 fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {
     let context = UnprotectedContext {

@@ -1670,6 +1670,7 @@ dependencies = [
  "futures",
  "futures-util",
  "rocket",
+ "serde",
  "services_utils",
  "tarpc",
  "tokio",

@@ -69,22 +69,39 @@ impl Database for DatabaseServer {
         _ctxt: tarpc::context::Context,
         form: DatabaseStoreForm,
     ) -> CHATUID {
-        let conv_uid = format!("{}", Uuid::new_v4());
+        let conv_uid = form.conv_id.into_ppr(PPR::new(|conv_id| match conv_id {
+            None => format!("{}", Uuid::new_v4()),
+            Some(t) => t,
+        }));
         let mut backend = self.conn.lock().await;
-        let ret_pol = form.user.policy().clone();
-        let user_uid = backend.get_user_id(form.user, Context::empty());
+        let ret_pol = form.uuid.policy();
+        // let user_uid = backend.get_user_id(form.user, Context::empty());
         let parsed_conv = form
             .full_prompt
             .into_ppr(PPR::new(|conv| parse_conversation(conv)))
             .transpose()
             .expect("Malformed received conversation");
+        let pol_parameters = (
+            parsed_conv.policy().no_storage,
+            parsed_conv.policy().marketing_consent,
+            parsed_conv.policy().unprotected_image_gen,
+        );
+
         backend.insert(
-            "tahini",
-            (conv_uid.clone(), user_uid, parsed_conv),
+            "conversations",
+            (
+                conv_uid.clone(),
+                form.uuid.clone(),
+                parsed_conv,
+                pol_parameters.0,
+                pol_parameters.1,
+                pol_parameters.2,
+                ret_pol.targeted_ads_consent,
+            ),
             Context::empty(),
         );
         drop(backend);
-        PCon::new(conv_uid, ret_pol)
+        conv_uid
     }
 
     async fn retrieve_prompt(
@@ -93,19 +110,10 @@ impl Database for DatabaseServer {
         retrieve: DatabaseRetrieveForm,
     ) -> Option<BBoxConversation> {
         let mut backend = self.conn.lock().await;
-        let user_uid = from_value_or_null(backend.get_user_id(retrieve.user, Context::empty()));
-        if user_uid.is_err() {
-            return None;
-        }
-        let user_uid = user_uid.unwrap().transpose();
-        if user_uid.is_none() {
-            return None;
-        }
-        let user_uid: PCon<String, UsernamePolicy> = user_uid.unwrap();
         let conv = from_value_or_null(
             backend.prep_exec(
-                "SELECT conversation_text FROM tahini WHERE conversation_id = ? AND user_id = ?",
-                (user_uid, retrieve.conv_id),
+                "SELECT * FROM tahini WHERE conversation_id = ? AND user_id = ?",
+                (retrieve.uuid, retrieve.conv_id),
                 Context::empty(),
             )[0][0]
                 .clone(),
@@ -119,17 +127,21 @@ impl Database for DatabaseServer {
             }),
         }
     }
-
-    // let user_uid = backend.get_user_id(retrieve.user, Context::empty());
-    // let conv = backend.prep_exec(
-    //     "SELECT conversation_text FROM tahini WHERE conversation_id = ? AND user_id = ?",
-    //     (user_uid, retrieve.uuid),
-    //     Context::empty(),
-    // )[0][0];
-    // let b = conv.specialize_policy::<PromptPolicy>().expect("Malformed conversation");
-    // b.into_ppr(PPR::new(|row: Value| {
-    //     from_value
-    // }))
+    async fn register_user(
+        self,
+        context: tarpc::context::Context,
+        username: PCon<String, UsernamePolicy>,
+    ) -> PCon<String, UsernamePolicy> {
+        let mut backend = self.conn.lock().await;
+        let ret_pol = username.policy();
+        let uuid = format!("{}", Uuid::new_v4());
+        backend.insert(
+            "users",
+            (uuid.clone(), username.clone(), ret_pol.targeted_ads_consent),
+            Context::empty(),
+        );
+        PCon::new(uuid, ret_pol.clone())
+    }
 }
 
 pub(crate) async fn wait_upon(fut: impl Future<Output = ()> + Send + 'static) {

@@ -10,13 +10,15 @@ use super::inference_types::BBoxConversation;
 
 #[derive(Deserialize, Clone, TahiniType)]
 pub struct DatabaseStoreForm {
-    pub user: BBox<String, UsernamePolicy>,
+    pub uuid: BBox<String, UsernamePolicy>,
+    pub conv_id: BBox<Option<String>, UsernamePolicy>,
     pub full_prompt: BBoxConversation,
 }
 
 #[derive(Deserialize, Clone, TahiniType)]
 pub struct DatabaseRetrieveForm {
-    pub user: BBox<String, UsernamePolicy>,
+    pub uuid: BBox<String, UsernamePolicy>,
+    // pub conv_id: Option<BBox<String, PromptPolicy>>,
     pub conv_id: CHATUID
 }
 

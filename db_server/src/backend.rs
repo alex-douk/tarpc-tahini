@@ -32,7 +32,8 @@ impl MySqlBackend {
         //     Some(l) => l,
         // };
         //
-        let schema = std::fs::read_to_string("resources/schema.sql")?;
+        // println!("File system pwd is {:?}", std::fs::read_dir(".").unwrap().next());
+        let schema = std::fs::read_to_string("./resources/schema.sql")?;
         //
         // debug!(
         //     log,
@@ -57,6 +58,7 @@ impl MySqlBackend {
                 if line.starts_with("--") || line.is_empty() {
                     continue;
                 }
+                println!("line is : {}", line);
                 db.query_drop(line).unwrap();
             }
         } else {
@@ -167,14 +169,8 @@ impl MySqlBackend {
         context: Context<()>,
     ) -> BBoxValue {
         self.prep_exec(
-            "IF NOT EXISTS (SELECT * FROM users where username = ?) 
-            BEGIN INSERT INTO users (username) VALUES (?) RETURNING user_id 
-            END
-            ELSE 
-            BEGIN
-            SELECT user_id FROM users where username = ?
-            END",
-            (user.clone(), user.clone(), user),
+            "IF NOT EXISTS (SELECT * FROM users where username = ?) BEGIN INSERT INTO users (username, targeted_ads_consent) VALUES (?, ?) RETURNING user_id END ELSE BEGIN SELECT * FROM users where username = ? END",
+            (user.clone(), user.clone(), user.policy().targeted_ads_consent, user),
             context,
         )[0][0]
             .clone()

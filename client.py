@@ -17,12 +17,12 @@ API_URL = "http://0.0.0.0:8000/chat"
 def query_llm(prompt):
     prompt_payload = {'user': 'Alex', 'conversation': prompt, 'nb_token' : 30}
     headers={'Content-type': 'application/json',
-             'Accept': 'text/event-stream', 
+             # 'Accept': 'text/event-stream', 
              'Connection': 'keep-alive',
              'X-Accel-Buffering': 'no'}
 
 
-    cookies = {"no_storage": "false", "ads": "true", "image_gen": "false"}
+    cookies = {"no_storage": "false", "ads": "true", "image_gen": "false", "targeted_ads": "false"}
     response = with_requests(host, headers, json.dumps(prompt_payload), cookies)
     if response.status_code == 200:
         return response.json().get("infered_tokens", "Error: No response from the server")
@@ -58,15 +58,11 @@ if __name__ == '__main__':
         user_input = gr.Textbox(label="Type your message:")
         
         def chat_response(history, message):
-            global send_history
             #TODO: To have multiturn conversation, we need to fix this client
-            history.append({"role": "user", "content": message})
-            response = query_llm(append_pre_send(send_history, message))
-            send_history = append_post_send(send_history, message, response)
-            
-            append_to_send_history(send_history, message, response)
+            history = history + [{"role": "user", "content": message}]
+            response = query_llm(history)
 
-            history.append({"role": "assistant", "content": response})
+            history = history + [response]
             return history, ""
 
         user_input.submit(chat_response, [chatbox, user_input], [chatbox, user_input])

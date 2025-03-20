@@ -1,11 +1,18 @@
-use alohomora::policy::{Policy, Reason};
-use tarpc::serde::{Serialize, Deserialize};
+use alohomora::db::{BBoxFromValue, Value};
+use alohomora::policy::schema_policy;
+use alohomora::{
+    policy::{FrontendPolicy, Policy, Reason, SchemaPolicy},
+    rocket::{RocketCookie, RocketRequest},
+};
+use std::str::FromStr;
+use tarpc::serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[schema_policy(table = "conversations", column = 2)]
 pub struct PromptPolicy {
     pub no_storage: bool,
     pub marketing_consent: bool,
-    pub unprotected_image_gen: bool
+    pub unprotected_image_gen: bool,
 }
 
 impl Policy for PromptPolicy {
@@ -13,7 +20,11 @@ impl Policy for PromptPolicy {
         "PromptPolicy".to_string()
     }
 
-    fn check(&self, context: &alohomora::context::UnprotectedContext, reason: alohomora::policy::Reason<'_>) -> bool {
+    fn check(
+        &self,
+        context: &alohomora::context::UnprotectedContext,
+        reason: alohomora::policy::Reason<'_>,
+    ) -> bool {
         match reason {
             Reason::DB(_, _) => !self.no_storage,
             Reason::Response => true,
@@ -24,20 +35,26 @@ impl Policy for PromptPolicy {
                     //If it is, we check the inference reason
                     InferenceReason::SendToMarketing => self.marketing_consent,
                     InferenceReason::SendToImageGen => self.unprotected_image_gen,
-                    InferenceReason::SendToDB => !self.no_storage
-                }
-            }
+                    InferenceReason::SendToDB => !self.no_storage,
+                },
+            },
             //If it is not as a direct query response, a DB request, or an inference specific
             //purpose, we deny
-            _ => false
+            _ => false,
         }
     }
 
-    fn join(&self, other: alohomora::policy::AnyPolicy) -> Result<alohomora::policy::AnyPolicy, ()> {
+    fn join(
+        &self,
+        other: alohomora::policy::AnyPolicy,
+    ) -> Result<alohomora::policy::AnyPolicy, ()> {
         Ok(other)
     }
 
-    fn join_logic(&self, other: Self) -> Result<Self, ()> where Self: Sized {
+    fn join_logic(&self, other: Self) -> Result<Self, ()>
+    where
+        Self: Sized,
+    {
         Ok(self.clone())
     }
 }
@@ -46,6 +63,58 @@ impl Policy for PromptPolicy {
 pub enum InferenceReason {
     SendToMarketing,
     SendToImageGen,
-    SendToDB
+    SendToDB,
 }
 
+impl FrontendPolicy for PromptPolicy {
+    fn from_request<'a, 'r>(request: &'a RocketRequest<'r>) -> Self
+    where
+        Self: Sized,
+    {
+        let no_storage =
+            bool::from_str(request.cookies().get("no_storage").unwrap().value()).unwrap();
+        let marketing_consent =
+            bool::from_str(request.cookies().get("ads").unwrap().value()).unwrap();
+        let unprotected_image_gen =
+            bool::from_str(request.cookies().get("image_gen").unwrap().value()).unwrap();
+        PromptPolicy {
+            no_storage,
+            marketing_consent,
+            unprotected_image_gen,
+        }
+    }
+
+    fn from_cookie<'a, 'r>(
+        name: &str,
+        cookie: &'a RocketCookie<'static>,
+        request: &'a RocketRequest<'r>,
+    ) -> Self
+    where
+        Self: Sized,
+    {
+        let no_storage =
+            bool::from_str(request.cookies().get("no_storage").unwrap().value()).unwrap();
+        let marketing_consent =
+            bool::from_str(request.cookies().get("ads").unwrap().value()).unwrap();
+        let unprotected_image_gen =
+            bool::from_str(request.cookies().get("image_gen").unwrap().value()).unwrap();
+        PromptPolicy {
+            no_storage,
+            marketing_consent,
+            unprotected_image_gen,
+        }
+    }
+}
+
+impl SchemaPolicy for PromptPolicy {
+    fn from_row(table_name: &str, row: &Vec<Value>) -> Self
+    where
+        Self: Sized,
+    {
+        PromptPolicy {
+            no_storage: BBoxFromValue::from_value(row[3].clone()),
+            marketing_consent: BBoxFromValue::from_value(row[4].clone()),
+            unprotected_image_gen: BBoxFromValue::from_value(row[5].clone()),
+        }
+    }
+}

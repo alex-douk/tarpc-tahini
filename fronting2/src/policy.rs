@@ -118,12 +118,6 @@ impl Policy for LocalUserNamePolicy {
     }
 }
 
-impl Into<UsernamePolicy> for LocalUserNamePolicy {
-    fn into(self) -> UsernamePolicy {
-        UsernamePolicy {}
-    }
-}
-
 impl FrontendPolicy for LocalUserNamePolicy {
     fn from_cookie<'a, 'r>(
         name: &str,
