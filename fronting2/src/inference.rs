@@ -127,13 +127,27 @@ pub(crate) async fn inference(
                 tokens,
                 store_to_database(DatabaseStoreForm {
                     uuid: uuid.clone(),
-                    full_prompt: fixed_prompt,
+                    full_prompt: concatenate_messages(fixed_prompt, tokens.clone()),
                     conv_id: BBox::new(None, uuid.policy().clone()),
                 })
                 .await,
             ),
         },
     }
+}
+
+fn concatenate_messages(
+    conv: BBoxConversation,
+    message: BBox<Message, PromptPolicy>,
+) -> BBoxConversation {
+    let tuple = fold((conv, message)).expect("Couldn't fold");
+    tuple
+        .into_ppr(PPR::new(|mut pair: (Vec<Message>, Message)| {
+            pair.0.push(pair.1);
+            pair.0
+        }))
+        .specialize_policy::<PromptPolicy>()
+        .expect("Couldn't specialize")
 }
 
 //TODO(douk): Change this to allow for multiturn conversation
