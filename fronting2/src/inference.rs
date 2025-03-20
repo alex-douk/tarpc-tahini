@@ -18,7 +18,7 @@ use services_utils::rpc::{
     database::{Database, TahiniDatabaseClient},
     inference::{Inference, TahiniInferenceClient},
 };
-use services_utils::types::database_types::{CHATUID, DatabaseStoreForm};
+use services_utils::types::database_types::{CHATUID, DatabaseRetrieveForm, DatabaseStoreForm};
 use services_utils::types::inference_types::Message;
 use services_utils::types::inference_types::{BBoxConversation, UserPrompt};
 use std::collections::HashMap;
@@ -30,20 +30,15 @@ use tokio_util::codec::LengthDelimitedCodec;
 
 use crate::SERVER_ADDRESS;
 use crate::database::register_user;
+use crate::database::retrieve_conversation;
 use crate::database::store_to_database;
 use serde::Deserialize;
 
-#[derive(RequestBBoxJson, Clone, Deserialize)]
-pub struct LocalMessage {
-    role: String,
-    content: String,
-}
-
-pub type LocalConversation = BBox<Vec<LocalMessage>, PromptPolicy>;
 #[derive(Clone, RequestBBoxJson)]
 pub(crate) struct InferenceRequest {
     pub user: BBox<String, UsernamePolicy>,
-    //TODO(douk): Add handling of username to UUID
+    pub uuid: Option<BBox<String, UsernamePolicy>>,
+    pub conv_id: BBox<Option<String>, UsernamePolicy>,
     pub conversation: BBoxConversation,
     pub nb_token: u32,
 }
@@ -51,6 +46,7 @@ pub(crate) struct InferenceRequest {
 #[derive(Clone, ResponseBBoxJson)]
 pub(crate) struct InferenceResponse {
     infered_tokens: BBox<Message, PromptPolicy>,
+    uuid: Option<BBox<String, UsernamePolicy>>,
     db_uuid: Option<CHATUID>,
 }
 
@@ -94,7 +90,13 @@ pub(crate) async fn inference(
 ) -> alohomora::rocket::JsonResponse<InferenceResponse, ()> {
     // let fixed_user = fix_policy(data.user.clone());
     // let fixed_user = BBox::new(data.user.clone(), UsernamePolicy{ targeted_ads_consent: false});
-    let uuid = register_user(data.user.clone()).await;
+
+    let uuid = match &data.uuid {
+        //TODO(douk): username could be Option as well, in which case anonymous UUID extracted at
+        //database startup
+        None => register_user(data.user.clone()).await,
+        Some(t) => t.clone(),
+    };
     let fixed_prompt = data.conversation.clone();
     let payload = UserPrompt {
         conversation: fixed_prompt.clone(),
@@ -102,11 +104,10 @@ pub(crate) async fn inference(
     };
 
     let tokens = contact_llm_server(payload).await;
+
     //If inference error, do not go to DB, instead early return with None
     //If policy says no_db, do not go to DB, instead early return with None
-    //Otherwise, go to DB
-    //Return with everything proper
-
+    //Otherwise, go to DB then return
     match tokens {
         Err(e) => {
             eprintln!("During LLM invokation: Encountered error {}", e);
@@ -118,56 +119,43 @@ pub(crate) async fn inference(
                     },
                     PromptPolicy::default(),
                 ),
+                Some(uuid.clone()),
                 None,
             )
         }
         Ok(ref tokens) => match verify_if_send_to_db(tokens.policy()) {
-            false => construct_answer(tokens, None),
-            true => construct_answer(
-                tokens,
-                store_to_database(DatabaseStoreForm {
+            false => construct_answer(tokens, Some(uuid.clone()), None),
+            true => {
+                let conv_id = store_to_database(DatabaseStoreForm {
                     uuid: uuid.clone(),
-                    full_prompt: concatenate_messages(fixed_prompt, tokens.clone()),
-                    conv_id: BBox::new(None, uuid.policy().clone()),
+                    message: fixed_prompt
+                        .into_ppr(PPR::new(|conv: Vec<Message>| conv.last().unwrap().clone())),
+                    conv_id: data.conv_id.clone(),
                 })
-                .await,
-            ),
+                .await
+                .unwrap();
+                let conversation = retrieve_conversation(DatabaseRetrieveForm {
+                    uuid: uuid.clone(),
+                    conv_id: conv_id.clone(),
+                })
+                .await;
+                match conversation {
+                    None => println!("Couldn't retrieve the conversation"),
+                    Some(t) => println!("Found conversation : {:?}", t),
+                };
+
+                let db_uid = store_to_database(DatabaseStoreForm {
+                    uuid: uuid.clone(),
+                    message: tokens.clone(),
+                    conv_id: conv_id.into_ppr(PPR::new(|x| Some(x))),
+                })
+                .await;
+
+                construct_answer(tokens, Some(uuid.clone()), db_uid)
+            }
         },
     }
 }
-
-fn concatenate_messages(
-    conv: BBoxConversation,
-    message: BBox<Message, PromptPolicy>,
-) -> BBoxConversation {
-    let tuple = fold((conv, message)).expect("Couldn't fold");
-    tuple
-        .into_ppr(PPR::new(|mut pair: (Vec<Message>, Message)| {
-            pair.0.push(pair.1);
-            pair.0
-        }))
-        .specialize_policy::<PromptPolicy>()
-        .expect("Couldn't specialize")
-}
-
-//TODO(douk): Change this to allow for multiturn conversation
-//This requires changing the underlying data structure also, which will contain all the rounds of
-//conversation
-//Note: The LLM still only returns the new infered tokens
-//But the input to the LLM must be structured differently
-//Because special tokens separate user from assistant responses, and the LLM gotta understand those
-//And same goes for the DB, the DB must know how to hold a complete conversation.
-// fn format_for_db(
-//     user_prompt: BBox<String, PromptPolicy>,
-//     infered_tokens: BBox<String, PromptPolicy>,
-// ) -> BBox<String, PromptPolicy> {
-//     let pair = fold((user_prompt, infered_tokens)).expect("Failed to combine PCons");
-//     pair.into_ppr(PPR::new(|pair: (String, String)| {
-//         format!("[USER]: {}\n[ASSISTANT]{}", pair.0, pair.1)
-//     }))
-//     .specialize_policy::<PromptPolicy>()
-//     .expect("Failed to specialize policy")
-// }
 
 fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {
     let context = UnprotectedContext {
@@ -182,12 +170,14 @@ fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {
 
 fn construct_answer(
     inf_res: &BBox<Message, PromptPolicy>,
-    uuid: Option<CHATUID>,
+    uuid: Option<BBox<String, UsernamePolicy>>,
+    db_uid: Option<CHATUID>,
 ) -> JsonResponse<InferenceResponse, ()> {
     JsonResponse(
         InferenceResponse {
             infered_tokens: inf_res.clone(),
-            db_uuid: uuid,
+            uuid,
+            db_uuid: db_uid,
         },
         Context::empty(),
     )

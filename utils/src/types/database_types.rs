@@ -5,20 +5,20 @@ use serde::{Deserialize, Serialize};
 
 use crate::policies::PromptPolicy;
 use crate::policies::shared_policies::UsernamePolicy;
+use crate::types::inference_types::Message;
 
-use super::inference_types::BBoxConversation;
+// use super::inference_types::BBoxConversation;
 
 #[derive(Deserialize, Clone, TahiniType)]
 pub struct DatabaseStoreForm {
     pub uuid: BBox<String, UsernamePolicy>,
     pub conv_id: BBox<Option<String>, UsernamePolicy>,
-    pub full_prompt: BBoxConversation,
+    pub message: BBox<Message, PromptPolicy>,
 }
 
 #[derive(Deserialize, Clone, TahiniType)]
 pub struct DatabaseRetrieveForm {
     pub uuid: BBox<String, UsernamePolicy>,
-    // pub conv_id: Option<BBox<String, PromptPolicy>>,
     pub conv_id: CHATUID
 }
 

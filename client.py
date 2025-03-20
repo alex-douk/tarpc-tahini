@@ -14,31 +14,64 @@ import requests
 
 API_URL = "http://0.0.0.0:8000/chat"
 
-def query_llm(prompt):
-    prompt_payload = {'user': 'Alex', 'conversation': prompt, 'nb_token' : 30}
-    headers={'Content-type': 'application/json',
-             # 'Accept': 'text/event-stream', 
-             'Connection': 'keep-alive',
-             'X-Accel-Buffering': 'no'}
+
+class Conversation():
+    def __init__(self, username):
+        self.host = 'http://0.0.0.0:8000/chat'
+        self.uuid = None
+        self.current_conv_uid = None
+        self.current_history = []
+        self.username = username
+
+    def converse(self, message, new_conv = True):
+        if new_conv:
+            self.current_conv_uid = None
+            self.current_history  = [{'role': 'user', 'content': message}]
+            print("Invoking new conversation")
+        else:
+            self.current_history  += [{'role': 'user', 'content': message}]
+            print("Invoking current conversation")
+        payload = {'user': self.username, 
+                   'uuid': self.uuid,
+                   'conv_id': self.current_conv_uid,
+                   'conversation': self.current_history, 
+                   'nb_token': 30}
+
+        print(f"Payload is :{payload}")
+
+        response = self.send_message(payload)
+        self.current_history += [response]
+        return self.current_history
 
 
-    cookies = {"no_storage": "false", "ads": "true", "image_gen": "false", "targeted_ads": "false"}
-    response = with_requests(host, headers, json.dumps(prompt_payload), cookies)
-    if response.status_code == 200:
-        return response.json().get("infered_tokens", "Error: No response from the server")
-    else:
-        print(response.status_code)
-        return "Error has occured"
+    def send_message(self, payload):
+        headers={'Content-type': 'application/json',
+                 # 'Accept': 'text/event-stream', 
+                 'Connection': 'keep-alive',
+                 'X-Accel-Buffering': 'no'}
 
-def append_to_send_history(history, message, response=""):
-    history = history + [{"user": message, "assistant": response}]
-    return history
 
-def append_pre_send(history, message):
-    return append_to_send_history(history, message)
+        cookies = {"no_storage": "false", "ads": "false", "image_gen": "false", "targeted_ads": "false"}
+        response = with_requests(host, headers, json.dumps(payload), cookies)
+        if response.status_code == 200:
+            resp_json = response.json()
+            try:
+                uuid = resp_json.get("uuid")
+                db_uid = resp_json.get("db_uuid")
+                self.uuid = uuid
+                self.current_conv_uid = db_uid
+            except:
+                pass
+            finally:
+                resp = response.json().get("infered_tokens")
+                return {"role": resp["role"], "content": resp["content"]}
+                # response.json().get("infered_tokens", {"role": "assistant", "content": "Error: No response from the server"})
+        else:
+            print(response.status_code)
+            return {"role": "assistant", "content": "Error has occured"}
 
-def append_post_send(history, message, response):
-    return append_to_send_history(history, message, response)
+    def get_history(self):
+        return self.current_history
 
 
 if __name__ == '__main__':
@@ -56,14 +89,18 @@ if __name__ == '__main__':
         chatbox = gr.Chatbot(type="messages")
         send_history = []
         user_input = gr.Textbox(label="Type your message:")
+
+        conversation_handler = Conversation("Alex")
         
         def chat_response(history, message):
             #TODO: To have multiturn conversation, we need to fix this client
-            history = history + [{"role": "user", "content": message}]
-            response = query_llm(history)
+            global conversation_handler
+            if len(history) == 0:
+                conversation_handler.converse(message, new_conv = True)
+            else:
+                conversation_handler.converse(message, new_conv = False)
 
-            history = history + [response]
-            return history, ""
+            return conversation_handler.get_history(), ""
 
         user_input.submit(chat_response, [chatbox, user_input], [chatbox, user_input])
 

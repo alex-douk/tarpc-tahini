@@ -6,6 +6,7 @@ use tarpc::serde::{Deserialize, Serialize};
 
 #[schema_policy(table = "users", column = 1)]
 #[schema_policy(table = "conversations", column = 1)]
+#[schema_policy(table = "conversations", column = 2)]
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct UsernamePolicy {
     pub targeted_ads_consent: bool,

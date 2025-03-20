@@ -1,5 +1,5 @@
 use alohomora::db::{BBoxFromValue, Value};
-use alohomora::policy::schema_policy;
+use alohomora::policy::{AnyPolicy, schema_policy};
 use alohomora::{
     policy::{FrontendPolicy, Policy, Reason, SchemaPolicy},
     rocket::{RocketCookie, RocketRequest},
@@ -8,7 +8,8 @@ use std::str::FromStr;
 use tarpc::serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
-#[schema_policy(table = "conversations", column = 2)]
+#[schema_policy(table = "conversations", column = 3)]
+#[schema_policy(table = "conversations", column = 4)]
 pub struct PromptPolicy {
     pub no_storage: bool,
     pub marketing_consent: bool,
@@ -48,14 +49,32 @@ impl Policy for PromptPolicy {
         &self,
         other: alohomora::policy::AnyPolicy,
     ) -> Result<alohomora::policy::AnyPolicy, ()> {
-        Ok(other)
+        if other.is::<PromptPolicy>() {
+            self.join_logic(other.specialize().map_err(|_| ())?)
+                .map(|pol| pol.into_any())
+        } else {
+            Ok(self.clone().into_any())
+        }
     }
 
     fn join_logic(&self, other: Self) -> Result<Self, ()>
     where
         Self: Sized,
     {
-        Ok(self.clone())
+        //Take the OR of each
+        Ok(PromptPolicy {
+            //We explicitely annotate when we DONT want to store
+            no_storage: self.no_storage || other.no_storage,
+            marketing_consent: self.marketing_consent && other.marketing_consent,
+            unprotected_image_gen: self.unprotected_image_gen && other.unprotected_image_gen,
+        })
+    }
+
+    fn into_any(self) -> alohomora::policy::AnyPolicy
+    where
+        Self: Sized,
+    {
+        AnyPolicy::new(self)
     }
 }
 
@@ -112,9 +131,9 @@ impl SchemaPolicy for PromptPolicy {
         Self: Sized,
     {
         PromptPolicy {
-            no_storage: BBoxFromValue::from_value(row[3].clone()),
-            marketing_consent: BBoxFromValue::from_value(row[4].clone()),
-            unprotected_image_gen: BBoxFromValue::from_value(row[5].clone()),
+            no_storage: BBoxFromValue::from_value(row[5].clone()),
+            marketing_consent: BBoxFromValue::from_value(row[6].clone()),
+            unprotected_image_gen: BBoxFromValue::from_value(row[7].clone()),
         }
     }
 }

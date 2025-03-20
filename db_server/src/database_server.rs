@@ -1,6 +1,8 @@
+use alohomora::policy::AnyPolicy;
 use backend::MySqlBackend;
 //Clone model just clones the reference
-use alohomora::db::{from_value, from_value_or_null};
+use alohomora::db::{Value, from_value, from_value_or_null};
+use alohomora::fold::fold;
 use services_utils::policies::{PromptPolicy, shared_policies::UsernamePolicy};
 use services_utils::types::database_types::DatabaseRetrieveForm;
 use services_utils::types::inference_types::{BBoxConversation, Message};
@@ -63,6 +65,15 @@ impl DatabaseServer {
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
+fn parse_row_into_message(
+    row: &Vec<PCon<Value, AnyPolicy>>,
+) -> Result<PCon<Message, AnyPolicy>, String> {
+    let role = from_value::<String, PromptPolicy>(row[3].clone())?;
+    let content = from_value::<String, PromptPolicy>(row[4].clone())?;
+    let pair = fold((role, content)).map_err(|_| "Couldn't fold")?;
+    Ok(pair.into_ppr(PPR::new(|(role, content)| Message { role, content })))
+}
+
 impl Database for DatabaseServer {
     async fn store_prompt(
         self,
@@ -76,23 +87,25 @@ impl Database for DatabaseServer {
         let mut backend = self.conn.lock().await;
         let ret_pol = form.uuid.policy();
         // let user_uid = backend.get_user_id(form.user, Context::empty());
-        let parsed_conv = form
-            .full_prompt
-            .into_ppr(PPR::new(|conv| parse_conversation(conv)))
-            .transpose()
-            .expect("Malformed received conversation");
+        // let parsed_conv = form
+        //     .full_prompt
+        //     .into_ppr(PPR::new(|conv| parse_conversation(conv)))
+        //     .transpose()
+        //     .expect("Malformed received conversation");
         let pol_parameters = (
-            parsed_conv.policy().no_storage,
-            parsed_conv.policy().marketing_consent,
-            parsed_conv.policy().unprotected_image_gen,
+            form.message.policy().no_storage,
+            form.message.policy().marketing_consent,
+            form.message.policy().unprotected_image_gen,
         );
 
         backend.insert(
             "conversations",
             (
+                None::<u8>,
                 conv_uid.clone(),
                 form.uuid.clone(),
-                parsed_conv,
+                form.message.clone().into_ppr(PPR::new(|x: Message| x.role)),
+                form.message.into_ppr(PPR::new(|x: Message| x.content)),
                 pol_parameters.0,
                 pol_parameters.1,
                 pol_parameters.2,
@@ -110,22 +123,24 @@ impl Database for DatabaseServer {
         retrieve: DatabaseRetrieveForm,
     ) -> Option<BBoxConversation> {
         let mut backend = self.conn.lock().await;
-        let conv = from_value_or_null(
-            backend.prep_exec(
-                "SELECT * FROM tahini WHERE conversation_id = ? AND user_id = ?",
-                (retrieve.uuid, retrieve.conv_id),
-                Context::empty(),
-            )[0][0]
-                .clone(),
+        let res = backend.prep_exec(
+            "SELECT * FROM conversations WHERE conversation_id = ? AND user_id = ? ORDER BY message_id ASC",
+            (retrieve.conv_id, retrieve.uuid),
+            Context::empty(),
         );
-        match conv {
-            Err(_) => None,
-            Ok(conv) => conv.transpose().map(|boxed_conv| {
-                boxed_conv.into_ppr(PPR::new(|unboxed| {
-                    parse_stored_conversation(unboxed).expect("Malformed stored conversation")
-                }))
-            }),
-        }
+        println!("Found row: {:?}", res);
+        let parsed = res
+            .iter()
+            .map(parse_row_into_message)
+            .collect::<Result<Vec<_>, String>>()
+            .expect("Couldn't parse rows into messages");
+
+        let parsed = fold(parsed)
+            .expect("Couldn't fold across messages of conversation")
+            .specialize_policy::<PromptPolicy>()
+            .expect("Couldn't join policies");
+
+        Some(parsed)
     }
     async fn register_user(
         self,
