@@ -28,11 +28,10 @@ use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
+use crate::database::fetch_or_insert_user;
 use crate::SERVER_ADDRESS;
-use crate::database::register_user;
 use crate::database::retrieve_conversation;
 use crate::database::store_to_database;
-use serde::Deserialize;
 
 #[derive(Clone, RequestBBoxJson)]
 pub(crate) struct InferenceRequest {
@@ -88,18 +87,15 @@ async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, 
 pub(crate) async fn inference(
     data: BBoxJson<InferenceRequest>,
 ) -> alohomora::rocket::JsonResponse<InferenceResponse, ()> {
-    // let fixed_user = fix_policy(data.user.clone());
-    // let fixed_user = BBox::new(data.user.clone(), UsernamePolicy{ targeted_ads_consent: false});
-
     let uuid = match &data.uuid {
         //TODO(douk): username could be Option as well, in which case anonymous UUID extracted at
         //database startup
-        None => register_user(data.user.clone()).await,
+        None => fetch_or_insert_user(data.user.clone()).await,
         Some(t) => t.clone(),
     };
-    let fixed_prompt = data.conversation.clone();
+    let conversation = data.conversation.clone();
     let payload = UserPrompt {
-        conversation: fixed_prompt.clone(),
+        conversation: conversation.clone(),
         nb_token: data.nb_token,
     };
 
@@ -128,21 +124,12 @@ pub(crate) async fn inference(
             true => {
                 let conv_id = store_to_database(DatabaseStoreForm {
                     uuid: uuid.clone(),
-                    message: fixed_prompt
+                    message: conversation
                         .into_ppr(PPR::new(|conv: Vec<Message>| conv.last().unwrap().clone())),
                     conv_id: data.conv_id.clone(),
                 })
                 .await
                 .unwrap();
-                let conversation = retrieve_conversation(DatabaseRetrieveForm {
-                    uuid: uuid.clone(),
-                    conv_id: conv_id.clone(),
-                })
-                .await;
-                match conversation {
-                    None => println!("Couldn't retrieve the conversation"),
-                    Some(t) => println!("Found conversation : {:?}", t),
-                };
 
                 let db_uid = store_to_database(DatabaseStoreForm {
                     uuid: uuid.clone(),

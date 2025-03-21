@@ -1,9 +1,10 @@
 use alohomora::db::{BBoxFromValue, Value};
-use alohomora::policy::{FrontendPolicy, Policy, Reason, SchemaPolicy, schema_policy};
+use alohomora::policy::{AnyPolicy, FrontendPolicy, Policy, Reason, SchemaPolicy, schema_policy};
 use alohomora::rocket::{BBoxCookie, RocketCookie, RocketRequest};
 use std::str::FromStr;
 use tarpc::serde::{Deserialize, Serialize};
 
+#[schema_policy(table = "users", column = 0)]
 #[schema_policy(table = "users", column = 1)]
 #[schema_policy(table = "conversations", column = 1)]
 #[schema_policy(table = "conversations", column = 2)]
@@ -37,6 +38,13 @@ impl Policy for UsernamePolicy {
         Self: Sized,
     {
         Ok(self.clone())
+    }
+
+    fn into_any(self) -> AnyPolicy
+    where
+        Self: Sized,
+    {
+        AnyPolicy::new(self)
     }
 }
 
@@ -88,5 +96,35 @@ impl FrontendPolicy for UsernamePolicy {
                 },
             },
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct AbsolutePolicy {}
+
+impl Policy for AbsolutePolicy {
+    fn name(&self) -> String {
+        "AbsolutePolicy".to_string()
+    }
+    fn check(&self, context: &alohomora::context::UnprotectedContext, reason: Reason<'_>) -> bool {
+        false
+    }
+    fn join(
+        &self,
+        other: alohomora::policy::AnyPolicy,
+    ) -> Result<alohomora::policy::AnyPolicy, ()> {
+        Ok(self.clone().into_any())
+    }
+    fn join_logic(&self, other: Self) -> Result<Self, ()>
+    where
+        Self: Sized,
+    {
+        Ok(other)
+    }
+    fn into_any(self) -> alohomora::policy::AnyPolicy
+    where
+        Self: Sized,
+    {
+        AnyPolicy::new(self)
     }
 }

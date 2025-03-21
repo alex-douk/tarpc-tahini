@@ -1,3 +1,4 @@
+use alohomora::rocket::RequestBBoxJson;
 use alohomora::TahiniType;
 use alohomora::bbox::BBox;
 use alohomora::tarpc::{TahiniEnum, TahiniType};
@@ -16,7 +17,7 @@ pub struct DatabaseStoreForm {
     pub message: BBox<Message, PromptPolicy>,
 }
 
-#[derive(Deserialize, Clone, TahiniType)]
+#[derive(Deserialize, Clone, TahiniType, RequestBBoxJson)]
 pub struct DatabaseRetrieveForm {
     pub uuid: BBox<String, UsernamePolicy>,
     pub conv_id: CHATUID

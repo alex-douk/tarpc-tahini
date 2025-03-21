@@ -8,5 +8,6 @@ use alohomora::{
 pub trait Database {
     async fn store_prompt(prompt: DatabaseStoreForm) -> CHATUID;
     async fn retrieve_prompt(retrieve: DatabaseRetrieveForm) -> Option<BBoxConversation>;
-    async fn register_user(username: BBox<String, UsernamePolicy>) -> BBox<String, UsernamePolicy>;
+    async fn fetch_or_insert_user(username: BBox<String, UsernamePolicy>) -> BBox<String, UsernamePolicy>;
+    async fn fetch_history_headers(username: BBox<String, UsernamePolicy>) -> Vec<BBox<String, UsernamePolicy>>;
 }

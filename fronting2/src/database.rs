@@ -1,8 +1,11 @@
 use alohomora::bbox::BBox;
+use alohomora::context::Context;
+use alohomora::rocket::{JsonResponse, ResponseBBoxJson, get, route};
 use services_utils::policies::shared_policies::UsernamePolicy;
 use services_utils::rpc::database::{Database, TahiniDatabaseClient};
 use services_utils::types::database_types::{CHATUID, DatabaseRetrieveForm, DatabaseStoreForm};
 use services_utils::types::inference_types::BBoxConversation;
+use std::collections::HashMap;
 
 use crate::SERVER_ADDRESS;
 use tarpc::serde_transport::new as new_transport;
@@ -26,7 +29,7 @@ pub(crate) async fn store_to_database(submit_form: DatabaseStoreForm) -> Option<
     }
 }
 
-pub(crate) async fn register_user(
+pub(crate) async fn fetch_or_insert_user(
     username: BBox<String, UsernamePolicy>,
 ) -> BBox<String, UsernamePolicy> {
     let codec_builder = LengthDelimitedCodec::builder();
@@ -34,11 +37,13 @@ pub(crate) async fn register_user(
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
     let response = TahiniDatabaseClient::new(Default::default(), transport)
         .spawn()
-        .register_user(tarpc::context::Context::current(), username)
+        .fetch_or_insert_user(tarpc::context::Context::current(), username)
         .await;
     response.expect("RPC error")
 }
 
+//TODO(douk): Change types so that only the conv_id is provided, the user_id should be handled via
+//cookies
 pub(crate) async fn retrieve_conversation(
     retrieve: DatabaseRetrieveForm,
 ) -> Option<BBoxConversation> {
@@ -52,5 +57,32 @@ pub(crate) async fn retrieve_conversation(
     match response {
         Ok(res) => res,
         Err(_) => None,
+    }
+}
+
+#[derive(Clone, ResponseBBoxJson)]
+pub struct HistoryResponse {
+    history_list: Vec<CHATUID>,
+}
+
+#[get("/history/<user_id>")]
+pub(crate) async fn get_history(
+    user_id: BBox<String, UsernamePolicy>,
+) -> JsonResponse<HistoryResponse, ()> {
+    let codec_builder = LengthDelimitedCodec::builder();
+    let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
+    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+    let response = TahiniDatabaseClient::new(Default::default(), transport)
+        .spawn()
+        .fetch_history_headers(tarpc::context::current(), user_id)
+        .await;
+    match response {
+        Ok(res) => JsonResponse(HistoryResponse { history_list: res }, Context::empty()),
+        Err(_) => JsonResponse(
+            HistoryResponse {
+                history_list: Vec::new(),
+            },
+            Context::empty(),
+        ),
     }
 }

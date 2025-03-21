@@ -15,6 +15,7 @@ use std::sync::{Arc, Mutex};
 mod inference;
 mod policy;
 mod database;
+mod login;
 
 //TODO(douk): Hacky way of sharing a single host. 
 //Will have to get changed for static attestation for sure
@@ -23,6 +24,8 @@ pub static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 fn prepare_server() -> BBoxRocket<Build>{
     BBoxRocket::build().mount("/chat", routes![inference::inference])
+        .mount("/", routes![database::get_history])
+        // .mount("/login", routes![login::login])
 }
 
 #[rocket::main]
