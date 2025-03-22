@@ -24,8 +24,9 @@ pub static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 fn prepare_server() -> BBoxRocket<Build>{
     BBoxRocket::build().mount("/chat", routes![inference::inference])
-        .mount("/", routes![database::get_history])
-        // .mount("/login", routes![login::login])
+        .mount("/history", routes![database::get_history])
+        .mount("/login", routes![login::login])
+        .mount("/c", routes![database::fetch_conversation])
 }
 
 #[rocket::main]

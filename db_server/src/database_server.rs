@@ -64,7 +64,7 @@ impl DatabaseServer {
         DatabaseServer {
             conn: Arc::new(Mutex::new(
                 //TODO(douk): Change this to env vars
-                MySqlBackend::new("tahini", "tahini_pwd", "etosLM", false)
+                MySqlBackend::new("tahini", "tahini_pwd", "etosLM", true)
                     .expect("Couldn't connect to DB"),
             )),
         }
@@ -75,10 +75,11 @@ static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 fn parse_row_into_message(
     row: &Vec<PCon<Value, AnyPolicy>>,
-) -> Result<PCon<Message, AnyPolicy>, String> {
+) -> Result<PCon<Message, PromptPolicy>, String> {
     let role = from_value::<String, PromptPolicy>(row[3].clone())?;
     let content = from_value::<String, PromptPolicy>(row[4].clone())?;
     let pair = fold((role, content)).map_err(|_| "Couldn't fold")?;
+    let pair = pair.specialize_policy::<PromptPolicy>().expect("Couldn't specialize policy");
     Ok(pair.into_ppr(PPR::new(|(role, content)| Message { role, content })))
 }
 
@@ -136,7 +137,6 @@ impl Database for DatabaseServer {
             (retrieve.conv_id, retrieve.uuid),
             Context::empty(),
         );
-        println!("Found row: {:?}", res);
         let parsed = res
             .iter()
             .map(parse_row_into_message)
@@ -302,6 +302,11 @@ impl Database for DatabaseServer {
         // );
         // conv_id_map.into_pcr(release, ())
     }
+    async fn get_default_user(self,context: tarpc::context::Context,) -> PCon<String,UsernamePolicy> {
+        let mut backend = self.conn.lock().await;
+        let res = backend.prep_exec("SELECT * FROM users where username = ?", ("anonymous",), Context::empty());
+        from_value::<String, UsernamePolicy>(res[0][0].clone()).expect("Couldn't find default user")
+    }
 }
 
 pub(crate) async fn wait_upon(fut: impl Future<Output = ()> + Send + 'static) {
@@ -318,7 +323,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let codec_builder = LengthDelimitedCodec::builder();
     loop {
         let (stream, _peer_addr) = listener.accept().await.unwrap();
-        println!("Accepted a connection");
         let framed = codec_builder.new_framed(stream);
 
         let transport = new_transport(framed, Json::default());

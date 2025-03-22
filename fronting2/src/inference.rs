@@ -28,14 +28,13 @@ use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
-use crate::database::fetch_or_insert_user;
 use crate::SERVER_ADDRESS;
-use crate::database::retrieve_conversation;
+use crate::database::fetch_or_insert_user;
 use crate::database::store_to_database;
 
 #[derive(Clone, RequestBBoxJson)]
 pub(crate) struct InferenceRequest {
-    pub user: BBox<String, UsernamePolicy>,
+    pub user: Option<BBox<String, UsernamePolicy>>,
     pub uuid: Option<BBox<String, UsernamePolicy>>,
     pub conv_id: BBox<Option<String>, UsernamePolicy>,
     pub conversation: BBoxConversation,
@@ -45,7 +44,6 @@ pub(crate) struct InferenceRequest {
 #[derive(Clone, ResponseBBoxJson)]
 pub(crate) struct InferenceResponse {
     infered_tokens: BBox<Message, PromptPolicy>,
-    uuid: Option<BBox<String, UsernamePolicy>>,
     db_uuid: Option<CHATUID>,
 }
 
@@ -87,10 +85,17 @@ async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, 
 pub(crate) async fn inference(
     data: BBoxJson<InferenceRequest>,
 ) -> alohomora::rocket::JsonResponse<InferenceResponse, ()> {
+    //Parse whether anonymous or connected user
+    let username = match &data.user {
+        None => BBox::new("anonymous".to_string(), UsernamePolicy {
+            targeted_ads_consent: false,
+        }),
+        Some(t) => t.clone(),
+    };
+    //Parse whether user knows their uuid or not
+    //TODO(douk): Should make this disappear with proper cookie management
     let uuid = match &data.uuid {
-        //TODO(douk): username could be Option as well, in which case anonymous UUID extracted at
-        //database startup
-        None => fetch_or_insert_user(data.user.clone()).await,
+        None => fetch_or_insert_user(username.clone()).await,
         Some(t) => t.clone(),
     };
     let conversation = data.conversation.clone();
@@ -115,13 +120,13 @@ pub(crate) async fn inference(
                     },
                     PromptPolicy::default(),
                 ),
-                Some(uuid.clone()),
                 None,
             )
         }
         Ok(ref tokens) => match verify_if_send_to_db(tokens.policy()) {
-            false => construct_answer(tokens, Some(uuid.clone()), None),
+            false => {println!("Not storing to db because policy said so!");construct_answer(tokens, None)},
             true => {
+                println!("Storing to database");
                 let conv_id = store_to_database(DatabaseStoreForm {
                     uuid: uuid.clone(),
                     message: conversation
@@ -138,7 +143,7 @@ pub(crate) async fn inference(
                 })
                 .await;
 
-                construct_answer(tokens, Some(uuid.clone()), db_uid)
+                construct_answer(tokens, db_uid)
             }
         },
     }
@@ -157,13 +162,11 @@ fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {
 
 fn construct_answer(
     inf_res: &BBox<Message, PromptPolicy>,
-    uuid: Option<BBox<String, UsernamePolicy>>,
     db_uid: Option<CHATUID>,
 ) -> JsonResponse<InferenceResponse, ()> {
     JsonResponse(
         InferenceResponse {
             infered_tokens: inf_res.clone(),
-            uuid,
             db_uuid: db_uid,
         },
         Context::empty(),

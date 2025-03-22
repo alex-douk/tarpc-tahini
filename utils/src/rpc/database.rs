@@ -10,4 +10,5 @@ pub trait Database {
     async fn retrieve_prompt(retrieve: DatabaseRetrieveForm) -> Option<BBoxConversation>;
     async fn fetch_or_insert_user(username: BBox<String, UsernamePolicy>) -> BBox<String, UsernamePolicy>;
     async fn fetch_history_headers(username: BBox<String, UsernamePolicy>) -> Vec<BBox<String, UsernamePolicy>>;
+    async fn get_default_user() -> BBox<String, UsernamePolicy>;
 }

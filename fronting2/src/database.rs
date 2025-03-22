@@ -1,5 +1,6 @@
 use alohomora::bbox::BBox;
 use alohomora::context::Context;
+use alohomora::pure::PrivacyPureRegion;
 use alohomora::rocket::{JsonResponse, ResponseBBoxJson, get, route};
 use services_utils::policies::shared_policies::UsernamePolicy;
 use services_utils::rpc::database::{Database, TahiniDatabaseClient};
@@ -42,22 +43,15 @@ pub(crate) async fn fetch_or_insert_user(
     response.expect("RPC error")
 }
 
-//TODO(douk): Change types so that only the conv_id is provided, the user_id should be handled via
-//cookies
-pub(crate) async fn retrieve_conversation(
-    retrieve: DatabaseRetrieveForm,
-) -> Option<BBoxConversation> {
+pub(crate) async fn get_default_user() -> BBox<String, UsernamePolicy> {
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
     let response = TahiniDatabaseClient::new(Default::default(), transport)
         .spawn()
-        .retrieve_prompt(tarpc::context::current(), retrieve)
+        .get_default_user(tarpc::context::current())
         .await;
-    match response {
-        Ok(res) => res,
-        Err(_) => None,
-    }
+    response.expect("Couldn't fetch the default user")
 }
 
 #[derive(Clone, ResponseBBoxJson)]
@@ -65,10 +59,12 @@ pub struct HistoryResponse {
     history_list: Vec<CHATUID>,
 }
 
-#[get("/history/<user_id>")]
+#[get("/<user_id>")]
 pub(crate) async fn get_history(
     user_id: BBox<String, UsernamePolicy>,
 ) -> JsonResponse<HistoryResponse, ()> {
+    //TODO(douk): Restrict access for anonymous history? If for some reason, some attacker bruteforces
+    //the anonymous UUID, we have a problem
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
@@ -84,5 +80,36 @@ pub(crate) async fn get_history(
             },
             Context::empty(),
         ),
+    }
+}
+
+#[derive(Clone, ResponseBBoxJson)]
+pub struct FetchConversation {
+    conv: Option<BBoxConversation>,
+}
+
+//TODO(douk): Change the types so that only the conv_id is provided, the user_id should be handled
+//via cookies
+#[get("/<user_id>/<chat_id>")]
+pub(crate) async fn fetch_conversation(
+    user_id: BBox<String, UsernamePolicy>,
+    chat_id: BBox<String, UsernamePolicy>,
+) -> JsonResponse<FetchConversation, ()> {
+    let codec_builder = LengthDelimitedCodec::builder();
+    let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
+    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+    let response = TahiniDatabaseClient::new(Default::default(), transport)
+        .spawn()
+        .retrieve_prompt(tarpc::context::current(), DatabaseRetrieveForm {
+            uuid: user_id,
+            conv_id: chat_id,
+        })
+        .await;
+    match response {
+        Err(e) => {
+            eprintln!("When fetching conversation details, received error : {}", e);
+            JsonResponse(FetchConversation { conv: None }, Context::empty())
+        }
+        Ok(boxed_conv) => JsonResponse(FetchConversation { conv: boxed_conv }, Context::empty()),
     }
 }

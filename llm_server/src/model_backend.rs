@@ -4,7 +4,7 @@ use candle_core::{DType, Device, Result as Res, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::generation::LogitsProcessor;
 use candle_transformers::models::qwen2::{Config as ConfigBase, ModelForCausalLM as ModelBase};
-use hf_hub::{api::sync::Api, Repo, RepoType};
+use hf_hub::{Repo, RepoType, api::sync::Api};
 use tokenizers::Tokenizer;
 
 const QWEN_MODEL: &str = "Qwen/Qwen2.5-0.5B-Instruct";
@@ -131,7 +131,8 @@ impl TextGeneration {
             Some(token) => token,
             None => anyhow::bail!("cannot find the <|endoftext|> token"),
         };
-        let context_size = if index > 0 { 1 } else { tokens.len() };
+        // let context_size = if index > 0 { 1 } else { tokens.len() };
+        let context_size = tokens.len();
         let start_pos = tokens.len().saturating_sub(context_size);
         let ctxt = &tokens[start_pos..];
         let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
@@ -193,13 +194,14 @@ pub fn create_pipeline() -> Result<TextGeneration, E> {
         //Logits seed
         293772458,
         //Temperature
-        Some(0.),
+        Some(1.),
         //Top_p
+        // None,
         Some(3.),
         //Repeat penalty
-        1.4,
+        5.,
         //Repeat last n
-        64,
+        5,
         &device,
     );
 
