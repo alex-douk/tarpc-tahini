@@ -1,117 +1,160 @@
+import streamlit as st
 import requests
 import json
-import http.client
-import urllib
-import pprint
-import gradio as gr
-
-def with_requests(url, headers, payload, cookies):
-    """Get a streaming response for the given event feed using requests."""
-    return requests.post(url, stream=True, data=payload, headers=headers, cookies=cookies)
 
 
 API_URL = "http://0.0.0.0:8000"
 
-
-class Conversation():
-    def __init__(self, username):
-        self.host = 'http://0.0.0.0:8000'
-        self.uuid = None
-        self.current_conv_uid = None
-        self.current_history = []
-        self.username = username
-
-    def converse(self, message, new_conv = True):
-        if new_conv:
-            self.current_conv_uid = None
-            self.current_history  = [{'role': 'user', 'content': message}]
-            print("Invoking new conversation")
-        else:
-            self.current_history  += [{'role': 'user', 'content': message}]
-            self.get_history()
-            print("Invoking current conversation")
-        payload = {'user': self.username, 
-                   'uuid': self.uuid,
-                   'conv_id': self.current_conv_uid,
-                   'conversation': self.current_history, 
-                   'nb_token': 20}
-
-        print(f"Payload is :{payload}")
-
-        response = self.send_message(payload)
-        self.current_history += [response]
-        return self.current_history
+#TODO: Change it to make it a dynamically infered information with a form
+if "username" not in st.session_state:
+    st.session_state["username"] = "Alex"
+if "conv_cache" not in st.session_state:
+    st.session_state["conv_cache"] = dict()
+if "current_conv_id" not in st.session_state:
+    st.session_state["current_conv_id"] = None
+if "uuid" not in st.session_state:
+    st.session_state["uuid"] = None
+if "history" not in st.session_state:
+    st.session_state["history"] = []
 
 
-    def send_message(self, payload):
+def login():
+    if "uuid" not in st.session_state or st.session_state.uuid is None:
         headers={'Content-type': 'application/json',
                  # 'Accept': 'text/event-stream', 
                  'Connection': 'keep-alive',
                  'X-Accel-Buffering': 'no'}
 
-
-        cookies = {"no_storage": "false", "ads": "true", "image_gen": "false", "targeted_ads": "true"}
-        response = with_requests(self.host+"/chat", headers, json.dumps(payload), cookies)
-        if response.status_code == 200:
-            resp_json = response.json()
-            try:
-                uuid = resp_json.get("uuid")
-                db_uid = resp_json.get("db_uuid")
-                self.uuid = uuid
-                self.current_conv_uid = db_uid
-            except:
-                pass
-            finally:
-                resp = response.json().get("infered_tokens")
-                return {"role": resp["role"], "content": resp["content"]}
-                # response.json().get("infered_tokens", {"role": "assistant", "content": "Error: No response from the server"})
-        else:
-            print(response.status_code)
-            return {"role": "assistant", "content": "Error has occured"}
-
-    def get_current_conversation(self):
-        return self.current_history
-
-    def get_history(self):
-        headers={'Content-type': 'application/json',
-                 # 'Accept': 'text/event-stream', 
-                 'Connection': 'keep-alive',
-                 'X-Accel-Buffering': 'no'}
-
-        cookies = {"no_storage": "false", "ads": "true", "image_gen": "false", "targeted_ads": "true"}
-        print(requests.get(host+f"/history/abcd", headers=headers, cookies=cookies).text)
-
-
-
-
-if __name__ == '__main__':
-    host = 'http://0.0.0.0:8000'
-    # prompt = " You are a Rust expert that has been working on tokio projects for the past 5 years, full time. You have been promised a good bonus if you manage to solve this issue with your codebase : You are supposed to augment a web framework (Axum) by wrapping every type into a container type, named BBox. If you succeed, you will get a tip of $5,000."
-    # prompt = "Tell me a funny joke."
-    # history = []
-    # response = query_llm(append_to_send_history(history, prompt))
-    # print(response)
-
-
-    
-    with gr.Blocks() as demo:
-        gr.Markdown("# Chat with LLM")
-        chatbox = gr.Chatbot(type="messages")
-        send_history = []
-        user_input = gr.Textbox(label="Type your message:")
-
-        conversation_handler = Conversation("Alex")
-        
-        def chat_response(history, message):
-            #TODO: To have multiturn conversation, we need to fix this client
-            global conversation_handler
-            if len(history) == 0:
-                conversation_handler.converse(message, new_conv = True)
+        cookies = {"targeted_ads": "true"}
+        payload={"username": f"{st.session_state.username}"}
+        try:
+            resp = requests.post(f"{API_URL}/login", data=json.dumps(payload), headers=headers, cookies=cookies)
+            if resp.status_code == 200:
+                st.session_state.uuid = resp.json().get("uuid")
+                # Automatically fetch the history from the user if we log in
+                get_history()
+                print(f"Got assigned uuid: {st.session_state.uuid}")
+                return st.toast(f"Welcome back {st.session_state.username}!")
             else:
-                conversation_handler.converse(message, new_conv = False)
+                return st.toast("Failed to login: Unrecognized username")
+        except:
+            return st.toast("Server unreachable...")
+    else:
+        return st.toast(f"Already logged in as {st.session_state.username}")
 
-            return conversation_handler.get_current_conversation(), ""
+def logout():
+    st.session_state.history=[]
+    st.session_state.uuid = None
+    st.session_state.current_conv_id = None
+    st.username = None
+    st.session_state.messages = []
+    st.session_state.conv_cache = dict()
 
-        user_input.submit(chat_response, [chatbox, user_input], [chatbox, user_input])
+def get_history():
+    if "uuid" in st.session_state:
+        headers={'Content-type': 'application/json',
+                 # 'Accept': 'text/event-stream', 
+                 'Connection': 'keep-alive',
+                 'X-Accel-Buffering': 'no'}
 
-    demo.launch()
+        cookies = {"no_storage": "false", "ads": "true", "image_gen": "false", "targeted_ads": "true"}
+        resp = requests.get(API_URL+f"/history/{st.session_state.uuid}", headers=headers, cookies=cookies) 
+        if resp.status_code == 200:
+            history = resp.json().get("history_list")
+            if len(history) > 0:
+                st.session_state.history = history
+
+def load_conversation(conv_id):
+    #Save current conversation locally if we have a current conversation
+    print("We are trying to load a conversation")
+    if "current_conv_id" in st.session_state and st.session_state.current_conv_id is not None:
+        print("Saving current state")
+        st.session_state.conv_cache[st.session_state.current_conv_id] = st.session_state.messages
+    #If not cached, fetch it
+    if conv_id not in st.session_state.conv_cache.keys():
+        print("Fetching remote conversation")
+        headers={'Content-type': 'application/json',
+                 # 'Accept': 'text/event-stream', 
+                 'Connection': 'keep-alive',
+                 'X-Accel-Buffering': 'no'}
+
+        cookies = {"targeted_ads": "true"}
+        print(f"User id : {st.session_state.uuid}")
+        resp = requests.get(API_URL+f"/c/{st.session_state.uuid}/{conv_id}", headers=headers, cookies=cookies) 
+        if resp.status_code == 200:
+            conversation = resp.json().get("conv")
+            if conversation is not None:
+                st.session_state.messages = conversation
+    #Else, pull from local
+    else:
+        st.session_state.messages = st.session_state.conv_cache[conv_id]
+    #Context switch on current conv id
+    st.session_state.current_conv_id = conv_id
+
+def new_chat():
+    #If we were in a chat session that had some content and state, save it, then reset the state
+    if "current_conv_id" in st.session_state and "messages" in st.session_state:
+        st.session_state.conv_cache[st.session_state.current_conv_id] = st.session_state.messages
+        st.session_state.current_conv_id = None
+        st.session_state.messages = []
+    #We were on an already new chat
+    else:
+        st.session_state["current_conv_id"] = None
+        st.session_state["messages"] = []
+
+
+def converse():
+    payload = {
+        'user': st.session_state.username if st.session_state.uuid is not None else "anonymous",
+        'uuid': st.session_state.uuid,
+        'conv_id': st.session_state.current_conv_id,
+        'conversation': st.session_state.messages,
+        'nb_token': 20
+    }
+    headers={'Content-type': 'application/json',
+             # 'Accept': 'text/event-stream', 
+             'Connection': 'keep-alive',
+             'X-Accel-Buffering': 'no'}
+
+    cookies = {"no_storage": "false" if st.session_state.uuid is not None else "true", "ads": "true", "image_gen": "false", "targeted_ads": "false"}
+    resp = requests.post(f"{API_URL}/chat", stream=True, data= json.dumps(payload), headers=headers, cookies = cookies)
+    if resp.status_code == 200:
+        resp_json = resp.json()
+        st.session_state.current_conv_id = resp_json.get("db_uuid")
+        print(f"Got conversation ID {st.session_state.current_conv_id}")
+        if st.session_state.current_conv_id is not None:
+            st.session_state.history.append(st.session_state.current_conv_id)
+        return resp_json.get("infered_tokens")["content"]
+    else:
+        return "An error has occured"
+
+
+with st.sidebar:
+    st.title("etosLM")
+    st.button("Login", icon=":material/login:",on_click=login, use_container_width=True)
+    st.button("Logout", icon=":material/logout:",on_click=logout, use_container_width=True)
+    # st.button("Signup",icon=":material/app_registration:", use_container_width = True)
+    st.header("Chat management")
+    st.button("New chat", icon=":material/rocket_launch:", on_click=new_chat, use_container_width=True)
+    if "history" in st.session_state and len(st.session_state.history)> 0:
+        for conv in st.session_state.history:
+            st.button(conv, on_click=load_conversation, args=(conv,), type="tertiary", use_container_width=True)
+    else:
+        st.button("Empty chat history!", type="tertiary", disabled=True, use_container_width=True)
+
+st.title("Welcome to etosLM!")
+
+if "messages" not in st.session_state or len(st.session_state.messages) == 0:
+    st.session_state.messages = []
+    st.chat_message("assistant").write("How can I help you today?")
+
+if "messages" in st.session_state:
+    for msg in st.session_state.messages:
+        st.chat_message(msg["role"]).write(msg["content"])
+
+if prompt := st.chat_input():
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.chat_message("user").write(prompt)
+    response = converse()
+    st.session_state.messages.append({"role": "assistant", "content": response})
+    st.chat_message("assistant").write(response)
