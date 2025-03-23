@@ -84,7 +84,7 @@ impl FrontendPolicy for LocalInferencePolicy {
 impl Into<PromptPolicy> for LocalInferencePolicy {
     fn into(self) -> PromptPolicy {
         PromptPolicy {
-            no_storage: self.no_storage,
+            storage: self.no_storage,
             marketing_consent: self.marketing_consent,
             unprotected_image_gen: self.unprotected_image_gen,
         }

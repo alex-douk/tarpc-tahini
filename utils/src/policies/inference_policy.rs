@@ -11,7 +11,7 @@ use tarpc::serde::{Deserialize, Serialize};
 #[schema_policy(table = "conversations", column = 3)]
 #[schema_policy(table = "conversations", column = 4)]
 pub struct PromptPolicy {
-    pub no_storage: bool,
+    pub storage: bool,
     pub marketing_consent: bool,
     pub unprotected_image_gen: bool,
 }
@@ -27,7 +27,7 @@ impl Policy for PromptPolicy {
         reason: alohomora::policy::Reason<'_>,
     ) -> bool {
         match reason {
-            Reason::DB(_, _) => !self.no_storage,
+            Reason::DB(_, _) => self.storage,
             Reason::Response => true,
             //If we have a custom  reason, it needs to be an inference reason
             Reason::Custom(reason) => match reason.cast().downcast_ref::<InferenceReason>() {
@@ -36,7 +36,7 @@ impl Policy for PromptPolicy {
                     //If it is, we check the inference reason
                     InferenceReason::SendToMarketing => self.marketing_consent,
                     InferenceReason::SendToImageGen => self.unprotected_image_gen,
-                    InferenceReason::SendToDB => !self.no_storage,
+                    InferenceReason::SendToDB => self.storage,
                 },
             },
             //If it is not as a direct query response, a DB request, or an inference specific
@@ -64,7 +64,7 @@ impl Policy for PromptPolicy {
         //Take the OR of each
         Ok(PromptPolicy {
             //We explicitely annotate when we DONT want to store
-            no_storage: self.no_storage || other.no_storage,
+            storage: self.storage && other.storage,
             marketing_consent: self.marketing_consent && other.marketing_consent,
             unprotected_image_gen: self.unprotected_image_gen && other.unprotected_image_gen,
         })
@@ -91,13 +91,13 @@ impl FrontendPolicy for PromptPolicy {
         Self: Sized,
     {
         let no_storage =
-            bool::from_str(request.cookies().get("no_storage").unwrap().value()).unwrap();
+            bool::from_str(request.cookies().get("storage").unwrap().value()).unwrap();
         let marketing_consent =
             bool::from_str(request.cookies().get("ads").unwrap().value()).unwrap();
         let unprotected_image_gen =
             bool::from_str(request.cookies().get("image_gen").unwrap().value()).unwrap();
         PromptPolicy {
-            no_storage,
+            storage: no_storage,
             marketing_consent,
             unprotected_image_gen,
         }
@@ -111,14 +111,14 @@ impl FrontendPolicy for PromptPolicy {
     where
         Self: Sized,
     {
-        let no_storage =
-            bool::from_str(request.cookies().get("no_storage").unwrap().value()).unwrap();
+        let storage =
+            bool::from_str(request.cookies().get("storage").unwrap().value()).unwrap();
         let marketing_consent =
             bool::from_str(request.cookies().get("ads").unwrap().value()).unwrap();
         let unprotected_image_gen =
             bool::from_str(request.cookies().get("image_gen").unwrap().value()).unwrap();
         PromptPolicy {
-            no_storage,
+            storage,
             marketing_consent,
             unprotected_image_gen,
         }
@@ -131,7 +131,7 @@ impl SchemaPolicy for PromptPolicy {
         Self: Sized,
     {
         PromptPolicy {
-            no_storage: BBoxFromValue::from_value(row[5].clone()),
+            storage: BBoxFromValue::from_value(row[5].clone()),
             marketing_consent: BBoxFromValue::from_value(row[6].clone()),
             unprotected_image_gen: BBoxFromValue::from_value(row[7].clone()),
         }

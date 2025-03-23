@@ -2,6 +2,7 @@ use alohomora::bbox::BBox;
 use alohomora::context::Context;
 use alohomora::pure::PrivacyPureRegion;
 use alohomora::rocket::{JsonResponse, ResponseBBoxJson, get, route};
+use services_utils::policies::ConversationMetadataPolicy;
 use services_utils::policies::shared_policies::UsernamePolicy;
 use services_utils::rpc::database::{Database, TahiniDatabaseClient};
 use services_utils::types::database_types::{CHATUID, DatabaseRetrieveForm, DatabaseStoreForm};
@@ -56,13 +57,13 @@ pub(crate) async fn get_default_user() -> BBox<String, UsernamePolicy> {
 
 #[derive(Clone, ResponseBBoxJson)]
 pub struct HistoryResponse {
-    history_list: Vec<CHATUID>,
+    history_list: Vec<BBox<String, ConversationMetadataPolicy>>,
 }
 
 #[get("/<user_id>")]
 pub(crate) async fn get_history(
-    user_id: BBox<String, UsernamePolicy>,
-) -> JsonResponse<HistoryResponse, ()> {
+    user_id: BBox<String, ConversationMetadataPolicy>,
+) -> JsonResponse<HistoryResponse, bool> {
     //TODO(douk): Restrict access for anonymous history? If for some reason, some attacker bruteforces
     //the anonymous UUID, we have a problem
     let codec_builder = LengthDelimitedCodec::builder();
@@ -73,12 +74,18 @@ pub(crate) async fn get_history(
         .fetch_history_headers(tarpc::context::current(), user_id)
         .await;
     match response {
-        Ok(res) => JsonResponse(HistoryResponse { history_list: res }, Context::empty()),
+        Ok(res) => JsonResponse(
+            HistoryResponse { history_list: res },
+            //TODO(douk): Check if user is authenticated to the provided user_id
+            //Or even better, we can simply return whether or not the given JWT matches a user. 
+            Context::new("history".to_string(), true),
+        ),
+        //If any kind of error hapen on the remote, of course we fail to fetch
         Err(_) => JsonResponse(
             HistoryResponse {
                 history_list: Vec::new(),
             },
-            Context::empty(),
+            Context::new("history".to_string(), false),
         ),
     }
 }

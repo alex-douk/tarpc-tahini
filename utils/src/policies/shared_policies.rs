@@ -6,7 +6,6 @@ use tarpc::serde::{Deserialize, Serialize};
 
 #[schema_policy(table = "users", column = 0)]
 #[schema_policy(table = "users", column = 1)]
-#[schema_policy(table = "conversations", column = 1)]
 #[schema_policy(table = "conversations", column = 2)]
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct UsernamePolicy {

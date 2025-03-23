@@ -54,8 +54,8 @@ use services_utils::types::inference_types::{LLMError, LLMResponse, UserPrompt};
 //Database import
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
-static SYSTEM_PROMPT: &str =
-    "<|im_start|>system\nYou are Qwenhini. You are a useful assistant.<|im_end|>\n";
+// static SYSTEM_PROMPT: &str =
+//     "<|im_start|>system\nYou are Qwenhini. You are a useful assistant.<|im_end|>\n";
 
 #[derive(Clone)]
 pub struct InferenceServer {
@@ -90,7 +90,7 @@ fn change_marketing_policy(input: PCon<String, PromptPolicy>) -> PCon<String, Ma
         (),
     );
     let new_pol = MarketingPolicy {
-        no_storage: unboxed.1.no_storage,
+        no_storage: unboxed.1.storage,
         email_consent: true,
         third_party_processing: false,
     };
@@ -133,14 +133,14 @@ fn apply_chat_template(
     conversation: BBoxConversation,
 ) -> Result<PCon<String, PromptPolicy>, LLMError> {
     conversation
-        .into_ppr(PPR::new(|rounds: Vec<Message>| parse_conversation(rounds)))
+        .into_ppr(PPR::new(|rounds: Vec<Message>| {
+            parse_conversation(rounds)
+        }))
         .transpose()
 }
 
 impl Inference for InferenceServer {
     async fn inference(self, _context: tarpc::context::Context, prompt: UserPrompt) -> LLMResponse {
-        println!("Got a request");
-
         let pol = prompt.conversation.policy().clone();
 
         let mut locked_model = self.model.lock_owned().await;
@@ -148,6 +148,8 @@ impl Inference for InferenceServer {
         let conversation = apply_chat_template(prompt.conversation);
         match conversation {
             Err(e) => {
+                println!("Got an error parsing the conversation, we failed?");
+
                 return LLMResponse {
                     infered_tokens: PCon::new(Err(e), pol.clone()),
                 };
@@ -179,7 +181,8 @@ impl Inference for InferenceServer {
                 LLMResponse {
                     infered_tokens: boxed_infered.into_ppr(PPR::new(|x| {
                         Ok(Message {
-                            role: "assistant".to_string(),
+                            // role: "assistant".to_string(),
+                            role: "model".to_string(),
                             content: x,
                         })
                     })),

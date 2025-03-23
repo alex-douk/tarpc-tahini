@@ -3,11 +3,12 @@ use anyhow::Error as E;
 use candle_core::{DType, Device, Result as Res, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::generation::LogitsProcessor;
-use candle_transformers::models::qwen2::{Config as ConfigBase, ModelForCausalLM as ModelBase};
+use candle_transformers::models::gemma3::{Config as ConfigBase, Model as ModelBase};
+use hf_hub::api::sync::ApiBuilder;
 use hf_hub::{Repo, RepoType, api::sync::Api};
 use tokenizers::Tokenizer;
 
-const QWEN_MODEL: &str = "Qwen/Qwen2.5-0.5B-Instruct";
+const MODEL_STR: &str = "google/gemma-3-1b-it";
 
 pub struct TextGeneration {
     model: ModelBase,
@@ -62,9 +63,9 @@ impl TextGeneration {
         let mut llm_output: String = String::new();
 
         let mut generated_tokens = 0usize;
-        let eos_token = match self.tokenizer.get_token("<|endoftext|>") {
+        let eos_token = match self.tokenizer.get_token("<eos>") {
             Some(token) => token,
-            None => anyhow::bail!("cannot find the <|endoftext|> token"),
+            None => anyhow::bail!("cannot find the <eos> token"),
         };
         println!("Starting generation");
         std::io::stdout().flush()?;
@@ -122,14 +123,14 @@ impl TextGeneration {
         let mut tokens = self
             .tokenizer
             .tokenizer()
-            .encode(prompt, true)
+            .encode(prompt, false)
             .map_err(E::msg)?
             .get_ids()
             .to_vec();
 
-        let eos_token = match self.tokenizer.get_token("<|endoftext|>") {
+        let eos_token = match self.tokenizer.get_token("<eos>") {
             Some(token) => token,
-            None => anyhow::bail!("cannot find the <|endoftext|> token"),
+            None => anyhow::bail!("cannot find the <eos> token"),
         };
         // let context_size = if index > 0 { 1 } else { tokens.len() };
         let context_size = tokens.len();
@@ -167,8 +168,9 @@ impl TextGeneration {
 
 pub fn create_pipeline() -> Result<TextGeneration, E> {
     let api = Api::new()?;
+    // let api = ApiBuilder::new().with_token(Some("TOKEN".to_string())).build()?;
     let repo = api.repo(Repo::with_revision(
-        QWEN_MODEL.to_string(),
+        MODEL_STR.to_string(),
         RepoType::Model,
         "main".to_string(),
     ));
@@ -186,7 +188,8 @@ pub fn create_pipeline() -> Result<TextGeneration, E> {
     };
     let vb = unsafe { VarBuilder::from_mmaped_safetensors(&filenames, dtype, &device)? };
     let config: ConfigBase = serde_json::from_slice(&std::fs::read(config_file)?)?;
-    let model = ModelBase::new(&config, vb)?;
+    //TODO(douk): When running on GPU, maybe have Flash-attention and bigger models
+    let model = ModelBase::new(false, &config, vb)?;
 
     let pipeline = TextGeneration::new(
         model,

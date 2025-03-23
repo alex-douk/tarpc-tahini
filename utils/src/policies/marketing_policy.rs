@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use alohomora::policy::{Policy, Reason};
 use tarpc::serde::{Serialize, Deserialize};
 
@@ -6,6 +8,7 @@ pub struct MarketingPolicy {
     pub no_storage: bool,
     pub email_consent: bool,
     pub third_party_processing: bool
+    // pub third_party_processing: HashMap<String, bool>
 }
 
 impl Policy for MarketingPolicy {

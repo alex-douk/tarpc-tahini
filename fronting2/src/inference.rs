@@ -30,6 +30,7 @@ use tokio_util::codec::LengthDelimitedCodec;
 
 use crate::SERVER_ADDRESS;
 use crate::database::fetch_or_insert_user;
+use crate::database::get_default_user;
 use crate::database::store_to_database;
 
 #[derive(Clone, RequestBBoxJson)]
@@ -93,9 +94,10 @@ pub(crate) async fn inference(
         Some(t) => t.clone(),
     };
     //Parse whether user knows their uuid or not
-    //TODO(douk): Should make this disappear with proper cookie management
+    //If user did not provide a UUID, we assume unauthenticated
+    //TODO(douk): Replace by session cookie (and if not provided, is unauthenticated)
     let uuid = match &data.uuid {
-        None => fetch_or_insert_user(username.clone()).await,
+        None => get_default_user().await,
         Some(t) => t.clone(),
     };
     let conversation = data.conversation.clone();
@@ -124,7 +126,10 @@ pub(crate) async fn inference(
             )
         }
         Ok(ref tokens) => match verify_if_send_to_db(tokens.policy()) {
-            false => {println!("Not storing to db because policy said so!");construct_answer(tokens, None)},
+            false => {
+                println!("Not storing to db because policy said so!");
+                construct_answer(tokens, None)
+            }
             true => {
                 println!("Storing to database");
                 let conv_id = store_to_database(DatabaseStoreForm {

@@ -6,6 +6,7 @@ use alohomora::db::{Value, from_value, from_value_or_null};
 use alohomora::fold::{self, fold};
 use futures::SinkExt;
 use services_utils::policies::shared_policies::AbsolutePolicy;
+use services_utils::policies::ConversationMetadataPolicy;
 use services_utils::policies::{PromptPolicy, shared_policies::UsernamePolicy};
 use services_utils::types::database_types::DatabaseRetrieveForm;
 use services_utils::types::inference_types::{BBoxConversation, Message};
@@ -52,7 +53,7 @@ use services_utils::funcs::{parse_conversation, parse_stored_conversation};
 use services_utils::types::database_types::{CHATUID, DatabaseRecord, DatabaseStoreForm};
 
 pub type UserMap<T> = HashMap<String, T>;
-pub type ChatHistory = HashMap<u32, PCon<String, PromptPolicy>>;
+pub type ChatHistory = HashMap<u32, PCon<String, ConversationMetadataPolicy>>;
 
 #[derive(Clone)]
 pub struct DatabaseServer {
@@ -64,7 +65,7 @@ impl DatabaseServer {
         DatabaseServer {
             conn: Arc::new(Mutex::new(
                 //TODO(douk): Change this to env vars
-                MySqlBackend::new("tahini", "tahini_pwd", "etosLM", true)
+                MySqlBackend::new("tahini", "tahini_pwd", "etosLM", false)
                     .expect("Couldn't connect to DB"),
             )),
         }
@@ -102,7 +103,7 @@ impl Database for DatabaseServer {
         //     .transpose()
         //     .expect("Malformed received conversation");
         let pol_parameters = (
-            form.message.policy().no_storage,
+            form.message.policy().storage,
             form.message.policy().marketing_consent,
             form.message.policy().unprotected_image_gen,
         );
@@ -163,6 +164,7 @@ impl Database for DatabaseServer {
         );
         match res.len() {
             0 => {
+                println!("Registering new user into the database");
                 let ret_pol = username.policy();
                 let uuid = format!("{}", Uuid::new_v4());
                 backend.insert(
@@ -173,6 +175,7 @@ impl Database for DatabaseServer {
                 PCon::new(uuid, ret_pol.clone())
             }
             _ => {
+                println!("Found an entry for the user");
                 from_value::<String, UsernamePolicy>(res[0][0].clone()).expect("UUID row malformed")
             }
         }
@@ -181,8 +184,8 @@ impl Database for DatabaseServer {
     async fn fetch_history_headers(
         self,
         _context: tarpc::context::Context,
-        username: PCon<String, UsernamePolicy>,
-    ) -> Vec<PCon<String, UsernamePolicy>> {
+        username: PCon<String, ConversationMetadataPolicy>,
+    ) -> Vec<PCon<String, ConversationMetadataPolicy>> {
         //Group By conv_id : get boxed_conv_ids (actually, we want to policy only here)
         let mut conv_id_map = PCon::new(HashMap::new(), AbsolutePolicy {});
         let mut backend = self.conn.lock().await;
@@ -194,15 +197,15 @@ impl Database for DatabaseServer {
         );
         for row in res {
             //Reconstruct the boxed conv_id  from that row
-            let conv_id = from_value::<String, UsernamePolicy>(row[1].clone())
+            let conv_id = from_value::<String, ConversationMetadataPolicy>(row[1].clone())
                 .expect("Couldn't convert conv_id to its type");
             //Only Works because it's a fold left
-            let usable_map: PCon<(HashMap<String, Vec<UsernamePolicy>>, String), AnyPolicy> =
+            let usable_map: PCon<(HashMap<String, Vec<ConversationMetadataPolicy>>, String), AnyPolicy> =
                 fold((conv_id_map, conv_id.clone())).expect("Couldn't left-fold the map");
             //Add to the list of messages that were in that conversation ID
             conv_id_map = usable_map
                 .into_ppr(PPR::new(
-                    |(mut unboxed_map, id): (HashMap<String, Vec<UsernamePolicy>>, String)| {
+                    |(mut unboxed_map, id): (HashMap<String, Vec<ConversationMetadataPolicy>>, String)| {
                         unboxed_map
                             .entry(id)
                             .or_insert_with(Vec::new)
@@ -214,7 +217,7 @@ impl Database for DatabaseServer {
                 .expect("Couldn't re-establish the main conv_id map");
         }
         let release = PrivacyCriticalRegion::new(
-            |mut unboxed_map: HashMap<String, Vec<UsernamePolicy>>, _p, _c| {
+            |mut unboxed_map: HashMap<String, Vec<ConversationMetadataPolicy>>, _p, _c| {
                 unboxed_map
                     .drain()
                     .map(|(k, v)| {
@@ -228,7 +231,7 @@ impl Database for DatabaseServer {
                                     )
                                     .expect("Couldn't compose conv_id policies somehow")
                                     .unwrap()
-                                    .specialize::<UsernamePolicy>()
+                                    .specialize::<ConversationMetadataPolicy>()
                                     .expect("Couldn't specialize into the intended conv_id policy")
                                 })
                                 .unwrap(),
