@@ -4,6 +4,7 @@ use alohomora::{
     policy::{FrontendPolicy, Policy, Reason, SchemaPolicy},
     rocket::{RocketCookie, RocketRequest},
 };
+use std::collections::HashMap;
 use std::str::FromStr;
 use tarpc::serde::{Deserialize, Serialize};
 
@@ -13,6 +14,8 @@ use tarpc::serde::{Deserialize, Serialize};
 pub struct PromptPolicy {
     pub storage: bool,
     pub marketing_consent: bool,
+    //TODO(douk): Add third-party consent
+    // pub third_party_consent: HashMap<String, bool>
     pub unprotected_image_gen: bool,
 }
 

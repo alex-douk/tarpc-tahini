@@ -1,0 +1,5 @@
+[db_config]
+username="tahini"
+password="tahini_pwd"
+database="etosLM"
+prime=true

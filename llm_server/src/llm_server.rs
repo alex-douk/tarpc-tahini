@@ -8,7 +8,7 @@ use services_utils::{
         marketing_types::MarketingData,
     },
 };
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 //Required for model locking across async tasks
 use tokio::sync::Mutex;
 
@@ -92,7 +92,7 @@ fn change_marketing_policy(input: PCon<String, PromptPolicy>) -> PCon<String, Ma
     let new_pol = MarketingPolicy {
         no_storage: unboxed.1.storage,
         email_consent: true,
-        third_party_processing: false,
+        third_party_processing: HashMap::new(),
     };
     PCon::new(unboxed.0, new_pol)
 }

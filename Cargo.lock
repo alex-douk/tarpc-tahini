@@ -1070,12 +1070,14 @@ dependencies = [
  "alohomora",
  "futures",
  "futures-util",
+ "serde",
  "services_utils",
  "slog",
  "tarpc",
  "tokio",
  "tokio-macros",
  "tokio-util 0.7.14",
+ "toml",
  "uuid 1.16.0",
 ]
 

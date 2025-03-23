@@ -2,3 +2,4 @@
 .idea/
 .gradio/
 .env
+./db_server/resources/config.toml

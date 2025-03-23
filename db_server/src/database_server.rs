@@ -4,6 +4,7 @@ use backend::MySqlBackend;
 //Clone model just clones the reference
 use alohomora::db::{Value, from_value, from_value_or_null};
 use alohomora::fold::{self, fold};
+use config::Config;
 use futures::SinkExt;
 use services_utils::policies::ConversationMetadataPolicy;
 use services_utils::policies::shared_policies::AbsolutePolicy;
@@ -22,6 +23,7 @@ use uuid::Uuid;
 // use mysql::Value;
 
 mod backend;
+mod config;
 
 //Channel transport Code
 use alohomora::{
@@ -49,24 +51,28 @@ use alohomora::pure::PrivacyPureRegion as PPR;
 
 use services_utils::rpc::database::Database;
 //Database import
-use services_utils::funcs::{parse_conversation, parse_stored_conversation};
 use services_utils::types::database_types::{CHATUID, DatabaseRecord, DatabaseStoreForm};
 
 pub type UserMap<T> = HashMap<String, T>;
 pub type ChatHistory = HashMap<u32, PCon<String, ConversationMetadataPolicy>>;
 
 #[derive(Clone)]
-pub struct DatabaseServer {
+pub(crate) struct DatabaseServer {
     conn: Arc<Mutex<MySqlBackend>>,
 }
 
 impl DatabaseServer {
-    pub fn new() -> Self {
+    pub fn new(config: Config) -> Self {
         DatabaseServer {
             conn: Arc::new(Mutex::new(
                 //TODO(douk): Change this to env vars
-                MySqlBackend::new("tahini", "tahini_pwd", "etosLM", false)
-                    .expect("Couldn't connect to DB"),
+                MySqlBackend::new(
+                    config.username.as_str(),
+                    config.password.as_str(),
+                    config.database.as_str(),
+                    config.prime,
+                )
+                .expect("Couldn't connect to DB"),
             )),
         }
     }
@@ -376,7 +382,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Welcome to the LLM database server!");
     //A hashmap that for a given username, yields a hashmap of all UUIDS : chats for that specific
     //user
-    let server = DatabaseServer::new();
+    let config = config::Config::new();
+    let server = DatabaseServer::new(config);
     let listener = TcpListener::bind(&(SERVER_ADDRESS, 5002)).await.unwrap();
     let codec_builder = LengthDelimitedCodec::builder();
     loop {
