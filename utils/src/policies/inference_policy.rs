@@ -7,7 +7,7 @@ use alohomora::{
 use std::str::FromStr;
 use tarpc::serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[schema_policy(table = "conversations", column = 3)]
 #[schema_policy(table = "conversations", column = 4)]
 pub struct PromptPolicy {

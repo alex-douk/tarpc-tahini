@@ -38,33 +38,53 @@ def construct_cookies(policies):
         cookies["image_gen"] = parse(st.session_state.privacy_parameters["image_gen"])
     if "UsernamePolicy" in policies:
         cookies["targeted_ads"] = parse(st.session_state.privacy_parameters["targeted_ads"])
+
+    cookies["user_id"] = st.session_state.uuid
     return cookies
 
+@st.dialog("Authenticate to etosLM", width="large")
+def login_form(form_type):
+    st.header("Credentials")
+    username = st.text_input("Username", value="")
+    headers={'Content-type': 'application/json',
+             # 'Accept': 'text/event-stream', 
+             'Connection': 'keep-alive',
+             'X-Accel-Buffering': 'no'}
 
-def login():
-    if "uuid" not in st.session_state or st.session_state.uuid is None:
-        headers={'Content-type': 'application/json',
-                 # 'Accept': 'text/event-stream', 
-                 'Connection': 'keep-alive',
-                 'X-Accel-Buffering': 'no'}
-
-        cookies = construct_cookies(["UsernamePolicy"])
-        payload={"username": f"{st.session_state.username}"}
-        # try:
-        resp = requests.post(f"{API_URL}/login", data=json.dumps(payload), headers=headers, cookies=cookies)
+    cookies = construct_cookies(["UsernamePolicy"])
+    payload={"username": f"{username}"}
+    # try:
+    if username != "":
+        resp = requests.post(f"{API_URL}/account/{form_type}", data=json.dumps(payload), headers=headers, cookies=cookies)
         if resp.status_code == 200:
-            st.session_state.uuid = resp.json().get("uuid")
-            # Automatically fetch the history from the user if we log in
-            get_history()
-            print(f"Got assigned uuid: {st.session_state.uuid}")
-            return st.toast(f"Welcome back {st.session_state.username}!")
+            uuid = resp.json().get("uuid")
+            if uuid is not None:
+                st.session_state.uuid = uuid
+                get_history()
+                st.session_state.username = username
+                st.rerun()
+                # Automatically fetch the history from the user if we log in
+                print(f"Got assigned uuid: {st.session_state.uuid}")
+                return True
+            else:
+                st.warning(f"{form_type} failed")
         else:
-            return st.toast("Failed to login: Unrecognized username")
-        # except e:
-        #     print("Got error e")
-        #     return st.toast("Server unreachable...")
+            return False
+    
+    
+
+def authenticate(endpoint):
+    if "uuid" not in st.session_state or st.session_state.uuid is None:
+        success = login_form(endpoint)
+        if success is not None:
+            if success:
+                st.toast(f"Welcome back {st.session_state.username}!")
+            else:
+                st.toast("Server-side error for login")
     else:
+        print(f"Got uuid {st.session_state.uuid}")
         return st.toast(f"Already logged in as {st.session_state.username}")
+
 
 def logout():
     st.session_state.history=[]
@@ -81,8 +101,8 @@ def get_history():
                  'Connection': 'keep-alive',
                  'X-Accel-Buffering': 'no'}
 
-        # cookies = construct_cookies(["PromptPolicy", "UsernamePolicy"])
-        resp = requests.get(API_URL+f"/history/{st.session_state.uuid}", headers=headers) 
+        cookies = construct_cookies(["UsernamePolicy"])
+        resp = requests.get(API_URL+f"/history/{st.session_state.uuid}", headers=headers, cookies=cookies) 
         if resp.status_code == 200:
             history = resp.json().get("history_list")
             if len(history) > 0:
@@ -101,7 +121,7 @@ def load_conversation(conv_id):
                  'X-Accel-Buffering': 'no'}
 
         cookies = construct_cookies(["UsernamePolicy"])
-        resp = requests.get(API_URL+f"/c/{st.session_state.uuid}/{conv_id}", headers=headers, cookies=cookies) 
+        resp = requests.get(API_URL+f"/c/{conv_id}", headers=headers, cookies=cookies) 
         if resp.status_code == 200:
             conversation = resp.json().get("conv")
             if conversation is not None:
@@ -146,7 +166,7 @@ def privacy_parameters():
 def converse():
     payload = {
         'user': st.session_state.username if st.session_state.uuid is not None else "anonymous",
-        'uuid': st.session_state.uuid,
+        # 'uuid': st.session_state.uuid,
         'conv_id': st.session_state.current_conv_id,
         'conversation': st.session_state.messages,
         'nb_token': 20
@@ -174,7 +194,8 @@ with st.sidebar:
     st.title("etosLM")
     history, privacy_settings = st.tabs(["History", "Privacy settings"])
     with history:
-        st.button("Login", icon=":material/login:",on_click=login, use_container_width=True)
+        st.button("Login", icon=":material/login:",on_click=authenticate, args=("login",), use_container_width=True)
+        st.button("Signup", icon=":material/login:",on_click=authenticate, args=("signup",), use_container_width=True)
         st.button("Logout", icon=":material/logout:",on_click=logout, use_container_width=True)
         # st.button("Signup",icon=":material/app_registration:", use_container_width = True)
         st.header("Chat management")
@@ -209,3 +230,4 @@ if prompt := st.chat_input():
     response = converse()
     st.session_state.messages.append({"role": "model", "content": response})
     st.chat_message("assistant").write(response)
+    st.rerun()

@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 use alohomora::bbox::BBox;
+use alohomora::rocket::{RequestBBoxJson, ResponseBBoxJson};
 use alohomora::tarpc::{TahiniEnum, TahiniType};
 use alohomora::{AlohomoraType, TahiniType};
+use std::collections::HashMap;
 use tarpc::serde::{Deserialize, Serialize};
-use alohomora::rocket::{RequestBBoxJson, ResponseBBoxJson};
 
 use crate::policies::PromptPolicy;
 
@@ -22,15 +22,15 @@ pub struct LLMResponse {
 pub type BBoxConversation = BBox<Vec<Message>, PromptPolicy>;
 
 #[derive(Serialize, RequestBBoxJson, Deserialize, Clone, Debug, ResponseBBoxJson)]
-pub struct Message{
+pub struct Message {
     pub role: String,
-    pub content: String
+    pub content: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum LLMError {
     InternalError,
-    ValidationError
+    ValidationError,
 }
 
 impl std::fmt::Display for LLMError {

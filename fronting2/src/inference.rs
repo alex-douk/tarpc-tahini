@@ -8,6 +8,7 @@ use alohomora::pcr::Signature;
 use alohomora::policy::NoPolicy;
 use alohomora::policy::Policy;
 use alohomora::pure::PrivacyPureRegion as PPR;
+use alohomora::rocket::BBoxCookieJar;
 use alohomora::rocket::BBoxJson;
 use alohomora::rocket::RequestBBoxJson;
 use alohomora::rocket::{BBoxForm, FromBBoxForm, JsonResponse, ResponseBBoxJson, route};
@@ -29,14 +30,13 @@ use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
 use crate::SERVER_ADDRESS;
-use crate::database::fetch_or_insert_user;
 use crate::database::get_default_user;
 use crate::database::store_to_database;
 
 #[derive(Clone, RequestBBoxJson)]
 pub(crate) struct InferenceRequest {
     pub user: Option<BBox<String, UsernamePolicy>>,
-    pub uuid: Option<BBox<String, UsernamePolicy>>,
+    // pub uuid: Option<BBox<String, UsernamePolicy>>,
     pub conv_id: BBox<Option<String>, UsernamePolicy>,
     pub conversation: BBoxConversation,
     pub nb_token: u32,
@@ -84,6 +84,7 @@ async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, 
 
 #[route(POST, "/", data = "<data>")]
 pub(crate) async fn inference(
+    cookies: BBoxCookieJar<'_, '_>,
     data: BBoxJson<InferenceRequest>,
 ) -> alohomora::rocket::JsonResponse<InferenceResponse, ()> {
     //Parse whether anonymous or connected user
@@ -95,10 +96,16 @@ pub(crate) async fn inference(
     };
     //Parse whether user knows their uuid or not
     //If user did not provide a UUID, we assume unauthenticated
-    //TODO(douk): Replace by session cookie (and if not provided, is unauthenticated)
-    let uuid = match &data.uuid {
-        None => get_default_user().await,
-        Some(t) => t.clone(),
+    let uuid = match cookies.get("user_id") {
+        None => {
+            println!("Assuming anonymous user");
+            get_default_user().await
+        }
+        //Weirdly enough, only implementation for From<BBoxCookie<'c, P: FrontendPolicy> for BBox<String, P>
+        Some(t) => {
+            println!("Authenticated user");
+            t.into()
+        }
     };
     let conversation = data.conversation.clone();
     let payload = UserPrompt {

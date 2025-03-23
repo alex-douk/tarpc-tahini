@@ -5,10 +5,10 @@ use backend::MySqlBackend;
 use alohomora::db::{Value, from_value, from_value_or_null};
 use alohomora::fold::{self, fold};
 use futures::SinkExt;
-use services_utils::policies::shared_policies::AbsolutePolicy;
 use services_utils::policies::ConversationMetadataPolicy;
+use services_utils::policies::shared_policies::AbsolutePolicy;
 use services_utils::policies::{PromptPolicy, shared_policies::UsernamePolicy};
-use services_utils::types::database_types::DatabaseRetrieveForm;
+use services_utils::types::database_types::{DatabaseError, DatabaseRetrieveForm};
 use services_utils::types::inference_types::{BBoxConversation, Message};
 use std::hash::Hash;
 use std::{
@@ -80,7 +80,9 @@ fn parse_row_into_message(
     let role = from_value::<String, PromptPolicy>(row[3].clone())?;
     let content = from_value::<String, PromptPolicy>(row[4].clone())?;
     let pair = fold((role, content)).map_err(|_| "Couldn't fold")?;
-    let pair = pair.specialize_policy::<PromptPolicy>().expect("Couldn't specialize policy");
+    let pair = pair
+        .specialize_policy::<PromptPolicy>()
+        .expect("Couldn't specialize policy");
     Ok(pair.into_ppr(PPR::new(|(role, content)| Message { role, content })))
 }
 
@@ -151,11 +153,41 @@ impl Database for DatabaseServer {
 
         Some(parsed)
     }
-    async fn fetch_or_insert_user(
+    async fn fetch_user(
         self,
         _context: tarpc::context::Context,
         username: PCon<String, UsernamePolicy>,
-    ) -> PCon<String, UsernamePolicy> {
+    ) -> Result<PCon<String, UsernamePolicy>, DatabaseError> {
+        let mut backend = self.conn.lock().await;
+        let res = backend.prep_exec(
+            "SELECT * FROM users where username = ? AND username != 'anonymous'",
+            (username.clone(),),
+            Context::empty(),
+        );
+        match res.len() {
+            0 => {
+                Err(DatabaseError::UserNotFound)
+                // println!("Registering new user into the database");
+                // let ret_pol = username.policy();
+                // let uuid = format!("{}", Uuid::new_v4());
+                // backend.insert(
+                //     "users",
+                //     (uuid.clone(), username.clone(), ret_pol.targeted_ads_consent),
+                //     Context::empty(),
+                // );
+                // Ok(PCon::new(uuid, ret_pol.clone()))
+            }
+            1 => Ok(from_value::<String, UsernamePolicy>(res[0][0].clone())
+                .expect("UUID row malformed")),
+            _ => Err(DatabaseError::Ambiguous),
+        }
+    }
+
+    async fn register_user(
+        self,
+        _context: tarpc::context::Context,
+        username: PCon<String, UsernamePolicy>,
+    ) -> Result<PCon<String, UsernamePolicy>, DatabaseError> {
         let mut backend = self.conn.lock().await;
         let res = backend.prep_exec(
             "SELECT * FROM users where username = ?",
@@ -164,7 +196,6 @@ impl Database for DatabaseServer {
         );
         match res.len() {
             0 => {
-                println!("Registering new user into the database");
                 let ret_pol = username.policy();
                 let uuid = format!("{}", Uuid::new_v4());
                 backend.insert(
@@ -172,19 +203,16 @@ impl Database for DatabaseServer {
                     (uuid.clone(), username.clone(), ret_pol.targeted_ads_consent),
                     Context::empty(),
                 );
-                PCon::new(uuid, ret_pol.clone())
+                Ok(PCon::new(uuid, ret_pol.clone()))
             }
-            _ => {
-                println!("Found an entry for the user");
-                from_value::<String, UsernamePolicy>(res[0][0].clone()).expect("UUID row malformed")
-            }
+            _ => Err(DatabaseError::AlreadyExists),
         }
     }
 
     async fn fetch_history_headers(
         self,
         _context: tarpc::context::Context,
-        username: PCon<String, ConversationMetadataPolicy>,
+        username: PCon<String, UsernamePolicy>,
     ) -> Vec<PCon<String, ConversationMetadataPolicy>> {
         //Group By conv_id : get boxed_conv_ids (actually, we want to policy only here)
         let mut conv_id_map = PCon::new(HashMap::new(), AbsolutePolicy {});
@@ -200,12 +228,17 @@ impl Database for DatabaseServer {
             let conv_id = from_value::<String, ConversationMetadataPolicy>(row[1].clone())
                 .expect("Couldn't convert conv_id to its type");
             //Only Works because it's a fold left
-            let usable_map: PCon<(HashMap<String, Vec<ConversationMetadataPolicy>>, String), AnyPolicy> =
-                fold((conv_id_map, conv_id.clone())).expect("Couldn't left-fold the map");
+            let usable_map: PCon<
+                (HashMap<String, Vec<ConversationMetadataPolicy>>, String),
+                AnyPolicy,
+            > = fold((conv_id_map, conv_id.clone())).expect("Couldn't left-fold the map");
             //Add to the list of messages that were in that conversation ID
             conv_id_map = usable_map
                 .into_ppr(PPR::new(
-                    |(mut unboxed_map, id): (HashMap<String, Vec<ConversationMetadataPolicy>>, String)| {
+                    |(mut unboxed_map, id): (
+                        HashMap<String, Vec<ConversationMetadataPolicy>>,
+                        String,
+                    )| {
                         unboxed_map
                             .entry(id)
                             .or_insert_with(Vec::new)
@@ -305,9 +338,16 @@ impl Database for DatabaseServer {
         // );
         // conv_id_map.into_pcr(release, ())
     }
-    async fn get_default_user(self,context: tarpc::context::Context,) -> PCon<String,UsernamePolicy> {
+    async fn get_default_user(
+        self,
+        context: tarpc::context::Context,
+    ) -> PCon<String, UsernamePolicy> {
         let mut backend = self.conn.lock().await;
-        let res = backend.prep_exec("SELECT * FROM users where username = ?", ("anonymous",), Context::empty());
+        let res = backend.prep_exec(
+            "SELECT * FROM users where username = ?",
+            ("anonymous",),
+            Context::empty(),
+        );
         from_value::<String, UsernamePolicy>(res[0][0].clone()).expect("Couldn't find default user")
     }
 }

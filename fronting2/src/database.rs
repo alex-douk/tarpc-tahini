@@ -1,13 +1,16 @@
 use alohomora::bbox::BBox;
 use alohomora::context::Context;
 use alohomora::pure::PrivacyPureRegion;
-use alohomora::rocket::{JsonResponse, ResponseBBoxJson, get, route};
+use alohomora::rocket::{BBoxCookieJar, JsonResponse, ResponseBBoxJson, get, route};
 use services_utils::policies::ConversationMetadataPolicy;
 use services_utils::policies::shared_policies::UsernamePolicy;
 use services_utils::rpc::database::{Database, TahiniDatabaseClient};
-use services_utils::types::database_types::{CHATUID, DatabaseRetrieveForm, DatabaseStoreForm};
+use services_utils::types::database_types::{
+    CHATUID, DatabaseError, DatabaseRetrieveForm, DatabaseStoreForm,
+};
 use services_utils::types::inference_types::BBoxConversation;
 use std::collections::HashMap;
+use tarpc::context;
 
 use crate::SERVER_ADDRESS;
 use tarpc::serde_transport::new as new_transport;
@@ -31,17 +34,37 @@ pub(crate) async fn store_to_database(submit_form: DatabaseStoreForm) -> Option<
     }
 }
 
-pub(crate) async fn fetch_or_insert_user(
+pub(crate) async fn register_user(
     username: BBox<String, UsernamePolicy>,
-) -> BBox<String, UsernamePolicy> {
+) -> Result<BBox<String, UsernamePolicy>, DatabaseError> {
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
     let response = TahiniDatabaseClient::new(Default::default(), transport)
         .spawn()
-        .fetch_or_insert_user(tarpc::context::Context::current(), username)
+        .register_user(context::current(), username)
         .await;
-    response.expect("RPC error")
+    match response {
+        Ok(r) => r,
+        Err(_) => Err(DatabaseError::InternalError),
+    }
+}
+
+pub(crate) async fn fetch_user(
+    username: BBox<String, UsernamePolicy>,
+) -> Result<BBox<String, UsernamePolicy>, DatabaseError> {
+    let codec_builder = LengthDelimitedCodec::builder();
+    let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
+    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+    let response = TahiniDatabaseClient::new(Default::default(), transport)
+        .spawn()
+        .fetch_user(context::current(), username)
+        .await;
+
+    match response {
+        Ok(r) => r,
+        Err(_) => Err(DatabaseError::InternalError),
+    }
 }
 
 pub(crate) async fn get_default_user() -> BBox<String, UsernamePolicy> {
@@ -62,10 +85,16 @@ pub struct HistoryResponse {
 
 #[get("/<user_id>")]
 pub(crate) async fn get_history(
-    user_id: BBox<String, ConversationMetadataPolicy>,
+    cookies: BBoxCookieJar<'_, '_>,
+    user_id: BBox<String, UsernamePolicy>,
 ) -> JsonResponse<HistoryResponse, bool> {
-    //TODO(douk): Restrict access for anonymous history? If for some reason, some attacker bruteforces
-    //the anonymous UUID, we have a problem
+    //Verify the cookie is present
+    let mut is_authenticated = cookies.get::<UsernamePolicy>("user_id").is_some();
+    //Verify if the path matches that of the cookie
+    if is_authenticated {
+        let ground_truth: BBox<String, UsernamePolicy> = cookies.get("user_id").unwrap().into();
+        is_authenticated = is_authenticated && (ground_truth == user_id);
+    }
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
@@ -76,9 +105,7 @@ pub(crate) async fn get_history(
     match response {
         Ok(res) => JsonResponse(
             HistoryResponse { history_list: res },
-            //TODO(douk): Check if user is authenticated to the provided user_id
-            //Or even better, we can simply return whether or not the given JWT matches a user. 
-            Context::new("history".to_string(), true),
+            Context::new("history".to_string(), is_authenticated),
         ),
         //If any kind of error hapen on the remote, of course we fail to fetch
         Err(_) => JsonResponse(
@@ -95,13 +122,17 @@ pub struct FetchConversation {
     conv: Option<BBoxConversation>,
 }
 
-//TODO(douk): Change the types so that only the conv_id is provided, the user_id should be handled
-//via cookies
-#[get("/<user_id>/<chat_id>")]
+#[get("/<chat_id>")]
 pub(crate) async fn fetch_conversation(
-    user_id: BBox<String, UsernamePolicy>,
+    // user_id: BBox<String, UsernamePolicy>,
+    cookies: BBoxCookieJar<'_, '_>,
     chat_id: BBox<String, UsernamePolicy>,
 ) -> JsonResponse<FetchConversation, ()> {
+    if cookies.get::<UsernamePolicy>("user_id").is_none() {
+        return JsonResponse(FetchConversation { conv: None }, Context::empty());
+    }
+    let user_id = cookies.get("user_id").unwrap().into();
+
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
