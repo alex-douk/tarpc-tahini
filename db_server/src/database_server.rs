@@ -350,6 +350,21 @@ impl Database for DatabaseServer {
         );
         from_value::<String, UsernamePolicy>(res[0][0].clone()).expect("Couldn't find default user")
     }
+
+    async fn delete_conversation(
+        self,
+        context: tarpc::context::Context,
+        user_id: PCon<String, UsernamePolicy>,
+        conv_id: PCon<String, ConversationMetadataPolicy>,
+    ) -> bool {
+        let mut backend = self.conn.lock().await;
+        let _ = backend.prep_exec(
+            "DELETE FROM conversations WHERE user_id = ? AND conversation_id = ?",
+            (user_id, conv_id),
+            Context::empty(),
+        );
+        true
+    }
 }
 
 pub(crate) async fn wait_upon(fut: impl Future<Output = ()> + Send + 'static) {

@@ -20,7 +20,6 @@ pub struct LoginResponse {
     uuid: Option<BBox<String, UsernamePolicy>>,
 }
 
-//TODO(douk): Transform this into a proper cookie generation endpoint
 #[route(POST, "/login", data = "<data>")]
 pub(crate) async fn login(
     cookies: BBoxCookieJar<'_, '_>,

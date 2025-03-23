@@ -151,3 +151,21 @@ pub(crate) async fn fetch_conversation(
         Ok(boxed_conv) => JsonResponse(FetchConversation { conv: boxed_conv }, Context::empty()),
     }
 }
+
+#[get("/delete/<chat_id>")]
+pub(crate) async fn delete_conversation(
+    cookies: BBoxCookieJar<'_, '_>,
+    chat_id: BBox<String, ConversationMetadataPolicy>,
+) -> Result<(), ()> {
+    if cookies.get::<UsernamePolicy>("user_id").is_none() {}
+    let user_id = cookies.get::<UsernamePolicy>("user_id").unwrap().into();
+    let codec_builder = LengthDelimitedCodec::builder();
+    let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
+    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+    let response = TahiniDatabaseClient::new(Default::default(), transport)
+        .spawn()
+        .delete_conversation(context::current(), user_id, chat_id)
+        .await;
+
+    response.map(|_| ()).map_err(|_| ())
+}

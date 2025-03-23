@@ -28,4 +28,5 @@ pub trait Database {
         username: BBox<String, UsernamePolicy>,
     ) -> Vec<BBox<String, ConversationMetadataPolicy>>;
     async fn get_default_user() -> BBox<String, UsernamePolicy>;
+    async fn delete_conversation(user_id: BBox<String, UsernamePolicy>, conv_id: BBox<String, ConversationMetadataPolicy>) -> bool;
 }

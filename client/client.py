@@ -163,6 +163,9 @@ def privacy_parameters():
     st.header("Username policy")
     st.toggle("Consent to targeted ads", value=st.session_state.privacy_parameters["targeted_ads"], on_change=switch_boolean_parameters, args=("targeted_ads",))
 
+    if st.button("Validate settings"):
+        st.rerun()
+
 def converse():
     payload = {
         'user': st.session_state.username if st.session_state.uuid is not None else "anonymous",
@@ -189,6 +192,13 @@ def converse():
     else:
         return "An error has occured"
 
+def delete(conv_id):
+    cookies = construct_cookies([])
+    resp = requests.get(API_URL+f"/history/delete/{conv_id}",cookies=cookies) 
+    if resp.status_code == 200:
+        st.session_state.history.remove(conv_id)
+        new_chat()
+        del st.session_state.conv_cache[conv_id]
 
 with st.sidebar:
     st.title("etosLM")
@@ -202,7 +212,11 @@ with st.sidebar:
         st.button("New chat", icon=":material/rocket_launch:", on_click=new_chat, use_container_width=True)
         if "history" in st.session_state and len(st.session_state.history)> 0:
             for conv in st.session_state.history:
-                st.button(conv, key=str(conv), on_click=load_conversation, args=(conv,), type="tertiary", use_container_width=True)
+                main, delete_col = st.columns([0.98, 0.02])
+                with main:
+                    st.button(conv, key=str(conv), on_click=load_conversation, args=(conv,), type="tertiary", use_container_width=True)
+                with delete_col:
+                    st.button(":material/delete:", key="delete_"+str(conv), on_click=delete, args=(conv,), type="tertiary")
         else:
             st.button("Empty chat history!", type="tertiary", disabled=True, use_container_width=True)
     with privacy_settings:

@@ -23,6 +23,9 @@ use services_utils::types::database_types::{CHATUID, DatabaseRetrieveForm, Datab
 use services_utils::types::inference_types::Message;
 use services_utils::types::inference_types::{BBoxConversation, UserPrompt};
 use std::collections::HashMap;
+use std::time::Duration;
+use std::time::SystemTime;
+use tarpc::context;
 
 use tarpc::serde_transport::new as new_transport;
 use tarpc::tokio_serde::formats::Json;
@@ -76,7 +79,7 @@ async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, 
 
     let response = TahiniInferenceClient::new(Default::default(), transport)
         .spawn()
-        .inference(tarpc::context::current(), prompt)
+        .inference(context::current(), prompt)
         .await?;
 
     Ok(response.infered_tokens.transpose()?)
@@ -88,6 +91,7 @@ pub(crate) async fn inference(
     data: BBoxJson<InferenceRequest>,
 ) -> alohomora::rocket::JsonResponse<InferenceResponse, ()> {
     //Parse whether anonymous or connected user
+    //TODO(douk): Need to add handling of token here for access control
     let username = match &data.user {
         None => BBox::new("anonymous".to_string(), UsernamePolicy {
             targeted_ads_consent: false,
