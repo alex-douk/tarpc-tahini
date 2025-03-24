@@ -1071,6 +1071,7 @@ dependencies = [
  "futures",
  "futures-util",
  "serde",
+ "serde_json",
  "services_utils",
  "slog",
  "tarpc",
@@ -5542,6 +5543,7 @@ version = "0.1.0"
 dependencies = [
  "alohomora",
  "serde",
+ "serde_json",
  "tarpc",
 ]
 

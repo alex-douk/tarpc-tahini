@@ -1,15 +1,24 @@
-use alohomora::db::{BBoxFromValue, Value};
-use alohomora::policy::{AnyPolicy, FrontendPolicy, Policy, Reason, SchemaPolicy, schema_policy};
+use crate::policies::inference_policy::InferenceReason;
+use crate::policies::marketing_policy::THIRD_PARTY_PROCESSORS;
+use alohomora::db::{BBoxFromValue, Value, from_value};
+use alohomora::policy::{
+    AnyPolicy, FrontendPolicy, NoPolicy, Policy, Reason, SchemaPolicy, schema_policy,
+};
 use alohomora::rocket::{BBoxCookie, RocketCookie, RocketRequest};
+use serde_json::from_str;
+use std::collections::HashMap;
 use std::str::FromStr;
 use tarpc::serde::{Deserialize, Serialize};
 
+///This policy is user-and-session-bound and
+///is invoked in operations that could lead to current-or-future disclosure of the username
 #[schema_policy(table = "users", column = 0)]
 #[schema_policy(table = "users", column = 1)]
 #[schema_policy(table = "conversations", column = 2)]
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct UsernamePolicy {
     pub targeted_ads_consent: bool,
+    pub third_party_vendors_consent: HashMap<String, bool>,
 }
 
 impl Policy for UsernamePolicy {
@@ -21,6 +30,16 @@ impl Policy for UsernamePolicy {
         match reason {
             Reason::Response => true,
             Reason::DB(_, _) => true,
+            Reason::Custom(reason) => match reason.cast().downcast_ref::<InferenceReason>() {
+                None => false,
+                Some(reason) => match reason {
+                    //TODO(douk): Check if verifying the third-party vendor list now makes sense.
+                    //I believe we just propagate it.
+                    InferenceReason::SendToMarketing => self.targeted_ads_consent,
+                    //If it is, we check the inference reason
+                    _ => false,
+                },
+            },
             _ => false,
         }
     }
@@ -52,11 +71,27 @@ impl SchemaPolicy for UsernamePolicy {
     where
         Self: Sized,
     {
+        let value = match table_name {
+            "users" => <String as BBoxFromValue>::from_value(row[3].clone()),
+            "conversations" => <String as BBoxFromValue>::from_value(row[9].clone()),
+            _ => "{}".to_string(),
+        };
+        let hashmap = match from_str(value.as_str()) {
+            Ok(map) => map,
+            Err(_) => {
+                eprintln!(
+                    "Couldn't parse consent table into the proper type, got {}",
+                    value
+                );
+                HashMap::<String, bool>::new()
+            }
+        };
         Self {
+            third_party_vendors_consent: hashmap,
             targeted_ads_consent: match table_name {
                 "users" => BBoxFromValue::from_value(row[2].clone()),
-                "conversations" => BBoxFromValue::from_value(row[6].clone()),
-                _ => false, //Default no consent to targeted ads (utopist)
+                "conversations" => BBoxFromValue::from_value(row[8].clone()),
+                _ => false,
             },
         }
     }
@@ -71,7 +106,16 @@ impl FrontendPolicy for UsernamePolicy {
     where
         Self: Sized,
     {
+        let mut hashmap = HashMap::with_capacity(THIRD_PARTY_PROCESSORS.len());
+        for vendor in THIRD_PARTY_PROCESSORS {
+            let cookie = request.cookies().get(vendor);
+            hashmap.insert(vendor.to_string(), match cookie {
+                None => false,
+                Some(c) => bool::from_str(c.value()).unwrap_or(false),
+            });
+        }
         UsernamePolicy {
+            third_party_vendors_consent: hashmap,
             targeted_ads_consent: match request.cookies().get("targeted_ads") {
                 None => false,
                 Some(c) => match bool::from_str(c.value()) {
@@ -86,7 +130,16 @@ impl FrontendPolicy for UsernamePolicy {
     where
         Self: Sized,
     {
+        let mut hashmap = HashMap::with_capacity(THIRD_PARTY_PROCESSORS.len());
+        for vendor in THIRD_PARTY_PROCESSORS {
+            let cookie = request.cookies().get(vendor);
+            hashmap.insert(vendor.to_string(), match cookie {
+                None => false,
+                Some(c) => bool::from_str(c.value()).unwrap_or(false),
+            });
+        }
         UsernamePolicy {
+            third_party_vendors_consent: hashmap,
             targeted_ads_consent: match request.cookies().get("targeted_ads") {
                 None => false,
                 Some(c) => match bool::from_str(c.value()) {
@@ -98,6 +151,10 @@ impl FrontendPolicy for UsernamePolicy {
     }
 }
 
+///Used for internal processing. Can be passed around at unchecked RPCs, but can never leave the
+///org nor be passed to checked RPCs.
+///Such a policy can ensure that data paths terminating in an uncontrolled sink are taken into
+///account.
 #[derive(Clone)]
 pub struct AbsolutePolicy {}
 

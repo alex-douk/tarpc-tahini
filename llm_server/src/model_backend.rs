@@ -63,9 +63,9 @@ impl TextGeneration {
         let mut llm_output: String = String::new();
 
         let mut generated_tokens = 0usize;
-        let eos_token = match self.tokenizer.get_token("<eos>") {
+        let eos_token = match self.tokenizer.get_token("<end_of_turn>") {
             Some(token) => token,
-            None => anyhow::bail!("cannot find the <eos> token"),
+            None => anyhow::bail!("cannot find the <end_of_turn> token"),
         };
         println!("Starting generation");
         std::io::stdout().flush()?;

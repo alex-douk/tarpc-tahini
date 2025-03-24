@@ -54,8 +54,7 @@ use services_utils::types::inference_types::{LLMError, LLMResponse, UserPrompt};
 //Database import
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
-// static SYSTEM_PROMPT: &str =
-//     "<|im_start|>system\nYou are Qwenhini. You are a useful assistant.<|im_end|>\n";
+static SYSTEM_PROMPT: &str = "<start_of_turn>user\nYou are a helpful assistant. You should reply to the user demands in a minimal manner. Keep your speech concise yet engaged. Reply in the form of a couple of short sentences. Do not go beyond the user's questions. Remain on topic, truthful, and accurate.<end_of_turn>\n";
 
 #[derive(Clone)]
 pub struct InferenceServer {
@@ -91,7 +90,7 @@ fn change_marketing_policy(input: PCon<String, PromptPolicy>) -> PCon<String, Ma
     );
     let new_pol = MarketingPolicy {
         no_storage: unboxed.1.storage,
-        email_consent: true,
+        targeted_ads_consent: true,
         third_party_processing: HashMap::new(),
     };
     PCon::new(unboxed.0, new_pol)
@@ -134,7 +133,11 @@ fn apply_chat_template(
 ) -> Result<PCon<String, PromptPolicy>, LLMError> {
     conversation
         .into_ppr(PPR::new(|rounds: Vec<Message>| {
-            parse_conversation(rounds)
+            let parsed = parse_conversation(rounds);
+            match parsed {
+                Ok(conv) => Ok(format!("{}{}", SYSTEM_PROMPT, conv)),
+                Err(e) => Err(e),
+            }
         }))
         .transpose()
 }

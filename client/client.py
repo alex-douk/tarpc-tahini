@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import json
 from components.chat import chatbox, reset_chat_state, history_list
-from components.api import converse, authenticate, load_conversation, delete
+from components.api import converse, authenticate, load_conversation, delete, get_vendors
 from components.account import login_dialog, logout, account_buttons
 from components.privacy import configure_privacy_parameters
 
@@ -17,8 +17,9 @@ if "uuid" not in st.session_state:
     st.session_state["uuid"] = None
 if "history" not in st.session_state:
     st.session_state["history"] = []
+st.session_state["third_party_data_vendors"] = get_vendors()
 if "privacy_parameters" not in st.session_state:
-    st.session_state["privacy_parameters"] = {"storage": True, "ads": False, "image_gen": False, "targeted_ads": False}
+    st.session_state["privacy_parameters"] = {"storage": True, "ads": False, "image_gen": False, "targeted_ads": False, "third_party_data_vendors" : dict([(vendor, False) for vendor in st.session_state["third_party_data_vendors"]])}
 
 def new_chat():
     reset_chat_state()

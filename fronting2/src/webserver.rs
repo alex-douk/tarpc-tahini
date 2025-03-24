@@ -13,9 +13,9 @@ use std::sync::{Arc, Mutex};
 
 
 mod inference;
-mod policy;
 mod database;
 mod login;
+mod ads;
 
 //TODO(douk): Hacky way of sharing a single host. 
 //Will have to get changed for static attestation for sure
@@ -27,6 +27,7 @@ fn prepare_server() -> BBoxRocket<Build>{
         .mount("/history", routes![database::get_history, database::delete_conversation])
         .mount("/account", routes![login::login, login::signup])
         .mount("/c", routes![database::fetch_conversation])
+        .mount("/ads", routes![ads::get_ads_vendors])
 }
 
 #[rocket::main]

@@ -7,6 +7,10 @@ use alohomora::{
 use std::str::FromStr;
 use tarpc::serde::{Deserialize, Serialize};
 
+///A policy for conversational metadata (such as conversation id)
+///Only allows for authenticated disclosure, and even so, only on specific routes.
+///While extensible, this policy aims to be used in a user-only context, i.e., no disclosure
+///to any third-parties.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[schema_policy(table = "conversations", column = 1)]
 pub struct ConversationMetadataPolicy {}

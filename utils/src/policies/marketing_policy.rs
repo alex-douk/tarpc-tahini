@@ -3,11 +3,20 @@ use std::collections::HashMap;
 use alohomora::policy::{Policy, Reason};
 use tarpc::serde::{Deserialize, Serialize};
 
+
+pub static THIRD_PARTY_PROCESSORS : [&str; 2]= ["Meta_Ads", "Google_Ads"];
+
+///This policy is given by an external organization so that remote clients can
+///be compatible with it. This policies contains:
+///- A storage consent
+///- A targeted ads consent (.e.g, locally processed but still sent to the particular user)
+///- Consent for various next-hops services.
+///
+///Note the lack of information regarding unprotected services (yet)
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MarketingPolicy {
     pub no_storage: bool,
-    pub email_consent: bool,
-    // pub third_party_processing: bool
+    pub targeted_ads_consent: bool,
     pub third_party_processing: HashMap<String, bool>,
 }
 
@@ -32,7 +41,7 @@ impl Policy for MarketingPolicy {
                 }
                 Some(reason) => match reason {
                     //If it is, we check the inference reason
-                    MarketingReason::Email => self.email_consent,
+                    MarketingReason::Email => self.targeted_ads_consent,
                     MarketingReason::ThirdPartyProcessing(vendor) => {
                         match self.third_party_processing.get(vendor) {
                             None => false,

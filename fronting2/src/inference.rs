@@ -77,9 +77,13 @@ async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, 
     let stream = TcpStream::connect((SERVER_ADDRESS, 5000)).await?;
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
 
+    //Custom deadline for inference calls. Will also potentially allow for streaming
+    //responses (but GitHub issues suggest tarpc is unable to do so)
+    let mut context = context::current();
+    context.deadline = SystemTime::now() + Duration::from_secs(45);
     let response = TahiniInferenceClient::new(Default::default(), transport)
         .spawn()
-        .inference(context::current(), prompt)
+        .inference(context, prompt)
         .await?;
 
     Ok(response.infered_tokens.transpose()?)
@@ -95,6 +99,7 @@ pub(crate) async fn inference(
     let username = match &data.user {
         None => BBox::new("anonymous".to_string(), UsernamePolicy {
             targeted_ads_consent: false,
+            third_party_vendors_consent: HashMap::new(),
         }),
         Some(t) => t.clone(),
     };
@@ -136,6 +141,7 @@ pub(crate) async fn inference(
                 None,
             )
         }
+        //TODO(douk): Change with #[checked] RPC annotation
         Ok(ref tokens) => match verify_if_send_to_db(tokens.policy()) {
             false => {
                 println!("Not storing to db because policy said so!");

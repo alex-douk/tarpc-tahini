@@ -5,7 +5,6 @@ use backend::MySqlBackend;
 use alohomora::db::{Value, from_value, from_value_or_null};
 use alohomora::fold::{self, fold};
 use config::Config;
-use futures::SinkExt;
 use services_utils::policies::ConversationMetadataPolicy;
 use services_utils::policies::shared_policies::AbsolutePolicy;
 use services_utils::policies::{PromptPolicy, shared_policies::UsernamePolicy};
@@ -20,7 +19,6 @@ use std::{
 //Required for model locking across async tasks
 use tokio::sync::Mutex;
 use uuid::Uuid;
-// use mysql::Value;
 
 mod backend;
 mod config;
@@ -65,7 +63,6 @@ impl DatabaseServer {
     pub fn new(config: Config) -> Self {
         DatabaseServer {
             conn: Arc::new(Mutex::new(
-                //TODO(douk): Change this to env vars
                 MySqlBackend::new(
                     config.username.as_str(),
                     config.password.as_str(),
@@ -104,16 +101,12 @@ impl Database for DatabaseServer {
         }));
         let mut backend = self.conn.lock().await;
         let ret_pol = form.uuid.policy();
-        // let user_uid = backend.get_user_id(form.user, Context::empty());
-        // let parsed_conv = form
-        //     .full_prompt
-        //     .into_ppr(PPR::new(|conv| parse_conversation(conv)))
-        //     .transpose()
-        //     .expect("Malformed received conversation");
         let pol_parameters = (
             form.message.policy().storage,
             form.message.policy().marketing_consent,
             form.message.policy().unprotected_image_gen,
+            serde_json::to_string(&form.message.policy().third_party_consent)
+                .unwrap_or("{}".to_string()),
         );
 
         backend.insert(
@@ -128,6 +121,7 @@ impl Database for DatabaseServer {
                 pol_parameters.1,
                 pol_parameters.2,
                 ret_pol.targeted_ads_consent,
+                pol_parameters.3
             ),
             Context::empty(),
         );
@@ -206,7 +200,13 @@ impl Database for DatabaseServer {
                 let uuid = format!("{}", Uuid::new_v4());
                 backend.insert(
                     "users",
-                    (uuid.clone(), username.clone(), ret_pol.targeted_ads_consent),
+                    (
+                        uuid.clone(),
+                        username.clone(),
+                        ret_pol.targeted_ads_consent,
+                        serde_json::to_string(&ret_pol.third_party_vendors_consent)
+                            .unwrap_or("{}".to_string()),
+                    ),
                     Context::empty(),
                 );
                 Ok(PCon::new(uuid, ret_pol.clone()))

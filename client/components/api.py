@@ -89,3 +89,15 @@ def delete(conv_id):
     cookies = construct_cookies([])
     return requests.get(API_URL+f"/history/delete/{conv_id}",cookies=cookies) 
 
+def get_vendors():
+    headers={'Content-type': 'application/json',
+             # 'Accept': 'text/event-stream', 
+             'Connection': 'keep-alive',
+             'X-Accel-Buffering': 'no'}
+    resp = requests.get(API_URL+f"/ads/get_vendors", headers=headers) 
+    if resp.status_code == 200:
+        return resp.json()
+    else:
+        return []
+        # if len(history) > 0:
+        #     st.session_state.history = history
