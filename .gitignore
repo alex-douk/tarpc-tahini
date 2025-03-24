@@ -3,3 +3,4 @@
 .gradio/
 .env
 ./db_server/resources/config.toml
+./client/components/__pycache__/
