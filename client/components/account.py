@@ -17,7 +17,7 @@ def login_dialog(login_type):
                 st.rerun()
                 return True
             else:
-                st.warning(f"{form_type} failed")
+                st.warning(f"{login_type} failed")
         else:
             return False
 

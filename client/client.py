@@ -17,7 +17,8 @@ if "uuid" not in st.session_state:
     st.session_state["uuid"] = None
 if "history" not in st.session_state:
     st.session_state["history"] = []
-st.session_state["third_party_data_vendors"] = get_vendors()
+if "third_party_data_vendors" not in st.session_state:
+    st.session_state["third_party_data_vendors"] = get_vendors()
 if "privacy_parameters" not in st.session_state:
     st.session_state["privacy_parameters"] = {"storage": True, "ads": False, "image_gen": False, "targeted_ads": False, "third_party_data_vendors" : dict([(vendor, False) for vendor in st.session_state["third_party_data_vendors"]])}
 
@@ -33,8 +34,13 @@ def privacy_parameters():
 
 
 if __name__ == "__main__":
+    st.set_page_config(
+        page_title="etosLM",
+        page_icon="./etosLM_nobg.jpg",
+        layout="wide"
+    )
     st.title("Welcome to etosLM!")
-    chatbox(converse)
+    chatbox()
 
     with st.sidebar:
         st.title("etosLM")

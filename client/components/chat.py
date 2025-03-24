@@ -1,20 +1,51 @@
 import streamlit as st
-from .api import delete, load_conversation
+from .api import delete, load_conversation, converse
 
 
-def chatbox(call_func):
+def chatbox():
+    st.markdown(
+        """
+        <style>
+        [data-testid="stChatMessageContent"] p{
+            font-size: 1.5rem;
+        }
+        .stChatMessage:has(.chat-user) {
+                flex-direction: row-reverse;
+                text-align: right;
+            }
+        </style>
+        """, unsafe_allow_html=True
+    )
+
     if "messages" not in st.session_state or len(st.session_state.messages) == 0:
         st.session_state.messages = []
-        st.chat_message("assistant").write("How can I help you today?")
+        st.chat_message("assistant", avatar="./chat_avatar.jpg").write("How can I help you today?")
 
     if "messages" in st.session_state:
         for msg in st.session_state.messages:
-            st.chat_message(parse_roles(msg["role"])).write(msg["content"])
+            with st.chat_message(parse_roles(msg["role"])):
+                st.html(f"<span class='chat-{parse_roles(msg['role'])}'></span>")
+                st.write(msg["content"])
 
+
+    st.markdown(
+        """
+        <style>
+        textarea {
+            font-size: 1.5rem !important;
+        }
+        input {
+            font-size: 1.5rem !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     if prompt := st.chat_input():
+
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
-        response = call_func()
+        response = converse()
         st.session_state.messages.append({"role": "model", "content": response})
         st.chat_message("assistant").write(response)
         st.rerun()
