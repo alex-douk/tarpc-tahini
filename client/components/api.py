@@ -28,9 +28,9 @@ def converse():
         print(f"Got conversation ID {st.session_state.current_conv_id}")
         if st.session_state.current_conv_id is not None and st.session_state.current_conv_id not in st.session_state.history and st.session_state.is_authenticated:
             st.session_state.history.append(st.session_state.current_conv_id)
-        return resp_json.get("infered_tokens")["content"]
+        return {"content": resp_json.get("infered_tokens")["content"], "ad": resp_json.get("ad")}
     else:
-        return "An error has occured"
+        return {"content": "An error has occured", "ad": None}
 
 def authenticate(login_type, username):
     headers={'Content-type': 'application/json',

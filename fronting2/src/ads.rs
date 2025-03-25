@@ -8,7 +8,7 @@ use alohomora::{
         ResponseBBoxJson, route,
     },
 };
-use services_utils::policies::marketing_policy::THIRD_PARTY_PROCESSORS;
+use services_utils::{funcs::marketing_parse_conv, policies::marketing_policy::THIRD_PARTY_PROCESSORS};
 use services_utils::policies::shared_policies::UsernamePolicy;
 use services_utils::{
     funcs::parse_conversation, policies::marketing_policy::MarketingPolicy,
@@ -63,7 +63,7 @@ pub(crate) async fn send_to_marketing(
                             false => None,
                             true => Some(data.0),
                         },
-                        prompt: parse_conversation(data.1).unwrap(),
+                        prompt: marketing_parse_conv(data.1),
                     },
                     pol,
                 )

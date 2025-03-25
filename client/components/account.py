@@ -14,6 +14,7 @@ def login_dialog(login_type):
                 if login_type == "login":
                     get_history()
                 st.session_state.username = username
+                st.session_state.is_authenticated = True
                 st.rerun()
                 return True
             else:
@@ -28,6 +29,7 @@ def logout():
     st.username = None
     st.session_state.messages = []
     st.session_state.conv_cache = dict()
+    st.session_state.is_authenticated = False
 
 def authenticate(endpoint):
     if "uuid" not in st.session_state or st.session_state.uuid is None:

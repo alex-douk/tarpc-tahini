@@ -50,6 +50,7 @@ pub(crate) struct InferenceRequest {
 #[derive(Clone, ResponseBBoxJson)]
 pub(crate) struct InferenceResponse {
     infered_tokens: BBox<Message, PromptPolicy>,
+    ad: Option<BBox<String, PromptPolicy>>,
     db_uuid: Option<CHATUID>,
 }
 
@@ -138,9 +139,10 @@ pub(crate) async fn inference(
                 PromptPolicy::default(),
             ),
             None,
+            None,
         );
     }
-    let mut tokens = tokens.unwrap();
+    let tokens = tokens.unwrap();
     //TODO(douk): Change with #[checked] RPC annotation
     let conv_id = match verify_if_send_to_db(tokens.policy()) {
         false => None,
@@ -162,27 +164,13 @@ pub(crate) async fn inference(
     };
 
     //If allowed to check AND 30% AD presence
-    let ad = match verify_if_send_to_marketing(tokens.policy()){ //&& rand::random_range(0..10) < 3 {
+    let ad = match verify_if_send_to_marketing(tokens.policy()) {
+        //&& rand::random_range(0..10) < 3 {
         false => None,
         true => Some(send_to_marketing(username, conversation).await),
     };
-    if ad.is_some() {
-        tokens = fold((tokens, ad.unwrap()))
-            .unwrap()
-            .into_ppr(PPR::new(
-                |(tokens_unboxed, ad_unboxed): (Message, String)| Message {
-                    role: tokens_unboxed.role,
-                    content: format!(
-                        "{}\n\n{}",
-                        tokens_unboxed.content, ad_unboxed
-                    ),
-                },
-            ))
-            .specialize_policy()
-            .expect("Couldn't coerce Ad and LLM Response to the same policy");
-    }
 
-    construct_answer(&tokens, conv_id)
+    construct_answer(&tokens, conv_id, ad)
 }
 
 fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {
@@ -210,11 +198,13 @@ fn verify_if_send_to_marketing<P: Policy>(p: &P) -> bool {
 fn construct_answer(
     inf_res: &BBox<Message, PromptPolicy>,
     db_uid: Option<CHATUID>,
+    ad: Option<BBox<String, PromptPolicy>>,
 ) -> JsonResponse<InferenceResponse, ()> {
     JsonResponse(
         InferenceResponse {
             infered_tokens: inf_res.clone(),
             db_uuid: db_uid,
+            ad,
         },
         Context::empty(),
     )

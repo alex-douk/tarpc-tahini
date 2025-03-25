@@ -1,3 +1,4 @@
+use rand::seq::{IndexedRandom, IteratorRandom};
 //Clone model just clones the reference
 use services_utils::policies::marketing_policy::MarketingReason;
 use services_utils::policies::{MarketingPolicy, marketing_policy::THIRD_PARTY_PROCESSORS};
@@ -50,12 +51,19 @@ enum AdStrategy {
 }
 
 fn find_vendor(consent_map: &HashMap<String, bool>) -> Result<&'static str, ()> {
+    let mut allowed_vendor = Vec::new();
     for vendor in THIRD_PARTY_PROCESSORS {
         if *consent_map.get(&vendor.to_string()).unwrap_or(&false) {
-            return Ok(vendor);
+            allowed_vendor.push(vendor);
         }
     }
-    Err(())
+    match allowed_vendor.len() {
+        0 => Err(()),
+        _ => {
+            let mut rng = rand::rng();
+            allowed_vendor.iter().choose(&mut rng).ok_or(()).copied()
+        }
+    }
 }
 
 pub(crate) struct ThirdPartyProcessorData {
@@ -91,9 +99,25 @@ fn ad_strategy(pol: &MarketingPolicy) -> AdStrategy {
     }
 }
 
-fn parse_conversation_into_topics(_conv: String) -> String {
-    //TODO(douk): Add some cool stuff about NLP methods
-    return "this topic".to_string();
+use keyword_extraction::text_rank::{TextRank, TextRankParams};
+use stop_words::{LANGUAGE, get};
+
+pub fn parse_conversation_into_topics(conv: String) -> String {
+    let mut stop_words = get(LANGUAGE::English);
+    stop_words.push("user".to_string());
+    stop_words.push("model".to_string());
+    stop_words.push("It's".to_string());
+    stop_words.push("it's".to_string());
+    let text_rank = TextRank::new(TextRankParams::WithDefaults(&conv, &stop_words));
+    let ranked_keywords = text_rank.get_ranked_words(10);
+    let mut kw_iters = ranked_keywords.iter().skip(2);
+    while let Some(t) = kw_iters.next() {
+        if !stop_words.contains(t) {
+            return t.to_string();
+        }
+    }
+    "this topic".to_string()
+    // return ranked_keywords[0].clone();
 }
 
 fn local_process(data: ThirdPartyProcessorData) -> PCon<String, MarketingPolicy> {
@@ -155,6 +179,10 @@ static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Welcome to the <ORG2> advertisement server!");
     //A hashmap that for a given username, yields a hashmap of all UUIDS : chats for that specific
+    //
+    //
+    let stop_words = get(LANGUAGE::English);
+    println!("Stop words are : {:?}", stop_words);
     let server = AdServer;
     let listener = TcpListener::bind(&(SERVER_ADDRESS, 8002)).await.unwrap();
     let codec_builder = LengthDelimitedCodec::builder();

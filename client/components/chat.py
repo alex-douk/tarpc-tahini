@@ -58,9 +58,12 @@ def chatbox():
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
         response = converse()
-        st.session_state.messages.append({"role": "model", "content": response})
-        st.chat_message("assistant").write(response)
-        st.rerun()
+        st.session_state.messages.append({"role": "model", "content": response["content"]})
+        with st.chat_message("assistant"):
+            st.write(response["content"])
+            if response["ad"] is not None:
+                st.write(response["ad"])
+        # st.rerun()
 
 def reset_chat_state():
     #If we were in a chat session that had some content and state, save it, then reset the state

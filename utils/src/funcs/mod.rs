@@ -4,7 +4,10 @@ pub fn validate_user(role: String) -> Result<String, LLMError> {
     match role.as_str() {
         role @ ("user" | "model") => Ok(role.to_string()),
         // role @ ("user" | "assistant") => Ok(role.to_string()),
-        role @ _ => {println!("Role is not that expected: Got {}", role); Err(LLMError::ValidationError)},
+        role @ _ => {
+            println!("Role is not that expected: Got {}", role);
+            Err(LLMError::ValidationError)
+        }
     }
 }
 
@@ -12,7 +15,10 @@ pub fn validate_body(body: String) -> Result<String, LLMError> {
     // match !(body.contains("<|im_start|>") || body.contains("<|im_end|>")) {
     match !(body.contains("<start_of_turn>") || body.contains("<end_of_turn>")) {
         true => Ok(body),
-        false =>{ println!("Body is : {}", body); Err(LLMError::ValidationError)},
+        false => {
+            println!("Body is : {}", body);
+            Err(LLMError::ValidationError)
+        }
     }
 }
 
@@ -60,4 +66,11 @@ pub fn parse_stored_conversation(stored_conv: String) -> Result<Vec<Message>, LL
         }
     }
     Ok(messages)
+}
+
+pub fn marketing_parse_conv(conv: Vec<Message>) -> String {
+    conv.into_iter()
+        .map(|x| format!("[{}]:{}", x.role.to_uppercase(), x.content))
+        .collect::<Vec<_>>()
+        .join("\n")
 }

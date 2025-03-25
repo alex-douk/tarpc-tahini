@@ -9,9 +9,12 @@ dependencies = [
  "alohomora",
  "futures",
  "futures-util",
+ "keyword_extraction",
  "lettre",
  "lettre_email",
+ "rand 0.9.0",
  "services_utils",
+ "stop-words",
  "tarpc",
  "tokio",
  "tokio-macros",
@@ -3001,6 +3004,16 @@ checksum = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
 dependencies = [
  "winapi 0.2.8",
  "winapi-build",
+]
+
+[[package]]
+name = "keyword_extraction"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bab83c382982b79063036f88b9e722b899c23e750f1318ceead83ccd7413f874"
+dependencies = [
+ "regex",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -6087,6 +6100,15 @@ name = "stdweb-internal-runtime"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "213701ba3370744dcd1a12960caa4843b3d68b4d1c0a5d575e0d65b2ee9d16c0"
+
+[[package]]
+name = "stop-words"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c6a86be9f7fa4559b7339669e72026eb437f5e9c5a85c207fe1033079033a17"
+dependencies = [
+ "serde_json",
+]
 
 [[package]]
 name = "stringprep"
