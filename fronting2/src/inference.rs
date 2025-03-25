@@ -153,7 +153,10 @@ pub(crate) async fn inference(
         .await
         {
             Ok(conv_id) => Some(conv_id),
-            Err(_) => None,
+            Err(e) => {
+                eprintln!("DB error: {}", e);
+                None
+            }
         },
     };
 
@@ -168,7 +171,7 @@ pub(crate) async fn inference(
                 |(tokens_unboxed, ad_unboxed): (Message, String)| Message {
                     role: tokens_unboxed.role,
                     content: format!(
-                        "{}\nAd: Powered by AdCompany: {}",
+                        "{}\n\nAd: Powered by AdCompany: {}",
                         tokens_unboxed.content, ad_unboxed
                     ),
                 },

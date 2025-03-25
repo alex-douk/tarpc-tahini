@@ -148,16 +148,20 @@ impl MySqlBackend {
                 .collect::<Vec<&str>>()
                 .join(",")
         );
-        while let Err(e) = self
-            .handle
-            .exec_drop(q.clone(), vals.clone(), context.clone())
-        {
-            eprintln!(
-                "failed to insert into {}, query {} ({}), reconnecting to database",
-                table, q, e
-            );
-            if e.to_string().contains("policy check") {
-                return Err(PolicyError);
+        loop {
+            if let Err(e) = self
+                .handle
+                .exec_drop(q.clone(), vals.clone(), context.clone())
+            {
+                eprintln!(
+                    "failed to insert into {}, query {} ({}), reconnecting to database",
+                    table, q, e
+                );
+                if e.to_string().contains("policy check") {
+                    return Err(PolicyError);
+                }
+            } else {
+                break;
             }
             self.reconnect();
         }
