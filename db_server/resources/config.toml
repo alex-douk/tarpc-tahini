@@ -2,4 +2,4 @@
 username="tahini"
 password="tahini_pwd"
 database="etosLM"
-prime=true
+prime=false

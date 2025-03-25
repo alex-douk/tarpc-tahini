@@ -8,6 +8,7 @@ use config::Config;
 use services_utils::policies::ConversationMetadataPolicy;
 use services_utils::policies::shared_policies::AbsolutePolicy;
 use services_utils::policies::{PromptPolicy, shared_policies::UsernamePolicy};
+use services_utils::types::PolicyError;
 use services_utils::types::database_types::{DatabaseError, DatabaseRetrieveForm};
 use services_utils::types::inference_types::{BBoxConversation, Message};
 use std::hash::Hash;
@@ -94,7 +95,7 @@ impl Database for DatabaseServer {
         self,
         _ctxt: tarpc::context::Context,
         form: DatabaseStoreForm,
-    ) -> CHATUID {
+    ) -> Result<CHATUID, PolicyError> {
         let conv_uid = form.conv_id.into_ppr(PPR::new(|conv_id| match conv_id {
             None => format!("{}", Uuid::new_v4()),
             Some(t) => t,
@@ -109,7 +110,7 @@ impl Database for DatabaseServer {
                 .unwrap_or("{}".to_string()),
         );
 
-        backend.insert(
+        let res = backend.insert(
             "conversations",
             (
                 None::<u8>,
@@ -121,12 +122,15 @@ impl Database for DatabaseServer {
                 pol_parameters.1,
                 pol_parameters.2,
                 ret_pol.targeted_ads_consent,
-                pol_parameters.3
+                pol_parameters.3,
             ),
             Context::empty(),
         );
         drop(backend);
-        conv_uid
+        match res {
+            Ok(_) => Ok(conv_uid),
+            Err(p) => Err(p),
+        }
     }
 
     async fn retrieve_prompt(
@@ -198,7 +202,7 @@ impl Database for DatabaseServer {
             0 => {
                 let ret_pol = username.policy();
                 let uuid = format!("{}", Uuid::new_v4());
-                backend.insert(
+                let _ = backend.insert(
                     "users",
                     (
                         uuid.clone(),

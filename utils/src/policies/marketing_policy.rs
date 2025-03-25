@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use alohomora::policy::{Policy, Reason};
 use tarpc::serde::{Deserialize, Serialize};
 
-
-pub static THIRD_PARTY_PROCESSORS : [&str; 2]= ["Meta_Ads", "Google_Ads"];
+pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 
 ///This policy is given by an external organization so that remote clients can
 ///be compatible with it. This policies contains:
@@ -73,6 +72,9 @@ impl Policy for MarketingPolicy {
         Ok(self.clone())
     }
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AdPolicy {}
 
 #[derive(Clone)]
 pub enum MarketingReason {

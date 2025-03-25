@@ -5,6 +5,7 @@ use alohomora::rocket::{BBoxCookieJar, JsonResponse, ResponseBBoxJson, get, rout
 use services_utils::policies::ConversationMetadataPolicy;
 use services_utils::policies::shared_policies::UsernamePolicy;
 use services_utils::rpc::database::{Database, TahiniDatabaseClient};
+use services_utils::types::PolicyError;
 use services_utils::types::database_types::{
     CHATUID, DatabaseError, DatabaseRetrieveForm, DatabaseStoreForm,
 };
@@ -18,7 +19,9 @@ use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
-pub(crate) async fn store_to_database(submit_form: DatabaseStoreForm) -> Option<CHATUID> {
+pub(crate) async fn store_to_database(
+    submit_form: DatabaseStoreForm,
+) -> Result<CHATUID, PolicyError> {
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
@@ -29,8 +32,9 @@ pub(crate) async fn store_to_database(submit_form: DatabaseStoreForm) -> Option<
         .await;
 
     match response {
-        Ok(res) => Some(res),
-        Err(_) => None,
+        Ok(res) => res,
+        //TODO(douk): Add better handling of remote calls (with retries and whatnot)
+        Err(_) => Err(PolicyError),
     }
 }
 

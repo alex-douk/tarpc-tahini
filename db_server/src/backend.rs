@@ -4,6 +4,7 @@ use alohomora::db::{BBoxConn, BBoxOpts, BBoxParams, BBoxStatement, BBoxValue};
 use alohomora::fold::fold;
 use alohomora::pure::PrivacyPureRegion as PPR;
 use services_utils::policies::shared_policies::UsernamePolicy;
+use services_utils::types::PolicyError;
 use slog::{debug, o, warn};
 use std::collections::HashMap;
 use std::error::Error;
@@ -130,7 +131,7 @@ impl MySqlBackend {
         vals: P,
         replace: bool,
         context: Context<()>,
-    ) {
+    ) -> Result<(), PolicyError> {
         let vals: BBoxParams = vals.into();
         let mut param_count = 0;
         if let BBoxParams::Positional(vec) = &vals {
@@ -155,12 +156,21 @@ impl MySqlBackend {
                 "failed to insert into {}, query {} ({}), reconnecting to database",
                 table, q, e
             );
+            if e.to_string().contains("policy check") {
+                return Err(PolicyError);
+            }
             self.reconnect();
         }
+        Ok(())
     }
 
-    pub fn insert<P: Into<BBoxParams>>(&mut self, table: &str, vals: P, context: Context<()>) {
-        self.do_insert(table, vals, false, context);
+    pub fn insert<P: Into<BBoxParams>>(
+        &mut self,
+        table: &str,
+        vals: P,
+        context: Context<()>,
+    ) -> Result<(), PolicyError> {
+        self.do_insert(table, vals, false, context)
     }
 
     pub fn get_user_id(
@@ -176,7 +186,12 @@ impl MySqlBackend {
             .clone()
     }
 
-    pub fn replace<P: Into<BBoxParams>>(&mut self, table: &str, vals: P, context: Context<()>) {
-        self.do_insert(table, vals, true, context);
+    pub fn replace<P: Into<BBoxParams>>(
+        &mut self,
+        table: &str,
+        vals: P,
+        context: Context<()>,
+    ) -> Result<(), PolicyError> {
+        self.do_insert(table, vals, true, context)
     }
 }

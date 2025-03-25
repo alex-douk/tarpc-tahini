@@ -33,6 +33,7 @@ use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
 use crate::SERVER_ADDRESS;
+use crate::ads::send_to_marketing;
 use crate::database::get_default_user;
 use crate::database::store_to_database;
 
@@ -95,7 +96,6 @@ pub(crate) async fn inference(
     data: BBoxJson<InferenceRequest>,
 ) -> alohomora::rocket::JsonResponse<InferenceResponse, ()> {
     //Parse whether anonymous or connected user
-    //TODO(douk): Need to add handling of token here for access control
     let username = match &data.user {
         None => BBox::new("anonymous".to_string(), UsernamePolicy {
             targeted_ads_consent: false,
@@ -127,48 +127,57 @@ pub(crate) async fn inference(
     //If inference error, do not go to DB, instead early return with None
     //If policy says no_db, do not go to DB, instead early return with None
     //Otherwise, go to DB then return
-    match tokens {
-        Err(e) => {
-            eprintln!("During LLM invokation: Encountered error {}", e);
-            construct_answer(
-                &BBox::new(
-                    Message {
-                        role: "error".to_string(),
-                        content: "LLM Internal error".to_string(),
-                    },
-                    PromptPolicy::default(),
-                ),
-                None,
-            )
-        }
-        //TODO(douk): Change with #[checked] RPC annotation
-        Ok(ref tokens) => match verify_if_send_to_db(tokens.policy()) {
-            false => {
-                println!("Not storing to db because policy said so!");
-                construct_answer(tokens, None)
-            }
-            true => {
-                println!("Storing to database");
-                let conv_id = store_to_database(DatabaseStoreForm {
-                    uuid: uuid.clone(),
-                    message: conversation
-                        .into_ppr(PPR::new(|conv: Vec<Message>| conv.last().unwrap().clone())),
-                    conv_id: data.conv_id.clone(),
-                })
-                .await
-                .unwrap();
-
-                let db_uid = store_to_database(DatabaseStoreForm {
-                    uuid: uuid.clone(),
-                    message: tokens.clone(),
-                    conv_id: conv_id.into_ppr(PPR::new(|x| Some(x))),
-                })
-                .await;
-
-                construct_answer(tokens, db_uid)
-            }
-        },
+    if tokens.is_err() {
+        return construct_answer(
+            &BBox::new(
+                Message {
+                    role: "error".to_string(),
+                    content: "LLM Internal error".to_string(),
+                },
+                PromptPolicy::default(),
+            ),
+            None,
+        );
     }
+    let mut tokens = tokens.unwrap();
+    //TODO(douk): Change with #[checked] RPC annotation
+    let conv_id = match verify_if_send_to_db(tokens.policy()) {
+        false => None,
+        true => match store_to_database(DatabaseStoreForm {
+            uuid: uuid.clone(),
+            message: conversation
+                .clone()
+                .into_ppr(PPR::new(|conv: Vec<Message>| conv.last().unwrap().clone())),
+            conv_id: data.conv_id.clone(),
+        })
+        .await
+        {
+            Ok(conv_id) => Some(conv_id),
+            Err(_) => None,
+        },
+    };
+
+    let ad = match verify_if_send_to_marketing(tokens.policy()) {
+        false => None,
+        true => Some(send_to_marketing(username, conversation).await),
+    };
+    if ad.is_some() {
+        tokens = fold((tokens, ad.unwrap()))
+            .unwrap()
+            .into_ppr(PPR::new(
+                |(tokens_unboxed, ad_unboxed): (Message, String)| Message {
+                    role: tokens_unboxed.role,
+                    content: format!(
+                        "{}\nAd: Powered by AdCompany: {}",
+                        tokens_unboxed.content, ad_unboxed
+                    ),
+                },
+            ))
+            .specialize_policy()
+            .expect("Couldn't coerce Ad and LLM Response to the same policy");
+    }
+
+    construct_answer(&tokens, conv_id)
 }
 
 fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {
@@ -179,6 +188,17 @@ fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {
     p.check(
         &context,
         alohomora::policy::Reason::Custom(Box::new(InferenceReason::SendToDB)),
+    )
+}
+
+fn verify_if_send_to_marketing<P: Policy>(p: &P) -> bool {
+    let context = UnprotectedContext {
+        route: "".to_string(),
+        data: Box::new(0),
+    };
+    p.check(
+        &context,
+        alohomora::policy::Reason::Custom(Box::new(InferenceReason::SendToMarketing)),
     )
 }
 

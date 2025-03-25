@@ -96,38 +96,6 @@ fn change_marketing_policy(input: PCon<String, PromptPolicy>) -> PCon<String, Ma
     PCon::new(unboxed.0, new_pol)
 }
 
-fn verify_if_send_to_marketing<P: Policy>(p: &P) -> bool {
-    let context = UnprotectedContext {
-        route: "".to_string(),
-        data: Box::new(0),
-    };
-    p.check(
-        &context,
-        Reason::Custom(Box::new(InferenceReason::SendToMarketing)),
-    )
-}
-
-async fn send_to_marketing(email: String, prompt: PCon<String, PromptPolicy>) {
-    let codec_builder = LengthDelimitedCodec::builder();
-    let stream = TcpStream::connect((SERVER_ADDRESS, 8002)).await.unwrap();
-    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-
-    //VERBOTTEN
-    if !verify_if_send_to_marketing(prompt.policy()) {
-        return;
-    }
-
-    let payload = MarketingData {
-        email,
-        prompt: change_marketing_policy(prompt),
-    };
-    let _ = TahiniAdvertisementClient::new(Default::default(), transport)
-        .spawn()
-        .email(tarpc::context::current(), payload)
-        .await;
-    ()
-}
-
 fn apply_chat_template(
     conversation: BBoxConversation,
 ) -> Result<PCon<String, PromptPolicy>, LLMError> {

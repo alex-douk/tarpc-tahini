@@ -42,7 +42,19 @@ def chatbox():
         unsafe_allow_html=True,
     )
     if prompt := st.chat_input():
-
+        st.markdown(
+            """
+            <style>
+            [data-testid="stChatMessageContent"] p{
+                font-size: 1.5rem;
+            }
+            .stChatMessage:has(.chat-user) {
+                    flex-direction: row-reverse;
+                    text-align: right;
+                }
+            </style>
+            """, unsafe_allow_html=True
+        )
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
         response = converse()

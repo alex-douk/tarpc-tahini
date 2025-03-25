@@ -1,6 +1,7 @@
 use crate::{
     policies::{ConversationMetadataPolicy, shared_policies::UsernamePolicy},
     types::{
+        PolicyError,
         database_types::{
             CHATUID, DatabaseError, DatabaseRecord, DatabaseRetrieveForm, DatabaseStoreForm,
         },
@@ -16,7 +17,7 @@ use alohomora::{
 
 #[tahini_service]
 pub trait Database {
-    async fn store_prompt(prompt: DatabaseStoreForm) -> CHATUID;
+    async fn store_prompt(prompt: DatabaseStoreForm) -> Result<CHATUID, PolicyError>;
     async fn retrieve_prompt(retrieve: DatabaseRetrieveForm) -> Option<BBoxConversation>;
     async fn fetch_user(
         username: BBox<String, UsernamePolicy>,

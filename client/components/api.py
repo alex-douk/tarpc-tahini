@@ -26,7 +26,7 @@ def converse():
         resp_json = resp.json()
         st.session_state.current_conv_id = resp_json.get("db_uuid")
         print(f"Got conversation ID {st.session_state.current_conv_id}")
-        if st.session_state.current_conv_id is not None:
+        if st.session_state.current_conv_id is not None and st.session_state.current_conv_id not in st.session_state.history:
             st.session_state.history.append(st.session_state.current_conv_id)
         return resp_json.get("infered_tokens")["content"]
     else:

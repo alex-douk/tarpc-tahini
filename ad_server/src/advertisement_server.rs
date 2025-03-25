@@ -29,9 +29,8 @@ use alohomora::pure::PrivacyPureRegion as PPR;
 
 //Application-wide mods
 use services_utils::rpc::marketing::Advertisement;
-use services_utils::types::marketing_types::MarketingData;
+use services_utils::types::marketing_types::{MarketingData, Ad};
 mod email;
-use crate::email::send as send_email;
 
 #[derive(Clone)]
 struct AdServer;
@@ -59,31 +58,12 @@ fn construct_targeted_ads(prompt: PCon<String, MarketingPolicy>) -> String {
 }
 
 impl Advertisement for AdServer {
-    async fn email(self, context: tarpc::context::Context, prompt: MarketingData) -> bool {
-        println!("Checking if we can send an email!");
-        let email = prompt.email;
-        let context = UnprotectedContext {
-            route: "".to_string(),
-            data: Box::new(0),
-        };
-        match prompt
-            .prompt
-            .policy()
-            .check(&context, Reason::Custom(Box::new(MarketingReason::Email)))
-        {
-            true => {
-                println!("Policy check is succesful! About to send that email!");
-                // send_email(
-                //     "BIGADVERTISEMENTFIRM@ME.COM".to_string(),
-                //     vec![email],
-                //     "Your interest in LLMs.".to_string(),
-                //     construct_targeted_ads(prompt.prompt),
-                // )
-                // .unwrap();
-                true
-            }
-            false => false,
-        }
+    async fn auction_bidding(
+        self,
+        context: tarpc::context::Context,
+        prompt: PCon<MarketingData, MarketingPolicy>,
+    ) -> services_utils::types::marketing_types::Ad {
+        Ad{ ad: prompt.into_ppr(PPR::new(|data: MarketingData| "Wanna see something cool?".to_string()))}
     }
 }
 
@@ -106,7 +86,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let framed = codec_builder.new_framed(stream);
 
         let transport = new_transport(framed, Json::default());
-
 
         // let transport = new_transport(framed, Bincode::default());
         let fut = TahiniBaseChannel::with_defaults(transport)
