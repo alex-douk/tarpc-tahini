@@ -36,6 +36,7 @@ use crate::SERVER_ADDRESS;
 use crate::ads::send_to_marketing;
 use crate::database::get_default_user;
 use crate::database::store_to_database;
+use rand::Rng;
 
 #[derive(Clone, RequestBBoxJson)]
 pub(crate) struct InferenceRequest {
@@ -160,7 +161,8 @@ pub(crate) async fn inference(
         },
     };
 
-    let ad = match verify_if_send_to_marketing(tokens.policy()) {
+    //If allowed to check AND 30% AD presence
+    let ad = match verify_if_send_to_marketing(tokens.policy()){ //&& rand::random_range(0..10) < 3 {
         false => None,
         true => Some(send_to_marketing(username, conversation).await),
     };
@@ -171,7 +173,7 @@ pub(crate) async fn inference(
                 |(tokens_unboxed, ad_unboxed): (Message, String)| Message {
                     role: tokens_unboxed.role,
                     content: format!(
-                        "{}\n\nAd: Powered by AdCompany: {}",
+                        "{}\n\n{}",
                         tokens_unboxed.content, ad_unboxed
                     ),
                 },

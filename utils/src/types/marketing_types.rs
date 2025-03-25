@@ -6,7 +6,7 @@ use tarpc::serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MarketingData {
-    pub username: String,
+    pub username: Option<String>,
     pub prompt: String,
 }
 

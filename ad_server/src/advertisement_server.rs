@@ -1,6 +1,6 @@
 //Clone model just clones the reference
-use services_utils::policies::MarketingPolicy;
 use services_utils::policies::marketing_policy::MarketingReason;
+use services_utils::policies::{MarketingPolicy, marketing_policy::THIRD_PARTY_PROCESSORS};
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 //Required for model locking across async tasks
 use tokio::sync::Mutex;
@@ -22,6 +22,7 @@ use tokio::net::TcpListener;
 //Sesame basics
 use alohomora::bbox::BBox as PCon;
 use alohomora::context::UnprotectedContext;
+use alohomora::fold::fold;
 use alohomora::pcr::{PrivacyCriticalRegion, Signature};
 use alohomora::policy::Policy;
 use alohomora::policy::Reason;
@@ -29,32 +30,92 @@ use alohomora::pure::PrivacyPureRegion as PPR;
 
 //Application-wide mods
 use services_utils::rpc::marketing::Advertisement;
-use services_utils::types::marketing_types::{MarketingData, Ad};
+use services_utils::types::marketing_types::{Ad, MarketingData};
 mod email;
+mod google_ads;
+mod meta_ads;
+
+static GOOGLE_AD: &str = "Find more about {} on [https://google.com](Google)";
+static META_AD: &str =
+    "More interesting contents about {} await on [https://facebook.com](Facebook)!";
 
 #[derive(Clone)]
 struct AdServer;
 
-fn construct_targeted_ads(prompt: PCon<String, MarketingPolicy>) -> String {
-    let targeted_ads = prompt.into_ppr(PPR::new(|_| "I heard you liked LLMS huh?".to_string()));
-    targeted_ads.into_pcr(
-        PrivacyCriticalRegion::new(
-            |v, p, _c| v,
-            Signature {
-                username: "",
-                signature: "",
-            },
-            Signature {
-                username: "",
-                signature: "",
-            },
-            Signature {
-                username: "",
-                signature: "",
-            },
-        ),
-        (),
-    )
+enum AdStrategy {
+    ThirdPartyTracked(&'static str),
+    ThirdPartyAnonymous(&'static str),
+    LocalProcessTracked,
+    LocalProcessAnonymous,
+}
+
+fn find_vendor(consent_map: &HashMap<String, bool>) -> Result<&'static str, ()> {
+    for vendor in THIRD_PARTY_PROCESSORS {
+        if *consent_map.get(&vendor.to_string()).unwrap_or(&false) {
+            return Ok(vendor);
+        }
+    }
+    Err(())
+}
+
+pub(crate) struct ThirdPartyProcessorData {
+    pub username: Option<PCon<String, MarketingPolicy>>,
+    pub prompt: PCon<String, MarketingPolicy>,
+}
+
+fn fetch_ad_from_third_party(
+    vendor: &str,
+    data: ThirdPartyProcessorData,
+) -> PCon<String, MarketingPolicy> {
+    println!("Vendor is {}", vendor);
+    match vendor {
+        "Google_Ads" => google_ads::get_ad(data),
+        "Meta_Ads" => meta_ads::get_ad(data),
+        _ => unreachable!(),
+    }
+}
+
+fn ad_strategy(pol: &MarketingPolicy) -> AdStrategy {
+    match pol.targeted_ads_consent {
+        false => match find_vendor(&pol.third_party_processing) {
+            Ok(vendor) => AdStrategy::ThirdPartyAnonymous(vendor),
+            Err(_) => AdStrategy::LocalProcessAnonymous,
+        },
+        true => {
+            println!("We have targed consent");
+            match find_vendor(&pol.third_party_processing) {
+                Ok(vendor) => AdStrategy::ThirdPartyTracked(vendor),
+                Err(_) => AdStrategy::LocalProcessTracked,
+            }
+        }
+    }
+}
+
+fn parse_conversation_into_topics(_conv: String) -> String {
+    //TODO(douk): Add some cool stuff about NLP methods
+    return "this topic".to_string();
+}
+
+fn local_process(data: ThirdPartyProcessorData) -> PCon<String, MarketingPolicy> {
+    match data.username {
+        None => data.prompt.into_ppr(PPR::new(|conv| {
+            format!(
+                "Find more about {} on [https://SomeRandomWebSite.com](https://brown.edu)",
+                parse_conversation_into_topics(conv)
+            )
+        })),
+        Some(username) => fold((username, data.prompt))
+            .unwrap()
+            .into_ppr(PPR::new(|(uname_unboxed, conv_unboxed)| {
+                format!(
+                    "Hi {}! You can find more about {} on [https://SomeRandomWebSite.com](https://brown.edu)",
+                    uname_unboxed,
+                    parse_conversation_into_topics(conv_unboxed)
+                )
+            }))
+            .specialize_policy()
+            .expect("Couldn't coerce ad policies together during local processing"),
+    }
 }
 
 impl Advertisement for AdServer {
@@ -63,7 +124,24 @@ impl Advertisement for AdServer {
         context: tarpc::context::Context,
         prompt: PCon<MarketingData, MarketingPolicy>,
     ) -> services_utils::types::marketing_types::Ad {
-        Ad{ ad: prompt.into_ppr(PPR::new(|data: MarketingData| "Wanna see something cool?".to_string()))}
+        let strategy = ad_strategy(prompt.policy());
+        let tpd = ThirdPartyProcessorData {
+            username: prompt
+                .clone()
+                .into_ppr(PPR::new(|x: MarketingData| x.username))
+                .transpose(),
+            prompt: prompt.into_ppr(PPR::new(|x: MarketingData| x.prompt)),
+        };
+        let ad = match strategy {
+            AdStrategy::ThirdPartyTracked(vendor) | AdStrategy::ThirdPartyAnonymous(vendor) => {
+                fetch_ad_from_third_party(vendor, tpd)
+            }
+            AdStrategy::LocalProcessAnonymous | AdStrategy::LocalProcessTracked => {
+                local_process(tpd)
+            }
+        };
+
+        Ad { ad }
     }
 }
 

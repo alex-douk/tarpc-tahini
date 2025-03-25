@@ -7,7 +7,7 @@ def configure_privacy_parameters(key_prefix):
     st.toggle("Use your data to improve services", key= key_prefix + "ads",value=st.session_state.privacy_parameters["ads"], on_change=switch_boolean_parameters, args=("ads",))
     st.toggle("Agree to use third-party un-Tahini'd services", key = key_prefix + "unprot", value=st.session_state.privacy_parameters["image_gen"], on_change=switch_boolean_parameters, args=("image_gen",))
     st.header("Username policy")
-    st.toggle("Consent to targeted ads", key = key_prefix + "targeted", value=st.session_state.privacy_parameters["targeted_ads"], on_change=switch_boolean_parameters, args=("targeted_ads",))
+    st.toggle("Consent to targeted ads", key = key_prefix + "targeted", value=st.session_state.privacy_parameters["targeted_ads"], on_change=switch_boolean_parameters, args=("targeted_ads",), disabled = not st.session_state.is_authenticated)
     st.header("Third party data vendors")
     st.write("For each of the vendor below, you consent to sending your data for processing")
     for vendor in st.session_state.third_party_data_vendors:

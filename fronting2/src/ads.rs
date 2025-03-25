@@ -59,7 +59,10 @@ pub(crate) async fn send_to_marketing(
             |data: (String, Vec<Message>), _p, _c| {
                 BBox::new(
                     MarketingData {
-                        username: data.0,
+                        username: match pol.targeted_ads_consent {
+                            false => None,
+                            true => Some(data.0),
+                        },
                         prompt: parse_conversation(data.1).unwrap(),
                     },
                     pol,

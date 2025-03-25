@@ -54,7 +54,7 @@ use services_utils::types::inference_types::{LLMError, LLMResponse, UserPrompt};
 //Database import
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
-static SYSTEM_PROMPT: &str = "<start_of_turn>user\nYou are a helpful assistant. You should reply to the user demands in a minimal manner. Keep your speech concise yet engaged. Reply in the form of a couple of short sentences. Do not go beyond the user's questions. Remain on topic, truthful, and accurate.<end_of_turn>\n";
+static SYSTEM_PROMPT: &str = "<start_of_turn>user\nYou are a helpful assistant. You should reply to the user demands in a thoughtful yet concise manner. Keep your speech engaged and cheerful.Do not go beyond the user's questions. Remain on topic, truthful, and accurate. Try as best as possible to reply with short sentences.<end_of_turn>\n";
 
 #[derive(Clone)]
 pub struct InferenceServer {

@@ -19,8 +19,14 @@ if "history" not in st.session_state:
     st.session_state["history"] = []
 if "third_party_data_vendors" not in st.session_state:
     st.session_state["third_party_data_vendors"] = get_vendors()
+
+if "is_authenticated" not in st.session_state:
+    st.session_state["is_authenticated"] = st.session_state.uuid is not None
+
 if "privacy_parameters" not in st.session_state:
-    st.session_state["privacy_parameters"] = {"storage": True, "ads": False, "image_gen": False, "targeted_ads": False, "third_party_data_vendors" : dict([(vendor, False) for vendor in st.session_state["third_party_data_vendors"]])}
+    st.session_state["privacy_parameters"] = {"storage": st.session_state.is_authenticated, "ads": False, "image_gen": False, "targeted_ads": False, "third_party_data_vendors" : dict([(vendor, False) for vendor in st.session_state["third_party_data_vendors"]])}
+
+
 
 def new_chat():
     reset_chat_state()
