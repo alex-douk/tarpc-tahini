@@ -72,6 +72,7 @@ impl TextGeneration {
         let start_gen = std::time::Instant::now();
         for index in 0..sample_len {
             let context_size = if index > 0 { 1 } else { tokens.len() };
+            // let context_size = tokens.len();
             let start_pos = tokens.len().saturating_sub(context_size);
             let ctxt = &tokens[start_pos..];
             let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
@@ -117,7 +118,6 @@ impl TextGeneration {
 
     pub fn run_once(&mut self, prompt: &str, index: usize) -> Result<Option<String>, E> {
         if index == 0 {
-            self.tokenizer.clear();
             self.model.clear_kv_cache();
         }
         let mut tokens = self
@@ -132,8 +132,8 @@ impl TextGeneration {
             Some(token) => token,
             None => anyhow::bail!("cannot find the <eos> token"),
         };
-        // let context_size = if index > 0 { 1 } else { tokens.len() };
-        let context_size = tokens.len();
+        let context_size = if index > 0 { 1 } else { tokens.len() };
+        // let context_size = tokens.len();
         let start_pos = tokens.len().saturating_sub(context_size);
         let ctxt = &tokens[start_pos..];
         let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;

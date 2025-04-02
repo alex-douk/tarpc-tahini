@@ -10,13 +10,12 @@ use crate::{
 };
 
 use alohomora::{
-    bbox::BBox,
-    tahini_service,
-    tarpc::{TahiniType, client::TahiniStub},
+    bbox::BBox, tahini_service, tarpc::{client::TahiniStub, TahiniType}
 };
 
-#[tahini_service]
+#[tahini_service(domain = internal)]
 pub trait Database {
+    // TODO(douk): #[tahini_checked]
     async fn store_prompt(prompt: DatabaseStoreForm) -> Result<CHATUID, PolicyError>;
     async fn retrieve_prompt(retrieve: DatabaseRetrieveForm) -> Option<BBoxConversation>;
     async fn fetch_user(

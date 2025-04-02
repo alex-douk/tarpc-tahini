@@ -1,15 +1,12 @@
 use alohomora::{
-    bbox::BBox,
-    context::Context,
-    fold::fold,
-    pcr::PrivacyCriticalRegion,
-    rocket::{
-        BBoxCookie, BBoxCookieJar, BBoxJson, BBoxRedirect, JsonResponse, RequestBBoxJson,
-        ResponseBBoxJson, route,
-    },
+    bbox::BBox, context::Context, fold::fold, pcr::PrivacyCriticalRegion, policy::{AnyPolicy, PolicyAnd}, pure::PrivacyPureRegion, rocket::{
+        route, BBoxCookie, BBoxCookieJar, BBoxJson, BBoxRedirect, JsonResponse, RequestBBoxJson, ResponseBBoxJson
+    }
 };
-use services_utils::{funcs::marketing_parse_conv, policies::marketing_policy::THIRD_PARTY_PROCESSORS};
 use services_utils::policies::shared_policies::UsernamePolicy;
+use services_utils::{
+    funcs::marketing_parse_conv, policies::marketing_policy::THIRD_PARTY_PROCESSORS,
+};
 use services_utils::{
     funcs::parse_conversation, policies::marketing_policy::MarketingPolicy,
     types::inference_types::Message,
@@ -52,37 +49,19 @@ pub(crate) async fn send_to_marketing(
     uname: BBox<String, UsernamePolicy>,
     conv: BBoxConversation,
 ) -> BBox<String, PromptPolicy> {
-    let pol = generate_marketing_policy(uname.policy().clone(), conv.policy().clone());
-    let payload = fold((uname, conv.clone())).unwrap();
-    let payload: BBox<MarketingData, MarketingPolicy> = payload.into_pcr(
-        PrivacyCriticalRegion::new(
-            |data: (String, Vec<Message>), _p, _c| {
-                BBox::new(
-                    MarketingData {
-                        username: match pol.targeted_ads_consent {
-                            false => None,
-                            true => Some(data.0),
-                        },
-                        prompt: marketing_parse_conv(data.1),
+    let payload = fold((uname.clone(), conv.clone()))
+        .unwrap()
+        .specialize_policy::<PolicyAnd<UsernamePolicy, PromptPolicy>>()
+        .expect("For ad transfer, wrong policy coercion");
+    let payload = payload.into_ppr(PrivacyPureRegion::new(|(username, conv): (String, Vec<Message>)|
+                MarketingData {
+                    username: match uname.policy().targeted_ads_consent {
+                        false => None,
+                        true => Some(username)
                     },
-                    pol,
-                )
-            },
-            alohomora::pcr::Signature {
-                username: "alexandre.doukhan@brown.edu",
-                signature: "",
-            },
-            alohomora::pcr::Signature {
-                username: "alexandre.doukhan@brown.edu",
-                signature: "",
-            },
-            alohomora::pcr::Signature {
-                username: "alexandre.doukhan@brown.edu",
-                signature: "",
-            },
-        ),
-        (),
-    );
+                    prompt: marketing_parse_conv(conv),
+                },
+            ));
 
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 8002)).await.unwrap();

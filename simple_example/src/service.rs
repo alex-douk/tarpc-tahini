@@ -58,7 +58,7 @@ pub struct MyType {
 
 // START: this part is what the developer writes.
 // #[TahiniService]
-#[tahini_service]
+#[tahini_service(domain=internal)]
 pub trait SimpleService {
     async fn increment(x: PCon<i32, ExamplePolicy>) -> PCon<String, ExamplePolicy>;
     async fn test_types(x: MyType) -> MyType;

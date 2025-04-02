@@ -5,7 +5,7 @@ use alohomora::tarpc::{
 };
 use alohomora::tahini_service;
 
-#[tahini_service]
+#[tahini_service(domain=internal)]
 pub trait Inference {
     async fn inference(prompt: UserPrompt) -> LLMResponse;
 }

@@ -1,5 +1,5 @@
 use alohomora::db::{BBoxFromValue, Value};
-use alohomora::policy::{AnyPolicy, schema_policy};
+use alohomora::policy::{AnyPolicy, PolicyAnd, schema_policy};
 use alohomora::{
     policy::{FrontendPolicy, Policy, Reason, SchemaPolicy},
     rocket::{RocketCookie, RocketRequest},
@@ -10,6 +10,7 @@ use std::str::FromStr;
 use tarpc::serde::{Deserialize, Serialize};
 
 use super::marketing_policy::THIRD_PARTY_PROCESSORS;
+use super::shared_policies::UsernamePolicy;
 
 ///This policy is invoked when the use of conversation/message information
 ///Three main fields are invoked here:
@@ -62,8 +63,15 @@ impl Policy for PromptPolicy {
         if other.is::<PromptPolicy>() {
             self.join_logic(other.specialize().map_err(|_| ())?)
                 .map(|pol| pol.into_any())
+        } else if other.is::<UsernamePolicy>() {
+            let spec = other.specialize::<UsernamePolicy>();
+            if spec.is_err() {
+                return Err(());
+            }
+
+            Ok(AnyPolicy::new(PolicyAnd::new(self.clone(), spec.unwrap())))
         } else {
-            Ok(self.clone().into_any())
+            Ok(AnyPolicy::new(PolicyAnd::new(self.clone(), other)))
         }
     }
 

@@ -98,4 +98,5 @@ def delete_comp(conv_id, new_chat):
     if resp.status_code == 200:
         st.session_state.history.remove(conv_id)
         new_chat()
-        del st.session_state.conv_cache[conv_id]
+        if conv_id in st.session_state.conv_cache.keys():
+            del st.session_state.conv_cache[conv_id]

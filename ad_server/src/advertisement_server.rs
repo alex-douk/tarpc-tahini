@@ -108,14 +108,14 @@ pub fn parse_conversation_into_topics(conv: String) -> String {
     stop_words.push("model".to_string());
     stop_words.push("It's".to_string());
     stop_words.push("it's".to_string());
-    let text_rank = TextRank::new(TextRankParams::WithDefaults(&conv, &stop_words));
-    let ranked_keywords = text_rank.get_ranked_words(10);
-    let mut kw_iters = ranked_keywords.iter().skip(2);
-    while let Some(t) = kw_iters.next() {
-        if !stop_words.contains(t) {
-            return t.to_string();
-        }
-    }
+    // let text_rank = TextRank::new(TextRankParams::WithDefaults(&conv, &stop_words));
+    // let ranked_keywords = text_rank.get_ranked_words(10);
+    // let mut kw_iters = ranked_keywords.iter().skip(2);
+    // while let Some(t) = kw_iters.next() {
+    //     if !stop_words.contains(t) {
+    //         return t.to_string();
+    //     }
+    // }
     "this topic".to_string()
     // return ranked_keywords[0].clone();
 }
@@ -182,7 +182,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     //
     let stop_words = get(LANGUAGE::English);
-    println!("Stop words are : {:?}", stop_words);
     let server = AdServer;
     let listener = TcpListener::bind(&(SERVER_ADDRESS, 8002)).await.unwrap();
     let codec_builder = LengthDelimitedCodec::builder();

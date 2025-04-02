@@ -1,5 +1,5 @@
 use alohomora::db::{BBoxFromValue, Value};
-use alohomora::policy::{AnyPolicy, schema_policy};
+use alohomora::policy::{schema_policy, AnyPolicy, PolicyAnd};
 use alohomora::{
     policy::{FrontendPolicy, Policy, Reason, SchemaPolicy},
     rocket::{RocketCookie, RocketRequest},
@@ -36,7 +36,14 @@ impl Policy for ConversationMetadataPolicy {
     }
 
     fn join(&self, other: AnyPolicy) -> Result<AnyPolicy, ()> {
-        Ok(other)
+        if other.is::<ConversationMetadataPolicy>() {
+            Ok(other)
+        } else {
+            Ok(AnyPolicy::new(PolicyAnd::new(
+                AnyPolicy::new(self.clone()),
+                other,
+            )))
+        }
     }
 
     fn join_logic(&self, other: Self) -> Result<Self, ()>

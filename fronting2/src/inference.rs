@@ -162,10 +162,23 @@ pub(crate) async fn inference(
             }
         },
     };
+    if conv_id.is_some() {
+        match store_to_database(DatabaseStoreForm {
+            uuid: uuid.clone(),
+            conv_id: conv_id.clone().unwrap().into_ppr(PPR::new(|x| Some(x))),
+            message: tokens.clone(),
+        })
+        .await
+        {
+            Ok(_) => (),
+            Err(e) => {
+                eprint!("Db error: {}", e);
+            }
+        }
+    }
 
     //If allowed to check AND 30% AD presence
     let ad = match verify_if_send_to_marketing(tokens.policy()) {
-        //&& rand::random_range(0..10) < 3 {
         false => None,
         true => Some(send_to_marketing(username, conversation).await),
     };

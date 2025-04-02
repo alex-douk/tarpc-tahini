@@ -2,13 +2,17 @@ use crate::policies::inference_policy::InferenceReason;
 use crate::policies::marketing_policy::THIRD_PARTY_PROCESSORS;
 use alohomora::db::{BBoxFromValue, Value, from_value};
 use alohomora::policy::{
-    AnyPolicy, FrontendPolicy, NoPolicy, Policy, Reason, SchemaPolicy, schema_policy,
+    AnyPolicy, FrontendPolicy, NoPolicy, Policy, PolicyAnd, PolicyTransformable, Reason,
+    SchemaPolicy, schema_policy,
 };
 use alohomora::rocket::{BBoxCookie, RocketCookie, RocketRequest};
+use alohomora::tarpc::context::TahiniContext;
 use serde_json::from_str;
 use std::collections::HashMap;
 use std::str::FromStr;
 use tarpc::serde::{Deserialize, Serialize};
+
+use super::{MarketingPolicy, PromptPolicy};
 
 ///This policy is user-and-session-bound and
 ///is invoked in operations that could lead to current-or-future disclosure of the username
@@ -48,7 +52,19 @@ impl Policy for UsernamePolicy {
         &self,
         other: alohomora::policy::AnyPolicy,
     ) -> Result<alohomora::policy::AnyPolicy, ()> {
-        Ok(self.clone().into_any())
+        if other.is::<UsernamePolicy>() {
+            self.join_logic(other.specialize().map_err(|_| ())?)
+                .map(|p| AnyPolicy::new(p))
+        } else if other.is::<PromptPolicy>() {
+            let spec = other.specialize::<PromptPolicy>();
+            if spec.is_err() {
+                return Err(());
+            }
+
+            Ok(AnyPolicy::new(PolicyAnd::new(self.clone(), spec.unwrap())))
+        } else {
+            Ok(AnyPolicy::new(PolicyAnd::new(self.clone(), other)))
+        }
     }
 
     fn join_logic(&self, other: Self) -> Result<Self, ()>
@@ -182,5 +198,22 @@ impl Policy for AbsolutePolicy {
         Self: Sized,
     {
         AnyPolicy::new(self)
+    }
+}
+
+impl PolicyTransformable<MarketingPolicy> for PolicyAnd<UsernamePolicy, PromptPolicy> {
+    fn transform_into(&self, context: TahiniContext) -> Result<MarketingPolicy, String> {
+        let (p1, p2) = self.extract_policies();
+        match context.service {
+            "Advertisement" => match context.rpc {
+                "auction_bidding" => Ok(MarketingPolicy {
+                    no_storage: p2.storage,
+                    targeted_ads_consent: p1.targeted_ads_consent,
+                    third_party_processing: p2.third_party_consent.clone(),
+                }),
+                _ => panic!("Transformation not allowed for this RPC"),
+            },
+            _ => panic!("Transformation not allowed for this service"),
+        }
     }
 }
