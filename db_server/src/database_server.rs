@@ -171,15 +171,6 @@ impl Database for DatabaseServer {
         match res.len() {
             0 => {
                 Err(DatabaseError::UserNotFound)
-                // println!("Registering new user into the database");
-                // let ret_pol = username.policy();
-                // let uuid = format!("{}", Uuid::new_v4());
-                // backend.insert(
-                //     "users",
-                //     (uuid.clone(), username.clone(), ret_pol.targeted_ads_consent),
-                //     Context::empty(),
-                // );
-                // Ok(PCon::new(uuid, ret_pol.clone()))
             }
             1 => Ok(from_value::<String, UsernamePolicy>(res[0][0].clone())
                 .expect("UUID row malformed")),

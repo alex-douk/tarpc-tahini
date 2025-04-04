@@ -2,8 +2,8 @@ use crate::policies::inference_policy::InferenceReason;
 use crate::policies::marketing_policy::THIRD_PARTY_PROCESSORS;
 use alohomora::db::{BBoxFromValue, Value, from_value};
 use alohomora::policy::{
-    AnyPolicy, FrontendPolicy, NoPolicy, Policy, PolicyAnd, PolicyTransformable, Reason,
-    SchemaPolicy, schema_policy,
+    AnyPolicy, FrontendPolicy, NoPolicy, Policy, PolicyAnd, PolicyInto, Reason, SchemaPolicy,
+    schema_policy,
 };
 use alohomora::rocket::{BBoxCookie, RocketCookie, RocketRequest};
 use alohomora::tarpc::context::TahiniContext;
@@ -115,8 +115,8 @@ impl SchemaPolicy for UsernamePolicy {
 
 impl FrontendPolicy for UsernamePolicy {
     fn from_cookie<'a, 'r>(
-        name: &str,
-        cookie: &'a RocketCookie<'static>,
+        _name: &str,
+        _cookie: &'a RocketCookie<'static>,
         request: &'a RocketRequest<'r>,
     ) -> Self
     where
@@ -178,12 +178,16 @@ impl Policy for AbsolutePolicy {
     fn name(&self) -> String {
         "AbsolutePolicy".to_string()
     }
-    fn check(&self, context: &alohomora::context::UnprotectedContext, reason: Reason<'_>) -> bool {
+    fn check(
+        &self,
+        _context: &alohomora::context::UnprotectedContext,
+        _reason: Reason<'_>,
+    ) -> bool {
         false
     }
     fn join(
         &self,
-        other: alohomora::policy::AnyPolicy,
+        _other: alohomora::policy::AnyPolicy,
     ) -> Result<alohomora::policy::AnyPolicy, ()> {
         Ok(self.clone().into_any())
     }
@@ -201,8 +205,8 @@ impl Policy for AbsolutePolicy {
     }
 }
 
-impl PolicyTransformable<MarketingPolicy> for PolicyAnd<UsernamePolicy, PromptPolicy> {
-    fn transform_into(&self, context: TahiniContext) -> Result<MarketingPolicy, String> {
+impl PolicyInto<MarketingPolicy> for PolicyAnd<UsernamePolicy, PromptPolicy> {
+    fn into_policy(self, context: &TahiniContext) -> Result<MarketingPolicy, String> {
         let (p1, p2) = self.extract_policies();
         match context.service {
             "Advertisement" => match context.rpc {

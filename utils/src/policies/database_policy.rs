@@ -13,7 +13,7 @@ use tarpc::serde::{Deserialize, Serialize};
 ///to any third-parties.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[schema_policy(table = "conversations", column = 1)]
-pub struct ConversationMetadataPolicy {}
+pub struct ConversationMetadataPolicy;
 
 impl Policy for ConversationMetadataPolicy {
     fn name(&self) -> String {
@@ -62,29 +62,29 @@ impl Policy for ConversationMetadataPolicy {
 }
 
 impl SchemaPolicy for ConversationMetadataPolicy {
-    fn from_row(table_name: &str, row: &Vec<Value>) -> Self
+    fn from_row(_table_name: &str, _row: &Vec<Value>) -> Self
     where
         Self: Sized,
     {
-        Self {}
+        Self
     }
 }
 
 impl FrontendPolicy for ConversationMetadataPolicy {
     fn from_cookie<'a, 'r>(
-        name: &str,
-        cookie: &'a RocketCookie<'static>,
-        request: &'a RocketRequest<'r>,
+        _name: &str,
+        _cookie: &'a RocketCookie<'static>,
+        _request: &'a RocketRequest<'r>,
     ) -> Self
     where
         Self: Sized,
     {
-        Self {}
+        Self
     }
-    fn from_request<'a, 'r>(request: &'a RocketRequest<'r>) -> Self
+    fn from_request<'a, 'r>(_request: &'a RocketRequest<'r>) -> Self
     where
         Self: Sized,
     {
-        Self {}
+        Self
     }
 }

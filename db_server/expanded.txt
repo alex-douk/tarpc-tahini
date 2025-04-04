@@ -1,0 +1,1148 @@
+#![feature(prelude_import)]
+#[prelude_import]
+use std::prelude::rust_2024::*;
+#[macro_use]
+extern crate std;
+use alohomora::compose_policies;
+use alohomora::policy::{AnyPolicy, Policy};
+use backend::MySqlBackend;
+use alohomora::db::{Value, from_value, from_value_or_null};
+use alohomora::fold::{self, fold};
+use config::Config;
+use services_utils::policies::ConversationMetadataPolicy;
+use services_utils::policies::shared_policies::AbsolutePolicy;
+use services_utils::policies::{PromptPolicy, shared_policies::UsernamePolicy};
+use services_utils::types::PolicyError;
+use services_utils::types::database_types::{DatabaseError, DatabaseRetrieveForm};
+use services_utils::types::inference_types::{BBoxConversation, Message};
+use std::hash::Hash;
+use std::{
+    collections::{HashMap, hash_map::Entry},
+    str::FromStr, sync::Arc,
+};
+use tokio::sync::Mutex;
+use uuid::Uuid;
+mod backend {
+    use alohomora::bbox::BBox;
+    use alohomora::context::Context;
+    use alohomora::db::{BBoxConn, BBoxOpts, BBoxParams, BBoxStatement, BBoxValue};
+    use alohomora::fold::fold;
+    use alohomora::pure::PrivacyPureRegion as PPR;
+    use services_utils::policies::shared_policies::UsernamePolicy;
+    use services_utils::types::PolicyError;
+    use slog::{debug, o, warn};
+    use std::collections::HashMap;
+    use std::error::Error;
+    use std::result::Result;
+    pub struct MySqlBackend {
+        pub handle: BBoxConn,
+        prep_stmts: HashMap<String, BBoxStatement>,
+        db_user: String,
+        db_password: String,
+        db_name: String,
+    }
+    impl MySqlBackend {
+        pub fn new(
+            user: &str,
+            password: &str,
+            dbname: &str,
+            prime: bool,
+        ) -> Result<Self, Box<dyn Error>> {
+            let schema = std::fs::read_to_string("./resources/schema.sql")?;
+            let mut db = BBoxConn::new(
+                    BBoxOpts::from_url(
+                            &::alloc::__export::must_use({
+                                let res = ::alloc::fmt::format(
+                                    format_args!("mysql://{0}:{1}@127.0.0.1/", user, password),
+                                );
+                                res
+                            }),
+                        )
+                        .unwrap(),
+                )
+                .unwrap();
+            match (&db.ping(), &true) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            if prime {
+                db.query_drop(
+                        ::alloc::__export::must_use({
+                            let res = ::alloc::fmt::format(
+                                format_args!("DROP DATABASE IF EXISTS {0};", dbname),
+                            );
+                            res
+                        }),
+                    )
+                    .unwrap();
+                db.query_drop(
+                        ::alloc::__export::must_use({
+                            let res = ::alloc::fmt::format(
+                                format_args!("CREATE DATABASE {0};", dbname),
+                            );
+                            res
+                        }),
+                    )
+                    .unwrap();
+                db.query_drop(
+                        ::alloc::__export::must_use({
+                            let res = ::alloc::fmt::format(
+                                format_args!("USE {0};", dbname),
+                            );
+                            res
+                        }),
+                    )
+                    .unwrap();
+                for line in schema.lines() {
+                    if line.starts_with("--") || line.is_empty() {
+                        continue;
+                    }
+                    {
+                        ::std::io::_print(format_args!("line is : {0}\n", line));
+                    };
+                    db.query_drop(line).unwrap();
+                }
+            } else {
+                db.query_drop(
+                        ::alloc::__export::must_use({
+                            let res = ::alloc::fmt::format(
+                                format_args!("USE {0};", dbname),
+                            );
+                            res
+                        }),
+                    )
+                    .unwrap();
+            }
+            Ok(MySqlBackend {
+                handle: db,
+                prep_stmts: HashMap::new(),
+                db_user: String::from(user),
+                db_password: String::from(password),
+                db_name: String::from(dbname),
+            })
+        }
+        fn reconnect(&mut self) {
+            self.handle = BBoxConn::new(
+                    BBoxOpts::from_url(
+                            &::alloc::__export::must_use({
+                                let res = ::alloc::fmt::format(
+                                    format_args!(
+                                        "mysql://{0}:{1}@127.0.0.1/{2}",
+                                        self.db_user,
+                                        self.db_password,
+                                        self.db_name,
+                                    ),
+                                );
+                                res
+                            }),
+                        )
+                        .unwrap(),
+                )
+                .unwrap();
+        }
+        pub fn prep_exec<P: Into<BBoxParams>>(
+            &mut self,
+            sql: &str,
+            params: P,
+            context: Context<()>,
+        ) -> Vec<Vec<BBoxValue>> {
+            if !self.prep_stmts.contains_key(sql) {
+                let stmt = self
+                    .handle
+                    .prep(sql)
+                    .expect(
+                        &::alloc::__export::must_use({
+                            let res = ::alloc::fmt::format(
+                                format_args!("failed to prepare statement \'{0}\'", sql),
+                            );
+                            res
+                        }),
+                    );
+                self.prep_stmts.insert(sql.to_owned(), stmt);
+            }
+            let params: BBoxParams = params.into();
+            loop {
+                match self
+                    .handle
+                    .exec_iter(
+                        self.prep_stmts[sql].clone(),
+                        params.clone(),
+                        context.clone(),
+                    )
+                {
+                    Err(e) => {
+                        {
+                            ::std::io::_eprint(
+                                format_args!(
+                                    "query \'{0}\' failed ({1}), reconnecting to database\n",
+                                    sql,
+                                    e,
+                                ),
+                            );
+                        };
+                    }
+                    Ok(res) => {
+                        let mut rows = ::alloc::vec::Vec::new();
+                        for row in res {
+                            rows.push(row.unwrap().unwrap());
+                        }
+                        return rows;
+                    }
+                }
+                self.reconnect();
+            }
+        }
+        fn do_insert<P: Into<BBoxParams>>(
+            &mut self,
+            table: &str,
+            vals: P,
+            replace: bool,
+            context: Context<()>,
+        ) -> Result<(), PolicyError> {
+            let vals: BBoxParams = vals.into();
+            let mut param_count = 0;
+            if let BBoxParams::Positional(vec) = &vals {
+                param_count = vec.len();
+            }
+            let op = if replace { "REPLACE" } else { "INSERT" };
+            let q = ::alloc::__export::must_use({
+                let res = ::alloc::fmt::format(
+                    format_args!(
+                        "{0} INTO {1} VALUES ({2})",
+                        op,
+                        table,
+                        (0..param_count).map(|_| "?").collect::<Vec<&str>>().join(","),
+                    ),
+                );
+                res
+            });
+            loop {
+                if let Err(e) = self
+                    .handle
+                    .exec_drop(q.clone(), vals.clone(), context.clone())
+                {
+                    {
+                        ::std::io::_eprint(
+                            format_args!(
+                                "failed to insert into {0}, query {1} ({2}), reconnecting to database\n",
+                                table,
+                                q,
+                                e,
+                            ),
+                        );
+                    };
+                    if e.to_string().contains("policy check") {
+                        return Err(PolicyError);
+                    }
+                } else {
+                    break;
+                }
+                self.reconnect();
+            }
+            Ok(())
+        }
+        pub fn insert<P: Into<BBoxParams>>(
+            &mut self,
+            table: &str,
+            vals: P,
+            context: Context<()>,
+        ) -> Result<(), PolicyError> {
+            self.do_insert(table, vals, false, context)
+        }
+        pub fn get_user_id(
+            &mut self,
+            user: BBox<String, UsernamePolicy>,
+            context: Context<()>,
+        ) -> BBoxValue {
+            self.prep_exec(
+                    "IF NOT EXISTS (SELECT * FROM users where username = ?) BEGIN INSERT INTO users (username, targeted_ads_consent) VALUES (?, ?) RETURNING user_id END ELSE BEGIN SELECT * FROM users where username = ? END",
+                    (
+                        user.clone(),
+                        user.clone(),
+                        user.policy().targeted_ads_consent,
+                        user,
+                    ),
+                    context,
+                )[0][0]
+                .clone()
+        }
+        pub fn replace<P: Into<BBoxParams>>(
+            &mut self,
+            table: &str,
+            vals: P,
+            context: Context<()>,
+        ) -> Result<(), PolicyError> {
+            self.do_insert(table, vals, true, context)
+        }
+    }
+}
+mod config {
+    use serde::Deserialize;
+    pub(crate) struct Config {
+        pub username: String,
+        pub password: String,
+        pub database: String,
+        pub prime: bool,
+    }
+    #[doc(hidden)]
+    #[allow(
+        non_upper_case_globals,
+        unused_attributes,
+        unused_qualifications,
+        clippy::absolute_paths,
+    )]
+    const _: () = {
+        #[allow(unused_extern_crates, clippy::useless_attribute)]
+        extern crate serde as _serde;
+        #[automatically_derived]
+        impl<'de> _serde::Deserialize<'de> for Config {
+            fn deserialize<__D>(
+                __deserializer: __D,
+            ) -> _serde::__private::Result<Self, __D::Error>
+            where
+                __D: _serde::Deserializer<'de>,
+            {
+                #[allow(non_camel_case_types)]
+                #[doc(hidden)]
+                enum __Field {
+                    __field0,
+                    __field1,
+                    __field2,
+                    __field3,
+                    __ignore,
+                }
+                #[doc(hidden)]
+                struct __FieldVisitor;
+                #[automatically_derived]
+                impl<'de> _serde::de::Visitor<'de> for __FieldVisitor {
+                    type Value = __Field;
+                    fn expecting(
+                        &self,
+                        __formatter: &mut _serde::__private::Formatter,
+                    ) -> _serde::__private::fmt::Result {
+                        _serde::__private::Formatter::write_str(
+                            __formatter,
+                            "field identifier",
+                        )
+                    }
+                    fn visit_u64<__E>(
+                        self,
+                        __value: u64,
+                    ) -> _serde::__private::Result<Self::Value, __E>
+                    where
+                        __E: _serde::de::Error,
+                    {
+                        match __value {
+                            0u64 => _serde::__private::Ok(__Field::__field0),
+                            1u64 => _serde::__private::Ok(__Field::__field1),
+                            2u64 => _serde::__private::Ok(__Field::__field2),
+                            3u64 => _serde::__private::Ok(__Field::__field3),
+                            _ => _serde::__private::Ok(__Field::__ignore),
+                        }
+                    }
+                    fn visit_str<__E>(
+                        self,
+                        __value: &str,
+                    ) -> _serde::__private::Result<Self::Value, __E>
+                    where
+                        __E: _serde::de::Error,
+                    {
+                        match __value {
+                            "username" => _serde::__private::Ok(__Field::__field0),
+                            "password" => _serde::__private::Ok(__Field::__field1),
+                            "database" => _serde::__private::Ok(__Field::__field2),
+                            "prime" => _serde::__private::Ok(__Field::__field3),
+                            _ => _serde::__private::Ok(__Field::__ignore),
+                        }
+                    }
+                    fn visit_bytes<__E>(
+                        self,
+                        __value: &[u8],
+                    ) -> _serde::__private::Result<Self::Value, __E>
+                    where
+                        __E: _serde::de::Error,
+                    {
+                        match __value {
+                            b"username" => _serde::__private::Ok(__Field::__field0),
+                            b"password" => _serde::__private::Ok(__Field::__field1),
+                            b"database" => _serde::__private::Ok(__Field::__field2),
+                            b"prime" => _serde::__private::Ok(__Field::__field3),
+                            _ => _serde::__private::Ok(__Field::__ignore),
+                        }
+                    }
+                }
+                #[automatically_derived]
+                impl<'de> _serde::Deserialize<'de> for __Field {
+                    #[inline]
+                    fn deserialize<__D>(
+                        __deserializer: __D,
+                    ) -> _serde::__private::Result<Self, __D::Error>
+                    where
+                        __D: _serde::Deserializer<'de>,
+                    {
+                        _serde::Deserializer::deserialize_identifier(
+                            __deserializer,
+                            __FieldVisitor,
+                        )
+                    }
+                }
+                #[doc(hidden)]
+                struct __Visitor<'de> {
+                    marker: _serde::__private::PhantomData<Config>,
+                    lifetime: _serde::__private::PhantomData<&'de ()>,
+                }
+                #[automatically_derived]
+                impl<'de> _serde::de::Visitor<'de> for __Visitor<'de> {
+                    type Value = Config;
+                    fn expecting(
+                        &self,
+                        __formatter: &mut _serde::__private::Formatter,
+                    ) -> _serde::__private::fmt::Result {
+                        _serde::__private::Formatter::write_str(
+                            __formatter,
+                            "struct Config",
+                        )
+                    }
+                    #[inline]
+                    fn visit_seq<__A>(
+                        self,
+                        mut __seq: __A,
+                    ) -> _serde::__private::Result<Self::Value, __A::Error>
+                    where
+                        __A: _serde::de::SeqAccess<'de>,
+                    {
+                        let __field0 = match _serde::de::SeqAccess::next_element::<
+                            String,
+                        >(&mut __seq)? {
+                            _serde::__private::Some(__value) => __value,
+                            _serde::__private::None => {
+                                return _serde::__private::Err(
+                                    _serde::de::Error::invalid_length(
+                                        0usize,
+                                        &"struct Config with 4 elements",
+                                    ),
+                                );
+                            }
+                        };
+                        let __field1 = match _serde::de::SeqAccess::next_element::<
+                            String,
+                        >(&mut __seq)? {
+                            _serde::__private::Some(__value) => __value,
+                            _serde::__private::None => {
+                                return _serde::__private::Err(
+                                    _serde::de::Error::invalid_length(
+                                        1usize,
+                                        &"struct Config with 4 elements",
+                                    ),
+                                );
+                            }
+                        };
+                        let __field2 = match _serde::de::SeqAccess::next_element::<
+                            String,
+                        >(&mut __seq)? {
+                            _serde::__private::Some(__value) => __value,
+                            _serde::__private::None => {
+                                return _serde::__private::Err(
+                                    _serde::de::Error::invalid_length(
+                                        2usize,
+                                        &"struct Config with 4 elements",
+                                    ),
+                                );
+                            }
+                        };
+                        let __field3 = match _serde::de::SeqAccess::next_element::<
+                            bool,
+                        >(&mut __seq)? {
+                            _serde::__private::Some(__value) => __value,
+                            _serde::__private::None => {
+                                return _serde::__private::Err(
+                                    _serde::de::Error::invalid_length(
+                                        3usize,
+                                        &"struct Config with 4 elements",
+                                    ),
+                                );
+                            }
+                        };
+                        _serde::__private::Ok(Config {
+                            username: __field0,
+                            password: __field1,
+                            database: __field2,
+                            prime: __field3,
+                        })
+                    }
+                    #[inline]
+                    fn visit_map<__A>(
+                        self,
+                        mut __map: __A,
+                    ) -> _serde::__private::Result<Self::Value, __A::Error>
+                    where
+                        __A: _serde::de::MapAccess<'de>,
+                    {
+                        let mut __field0: _serde::__private::Option<String> = _serde::__private::None;
+                        let mut __field1: _serde::__private::Option<String> = _serde::__private::None;
+                        let mut __field2: _serde::__private::Option<String> = _serde::__private::None;
+                        let mut __field3: _serde::__private::Option<bool> = _serde::__private::None;
+                        while let _serde::__private::Some(__key) = _serde::de::MapAccess::next_key::<
+                            __Field,
+                        >(&mut __map)? {
+                            match __key {
+                                __Field::__field0 => {
+                                    if _serde::__private::Option::is_some(&__field0) {
+                                        return _serde::__private::Err(
+                                            <__A::Error as _serde::de::Error>::duplicate_field(
+                                                "username",
+                                            ),
+                                        );
+                                    }
+                                    __field0 = _serde::__private::Some(
+                                        _serde::de::MapAccess::next_value::<String>(&mut __map)?,
+                                    );
+                                }
+                                __Field::__field1 => {
+                                    if _serde::__private::Option::is_some(&__field1) {
+                                        return _serde::__private::Err(
+                                            <__A::Error as _serde::de::Error>::duplicate_field(
+                                                "password",
+                                            ),
+                                        );
+                                    }
+                                    __field1 = _serde::__private::Some(
+                                        _serde::de::MapAccess::next_value::<String>(&mut __map)?,
+                                    );
+                                }
+                                __Field::__field2 => {
+                                    if _serde::__private::Option::is_some(&__field2) {
+                                        return _serde::__private::Err(
+                                            <__A::Error as _serde::de::Error>::duplicate_field(
+                                                "database",
+                                            ),
+                                        );
+                                    }
+                                    __field2 = _serde::__private::Some(
+                                        _serde::de::MapAccess::next_value::<String>(&mut __map)?,
+                                    );
+                                }
+                                __Field::__field3 => {
+                                    if _serde::__private::Option::is_some(&__field3) {
+                                        return _serde::__private::Err(
+                                            <__A::Error as _serde::de::Error>::duplicate_field("prime"),
+                                        );
+                                    }
+                                    __field3 = _serde::__private::Some(
+                                        _serde::de::MapAccess::next_value::<bool>(&mut __map)?,
+                                    );
+                                }
+                                _ => {
+                                    let _ = _serde::de::MapAccess::next_value::<
+                                        _serde::de::IgnoredAny,
+                                    >(&mut __map)?;
+                                }
+                            }
+                        }
+                        let __field0 = match __field0 {
+                            _serde::__private::Some(__field0) => __field0,
+                            _serde::__private::None => {
+                                _serde::__private::de::missing_field("username")?
+                            }
+                        };
+                        let __field1 = match __field1 {
+                            _serde::__private::Some(__field1) => __field1,
+                            _serde::__private::None => {
+                                _serde::__private::de::missing_field("password")?
+                            }
+                        };
+                        let __field2 = match __field2 {
+                            _serde::__private::Some(__field2) => __field2,
+                            _serde::__private::None => {
+                                _serde::__private::de::missing_field("database")?
+                            }
+                        };
+                        let __field3 = match __field3 {
+                            _serde::__private::Some(__field3) => __field3,
+                            _serde::__private::None => {
+                                _serde::__private::de::missing_field("prime")?
+                            }
+                        };
+                        _serde::__private::Ok(Config {
+                            username: __field0,
+                            password: __field1,
+                            database: __field2,
+                            prime: __field3,
+                        })
+                    }
+                }
+                #[doc(hidden)]
+                const FIELDS: &'static [&'static str] = &[
+                    "username",
+                    "password",
+                    "database",
+                    "prime",
+                ];
+                _serde::Deserializer::deserialize_struct(
+                    __deserializer,
+                    "Config",
+                    FIELDS,
+                    __Visitor {
+                        marker: _serde::__private::PhantomData::<Config>,
+                        lifetime: _serde::__private::PhantomData,
+                    },
+                )
+            }
+        }
+    };
+    pub struct Data {
+        db_config: Config,
+    }
+    #[doc(hidden)]
+    #[allow(
+        non_upper_case_globals,
+        unused_attributes,
+        unused_qualifications,
+        clippy::absolute_paths,
+    )]
+    const _: () = {
+        #[allow(unused_extern_crates, clippy::useless_attribute)]
+        extern crate serde as _serde;
+        #[automatically_derived]
+        impl<'de> _serde::Deserialize<'de> for Data {
+            fn deserialize<__D>(
+                __deserializer: __D,
+            ) -> _serde::__private::Result<Self, __D::Error>
+            where
+                __D: _serde::Deserializer<'de>,
+            {
+                #[allow(non_camel_case_types)]
+                #[doc(hidden)]
+                enum __Field {
+                    __field0,
+                    __ignore,
+                }
+                #[doc(hidden)]
+                struct __FieldVisitor;
+                #[automatically_derived]
+                impl<'de> _serde::de::Visitor<'de> for __FieldVisitor {
+                    type Value = __Field;
+                    fn expecting(
+                        &self,
+                        __formatter: &mut _serde::__private::Formatter,
+                    ) -> _serde::__private::fmt::Result {
+                        _serde::__private::Formatter::write_str(
+                            __formatter,
+                            "field identifier",
+                        )
+                    }
+                    fn visit_u64<__E>(
+                        self,
+                        __value: u64,
+                    ) -> _serde::__private::Result<Self::Value, __E>
+                    where
+                        __E: _serde::de::Error,
+                    {
+                        match __value {
+                            0u64 => _serde::__private::Ok(__Field::__field0),
+                            _ => _serde::__private::Ok(__Field::__ignore),
+                        }
+                    }
+                    fn visit_str<__E>(
+                        self,
+                        __value: &str,
+                    ) -> _serde::__private::Result<Self::Value, __E>
+                    where
+                        __E: _serde::de::Error,
+                    {
+                        match __value {
+                            "db_config" => _serde::__private::Ok(__Field::__field0),
+                            _ => _serde::__private::Ok(__Field::__ignore),
+                        }
+                    }
+                    fn visit_bytes<__E>(
+                        self,
+                        __value: &[u8],
+                    ) -> _serde::__private::Result<Self::Value, __E>
+                    where
+                        __E: _serde::de::Error,
+                    {
+                        match __value {
+                            b"db_config" => _serde::__private::Ok(__Field::__field0),
+                            _ => _serde::__private::Ok(__Field::__ignore),
+                        }
+                    }
+                }
+                #[automatically_derived]
+                impl<'de> _serde::Deserialize<'de> for __Field {
+                    #[inline]
+                    fn deserialize<__D>(
+                        __deserializer: __D,
+                    ) -> _serde::__private::Result<Self, __D::Error>
+                    where
+                        __D: _serde::Deserializer<'de>,
+                    {
+                        _serde::Deserializer::deserialize_identifier(
+                            __deserializer,
+                            __FieldVisitor,
+                        )
+                    }
+                }
+                #[doc(hidden)]
+                struct __Visitor<'de> {
+                    marker: _serde::__private::PhantomData<Data>,
+                    lifetime: _serde::__private::PhantomData<&'de ()>,
+                }
+                #[automatically_derived]
+                impl<'de> _serde::de::Visitor<'de> for __Visitor<'de> {
+                    type Value = Data;
+                    fn expecting(
+                        &self,
+                        __formatter: &mut _serde::__private::Formatter,
+                    ) -> _serde::__private::fmt::Result {
+                        _serde::__private::Formatter::write_str(
+                            __formatter,
+                            "struct Data",
+                        )
+                    }
+                    #[inline]
+                    fn visit_seq<__A>(
+                        self,
+                        mut __seq: __A,
+                    ) -> _serde::__private::Result<Self::Value, __A::Error>
+                    where
+                        __A: _serde::de::SeqAccess<'de>,
+                    {
+                        let __field0 = match _serde::de::SeqAccess::next_element::<
+                            Config,
+                        >(&mut __seq)? {
+                            _serde::__private::Some(__value) => __value,
+                            _serde::__private::None => {
+                                return _serde::__private::Err(
+                                    _serde::de::Error::invalid_length(
+                                        0usize,
+                                        &"struct Data with 1 element",
+                                    ),
+                                );
+                            }
+                        };
+                        _serde::__private::Ok(Data { db_config: __field0 })
+                    }
+                    #[inline]
+                    fn visit_map<__A>(
+                        self,
+                        mut __map: __A,
+                    ) -> _serde::__private::Result<Self::Value, __A::Error>
+                    where
+                        __A: _serde::de::MapAccess<'de>,
+                    {
+                        let mut __field0: _serde::__private::Option<Config> = _serde::__private::None;
+                        while let _serde::__private::Some(__key) = _serde::de::MapAccess::next_key::<
+                            __Field,
+                        >(&mut __map)? {
+                            match __key {
+                                __Field::__field0 => {
+                                    if _serde::__private::Option::is_some(&__field0) {
+                                        return _serde::__private::Err(
+                                            <__A::Error as _serde::de::Error>::duplicate_field(
+                                                "db_config",
+                                            ),
+                                        );
+                                    }
+                                    __field0 = _serde::__private::Some(
+                                        _serde::de::MapAccess::next_value::<Config>(&mut __map)?,
+                                    );
+                                }
+                                _ => {
+                                    let _ = _serde::de::MapAccess::next_value::<
+                                        _serde::de::IgnoredAny,
+                                    >(&mut __map)?;
+                                }
+                            }
+                        }
+                        let __field0 = match __field0 {
+                            _serde::__private::Some(__field0) => __field0,
+                            _serde::__private::None => {
+                                _serde::__private::de::missing_field("db_config")?
+                            }
+                        };
+                        _serde::__private::Ok(Data { db_config: __field0 })
+                    }
+                }
+                #[doc(hidden)]
+                const FIELDS: &'static [&'static str] = &["db_config"];
+                _serde::Deserializer::deserialize_struct(
+                    __deserializer,
+                    "Data",
+                    FIELDS,
+                    __Visitor {
+                        marker: _serde::__private::PhantomData::<Data>,
+                        lifetime: _serde::__private::PhantomData,
+                    },
+                )
+            }
+        }
+    };
+    impl Config {
+        pub fn new() -> Self {
+            let filename = "./resources/config.toml";
+            let contents = match std::fs::read_to_string(filename) {
+                Ok(c) => c,
+                Err(_) => {
+                    ::core::panicking::panic_fmt(format_args!("Failed to read config"));
+                }
+            };
+            let data: Data = match toml::from_str(&contents) {
+                Ok(d) => d,
+                Err(_) => {
+                    ::core::panicking::panic_fmt(
+                        format_args!("Failed to parse the config"),
+                    );
+                }
+            };
+            data.db_config
+        }
+    }
+}
+use alohomora::{context::Context, tarpc::server::{TahiniBaseChannel, TahiniChannel}};
+use futures::{Future, StreamExt, future::{self, Ready}};
+use tarpc::serde_transport::new as new_transport;
+use tarpc::tokio_serde::formats::Json;
+use tokio_util::codec::LengthDelimitedCodec;
+use std::net::{IpAddr, Ipv4Addr};
+use tokio::net::TcpListener;
+use alohomora::bbox::BBox as PCon;
+use alohomora::pcr::{PrivacyCriticalRegion, Signature};
+use alohomora::pure::PrivacyPureRegion as PPR;
+use services_utils::rpc::database::Database;
+use services_utils::types::database_types::{CHATUID, DatabaseRecord, DatabaseStoreForm};
+pub type UserMap<T> = HashMap<String, T>;
+pub type ChatHistory = HashMap<u32, PCon<String, ConversationMetadataPolicy>>;
+pub(crate) struct DatabaseServer {
+    conn: Arc<Mutex<MySqlBackend>>,
+}
+#[automatically_derived]
+impl ::core::clone::Clone for DatabaseServer {
+    #[inline]
+    fn clone(&self) -> DatabaseServer {
+        DatabaseServer {
+            conn: ::core::clone::Clone::clone(&self.conn),
+        }
+    }
+}
+impl DatabaseServer {
+    pub fn new(config: Config) -> Self {
+        DatabaseServer {
+            conn: Arc::new(
+                Mutex::new(
+                    MySqlBackend::new(
+                            config.username.as_str(),
+                            config.password.as_str(),
+                            config.database.as_str(),
+                            config.prime,
+                        )
+                        .expect("Couldn't connect to DB"),
+                ),
+            ),
+        }
+    }
+}
+static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
+fn parse_row_into_message(
+    row: &Vec<PCon<Value, AnyPolicy>>,
+) -> Result<PCon<Message, PromptPolicy>, String> {
+    let role = from_value::<String, PromptPolicy>(row[3].clone())?;
+    let content = from_value::<String, PromptPolicy>(row[4].clone())?;
+    let pair = fold((role, content)).map_err(|_| "Couldn't fold")?;
+    let pair = pair
+        .specialize_policy::<PromptPolicy>()
+        .expect("Couldn't specialize policy");
+    Ok(pair.into_ppr(PPR::new(|(role, content)| Message { role, content })))
+}
+impl Database for DatabaseServer {
+    async fn store_prompt(
+        self,
+        _ctxt: tarpc::context::Context,
+        form: DatabaseStoreForm,
+    ) -> Result<CHATUID, PolicyError> {
+        let conv_uid = form
+            .conv_id
+            .into_ppr(
+                PPR::new(|conv_id| match conv_id {
+                    None => {
+                        ::alloc::__export::must_use({
+                            let res = ::alloc::fmt::format(
+                                format_args!("{0}", Uuid::new_v4()),
+                            );
+                            res
+                        })
+                    }
+                    Some(t) => t,
+                }),
+            );
+        let mut backend = self.conn.lock().await;
+        let ret_pol = form.uuid.policy();
+        let pol_parameters = (
+            form.message.policy().storage,
+            form.message.policy().marketing_consent,
+            form.message.policy().unprotected_image_gen,
+            serde_json::to_string(&form.message.policy().third_party_consent)
+                .unwrap_or("{}".to_string()),
+        );
+        let res = backend
+            .insert(
+                "conversations",
+                (
+                    None::<u8>,
+                    conv_uid.clone(),
+                    form.uuid.clone(),
+                    form.message.clone().into_ppr(PPR::new(|x: Message| x.role)),
+                    form.message.into_ppr(PPR::new(|x: Message| x.content)),
+                    pol_parameters.0,
+                    pol_parameters.1,
+                    pol_parameters.2,
+                    ret_pol.targeted_ads_consent,
+                    pol_parameters.3,
+                ),
+                Context::empty(),
+            );
+        drop(backend);
+        match res {
+            Ok(_) => Ok(conv_uid),
+            Err(p) => Err(p),
+        }
+    }
+    async fn retrieve_prompt(
+        self,
+        _context: tarpc::context::Context,
+        retrieve: DatabaseRetrieveForm,
+    ) -> Option<BBoxConversation> {
+        let mut backend = self.conn.lock().await;
+        let res = backend
+            .prep_exec(
+                "SELECT * FROM conversations WHERE conversation_id = ? AND user_id = ? ORDER BY message_id ASC",
+                (retrieve.conv_id, retrieve.uuid),
+                Context::empty(),
+            );
+        let parsed = res
+            .iter()
+            .map(parse_row_into_message)
+            .collect::<Result<Vec<_>, String>>()
+            .expect("Couldn't parse rows into messages");
+        let parsed = fold(parsed)
+            .expect("Couldn't fold across messages of conversation")
+            .specialize_policy::<PromptPolicy>()
+            .expect("Couldn't join policies");
+        Some(parsed)
+    }
+    async fn fetch_user(
+        self,
+        _context: tarpc::context::Context,
+        username: PCon<String, UsernamePolicy>,
+    ) -> Result<PCon<String, UsernamePolicy>, DatabaseError> {
+        let mut backend = self.conn.lock().await;
+        let res = backend
+            .prep_exec(
+                "SELECT * FROM users where username = ? AND username != 'anonymous'",
+                (username.clone(),),
+                Context::empty(),
+            );
+        match res.len() {
+            0 => Err(DatabaseError::UserNotFound),
+            1 => {
+                Ok(
+                    from_value::<String, UsernamePolicy>(res[0][0].clone())
+                        .expect("UUID row malformed"),
+                )
+            }
+            _ => Err(DatabaseError::Ambiguous),
+        }
+    }
+    async fn register_user(
+        self,
+        _context: tarpc::context::Context,
+        username: PCon<String, UsernamePolicy>,
+    ) -> Result<PCon<String, UsernamePolicy>, DatabaseError> {
+        let mut backend = self.conn.lock().await;
+        let res = backend
+            .prep_exec(
+                "SELECT * FROM users where username = ?",
+                (username.clone(),),
+                Context::empty(),
+            );
+        match res.len() {
+            0 => {
+                let ret_pol = username.policy();
+                let uuid = ::alloc::__export::must_use({
+                    let res = ::alloc::fmt::format(format_args!("{0}", Uuid::new_v4()));
+                    res
+                });
+                let _ = backend
+                    .insert(
+                        "users",
+                        (
+                            uuid.clone(),
+                            username.clone(),
+                            ret_pol.targeted_ads_consent,
+                            serde_json::to_string(&ret_pol.third_party_vendors_consent)
+                                .unwrap_or("{}".to_string()),
+                        ),
+                        Context::empty(),
+                    );
+                Ok(PCon::new(uuid, ret_pol.clone()))
+            }
+            _ => Err(DatabaseError::AlreadyExists),
+        }
+    }
+    async fn fetch_history_headers(
+        self,
+        _context: tarpc::context::Context,
+        username: PCon<String, UsernamePolicy>,
+    ) -> Vec<PCon<String, ConversationMetadataPolicy>> {
+        let mut conv_id_map = PCon::new(HashMap::new(), AbsolutePolicy {});
+        let mut backend = self.conn.lock().await;
+        let res = backend
+            .prep_exec(
+                "SELECT * FROM conversations where user_id = ?",
+                (username,),
+                Context::empty(),
+            );
+        for row in res {
+            let conv_id = from_value::<
+                String,
+                ConversationMetadataPolicy,
+            >(row[1].clone())
+                .expect("Couldn't convert conv_id to its type");
+            let usable_map: PCon<
+                (HashMap<String, Vec<ConversationMetadataPolicy>>, String),
+                AnyPolicy,
+            > = fold((conv_id_map, conv_id.clone()))
+                .expect("Couldn't left-fold the map");
+            conv_id_map = usable_map
+                .into_ppr(
+                    PPR::new(|
+                        (
+                            mut unboxed_map,
+                            id,
+                        ): (HashMap<String, Vec<ConversationMetadataPolicy>>, String)|
+                    {
+                        unboxed_map
+                            .entry(id)
+                            .or_insert_with(Vec::new)
+                            .push(conv_id.policy().clone());
+                        unboxed_map
+                    }),
+                )
+                .specialize_policy::<AbsolutePolicy>()
+                .expect("Couldn't re-establish the main conv_id map");
+        }
+        let release = PrivacyCriticalRegion::new(
+            |mut unboxed_map: HashMap<String, Vec<ConversationMetadataPolicy>>, _p, _c| {
+                unboxed_map
+                    .drain()
+                    .map(|(k, v)| {
+                        PCon::new(
+                            k,
+                            v
+                                .into_iter()
+                                .reduce(|pol1, pol2| {
+                                    compose_policies(
+                                            Ok(Some(pol1.into_any())),
+                                            Ok(Some(pol2.into_any())),
+                                        )
+                                        .expect("Couldn't compose conv_id policies somehow")
+                                        .unwrap()
+                                        .specialize::<ConversationMetadataPolicy>()
+                                        .expect(
+                                            "Couldn't specialize into the intended conv_id policy",
+                                        )
+                                })
+                                .unwrap(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            },
+            Signature {
+                username: "alexandre.doukhan@brown.edu",
+                signature: "",
+            },
+            Signature {
+                username: "alexandre.doukhan@brown.edu",
+                signature: "",
+            },
+            Signature {
+                username: "alexandre.doukhan@brown.edu",
+                signature: "",
+            },
+        );
+        conv_id_map.into_pcr(release, ())
+    }
+    async fn get_default_user(
+        self,
+        context: tarpc::context::Context,
+    ) -> PCon<String, UsernamePolicy> {
+        let mut backend = self.conn.lock().await;
+        let res = backend
+            .prep_exec(
+                "SELECT * FROM users where username = ?",
+                ("anonymous",),
+                Context::empty(),
+            );
+        from_value::<String, UsernamePolicy>(res[0][0].clone())
+            .expect("Couldn't find default user")
+    }
+    async fn delete_conversation(
+        self,
+        context: tarpc::context::Context,
+        user_id: PCon<String, UsernamePolicy>,
+        conv_id: PCon<String, ConversationMetadataPolicy>,
+    ) -> bool {
+        let mut backend = self.conn.lock().await;
+        let _ = backend
+            .prep_exec(
+                "DELETE FROM conversations WHERE user_id = ? AND conversation_id = ?",
+                (user_id, conv_id),
+                Context::empty(),
+            );
+        true
+    }
+}
+pub(crate) async fn wait_upon(fut: impl Future<Output = ()> + Send + 'static) {
+    fut.await
+}
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let body = async {
+        {
+            ::std::io::_print(format_args!("Welcome to the LLM database server!\n"));
+        };
+        let config = config::Config::new();
+        let server = DatabaseServer::new(config);
+        let listener = TcpListener::bind(&(SERVER_ADDRESS, 5002)).await.unwrap();
+        let codec_builder = LengthDelimitedCodec::builder();
+        loop {
+            let (stream, _peer_addr) = listener.accept().await.unwrap();
+            let framed = codec_builder.new_framed(stream);
+            let transport = new_transport(framed, Json::default());
+            let fut = TahiniBaseChannel::with_defaults(transport)
+                .execute(server.clone().serve())
+                .for_each(wait_upon);
+            tokio::spawn(fut);
+        }
+    };
+    #[allow(
+        clippy::expect_used,
+        clippy::diverging_sub_expression,
+        clippy::needless_return
+    )]
+    {
+        return tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Failed building the Runtime")
+            .block_on(body);
+    }
+}
