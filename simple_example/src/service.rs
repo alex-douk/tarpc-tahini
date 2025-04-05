@@ -58,11 +58,13 @@ pub struct MyType {
 
 // START: this part is what the developer writes.
 // #[TahiniService]
-#[tahini_service(domain=internal)]
+#[tahini_service(domain=company)]
 pub trait SimpleService {
     async fn increment(x: PCon<i32, ExamplePolicy>) -> PCon<String, ExamplePolicy>;
-    async fn test_types(x: MyType) -> MyType;
+    // async fn test_types(x: MyType) -> MyType;
 }
+
+
 #[derive(Clone)]
 pub struct SimpleServiceServer;
 impl SimpleService for SimpleServiceServer {
@@ -74,10 +76,10 @@ impl SimpleService for SimpleServiceServer {
         println!("Within the application level, we are operating on PCons.");
         x.into_ppr(PPR::new(|val| format!("{}", val + 1)))
     }
-    async fn test_types(self, ctxt: tarpc::context::Context, mut x: MyType) -> MyType {
-        x.a = 0;
-        x
-    }
+    // async fn test_types(self, ctxt: tarpc::context::Context, mut x: MyType) -> MyType {
+    //     x.a = 0;
+    //     x
+    // }
 }
 // END: the part that developers write is over.
 
