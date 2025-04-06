@@ -37,6 +37,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "512761e0bb2578dd7380c6baaa0f4ce03e84f95e960231d1dec8bf4d7d6e2627"
 
 [[package]]
+name = "advertisement_tahini_utils"
+version = "0.1.0"
+dependencies = [
+ "alohomora",
+ "serde",
+ "serde_json",
+ "tarpc",
+]
+
+[[package]]
 name = "ahash"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -919,6 +929,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
+name = "core_tahini_utils"
+version = "0.1.0"
+dependencies = [
+ "advertisement_tahini_utils",
+ "alohomora",
+ "serde",
+ "serde_json",
+ "tarpc",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1064,6 +1085,17 @@ dependencies = [
  "darling_core",
  "quote",
  "syn 2.0.100",
+]
+
+[[package]]
+name = "database_tahini_utils"
+version = "0.1.0"
+dependencies = [
+ "alohomora",
+ "core_tahini_utils",
+ "serde",
+ "serde_json",
+ "tarpc",
 ]
 
 [[package]]
@@ -1671,10 +1703,14 @@ dependencies = [
 name = "fronting2"
 version = "0.1.0"
 dependencies = [
+ "advertisement_tahini_utils",
  "alohomora",
  "anyhow",
+ "core_tahini_utils",
+ "database_tahini_utils",
  "futures",
  "futures-util",
+ "llm_tahini_utils",
  "rand 0.9.0",
  "rocket",
  "serde",
@@ -3250,6 +3286,17 @@ dependencies = [
  "tokio-macros",
  "tokio-stream",
  "tokio-util 0.7.14",
+]
+
+[[package]]
+name = "llm_tahini_utils"
+version = "0.1.0"
+dependencies = [
+ "alohomora",
+ "core_tahini_utils",
+ "serde",
+ "serde_json",
+ "tarpc",
 ]
 
 [[package]]

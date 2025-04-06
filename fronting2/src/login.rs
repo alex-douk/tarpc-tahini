@@ -7,7 +7,7 @@ use alohomora::{
         ResponseBBoxJson, route,
     },
 };
-use services_utils::policies::shared_policies::UsernamePolicy;
+use core_tahini_utils::policies::UsernamePolicy;
 use std::collections::HashMap;
 
 #[derive(Clone, RequestBBoxJson)]

@@ -1,15 +1,6 @@
 use rocket::Build;
-use rocket::fs::FileServer;
 use alohomora::rocket::{BBoxRocket, routes};
-// use rocket_dyn_templates::Template;
-use rocket::{State, get};
-use services_utils::rpc::{
-    database::{Database, TahiniDatabaseClient},
-    inference::{Inference, TahiniInferenceClient},
-};
 use std::net::{IpAddr, Ipv4Addr};
-use std::path::Path;
-use std::sync::{Arc, Mutex};
 
 
 mod inference;

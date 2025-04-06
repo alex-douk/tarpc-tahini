@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use alohomora::policy::{Policy, Reason};
-use tarpc::serde::{Deserialize, Serialize};
-
+use alohomora::tarpc::{TahiniSerialize, TahiniDeserialize};
 pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 
 ///This policy is given by an external organization so that remote clients can
@@ -12,7 +11,7 @@ pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 ///- Consent for various next-hops services.
 ///
 ///Note the lack of information regarding unprotected services (yet)
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(TahiniSerialize, TahiniDeserialize, Clone, Debug)]
 pub struct MarketingPolicy {
     pub no_storage: bool,
     pub targeted_ads_consent: bool,
@@ -73,7 +72,7 @@ impl Policy for MarketingPolicy {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(TahiniSerialize, TahiniDeserialize, Clone, Debug)]
 pub struct AdPolicy {}
 
 #[derive(Clone)]

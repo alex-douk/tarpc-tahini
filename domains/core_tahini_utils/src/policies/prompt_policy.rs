@@ -1,5 +1,6 @@
 use alohomora::db::{BBoxFromValue, Value};
 use alohomora::policy::{AnyPolicy, PolicyAnd, schema_policy};
+use alohomora::tarpc::{TahiniDeserialize, TahiniSerialize};
 use alohomora::{
     policy::{FrontendPolicy, Policy, Reason, SchemaPolicy},
     rocket::{RocketCookie, RocketRequest},
@@ -7,9 +8,8 @@ use alohomora::{
 use serde_json::from_str;
 use std::collections::HashMap;
 use std::str::FromStr;
-use tarpc::serde::{Deserialize, Serialize};
 
-use super::shared_policies::UsernamePolicy;
+use super::UsernamePolicy;
 pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 
 ///This policy is invoked when the use of conversation/message information
@@ -17,7 +17,7 @@ pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 ///The storage to database (i.e. ephemeral chats)
 ///Allowing to send anonymized data to Tahini-fied third-parties
 ///Allowing the use of unprotected third-party services (e.g. image gen)
-#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[derive(TahiniSerialize, TahiniDeserialize, Clone, Debug, Default, PartialEq)]
 #[schema_policy(table = "conversations", column = 3)]
 #[schema_policy(table = "conversations", column = 4)]
 pub struct PromptPolicy {
@@ -34,7 +34,7 @@ impl Policy for PromptPolicy {
 
     fn check(
         &self,
-        context: &alohomora::context::UnprotectedContext,
+        _context: &alohomora::context::UnprotectedContext,
         reason: alohomora::policy::Reason<'_>,
     ) -> bool {
         match reason {
@@ -140,8 +140,8 @@ impl FrontendPolicy for PromptPolicy {
     }
 
     fn from_cookie<'a, 'r>(
-        name: &str,
-        cookie: &'a RocketCookie<'static>,
+        _name: &str,
+        _cookie: &'a RocketCookie<'static>,
         request: &'a RocketRequest<'r>,
     ) -> Self
     where
@@ -152,7 +152,7 @@ impl FrontendPolicy for PromptPolicy {
 }
 
 impl SchemaPolicy for PromptPolicy {
-    fn from_row(table_name: &str, row: &Vec<Value>) -> Self
+    fn from_row(_table_name: &str, row: &Vec<Value>) -> Self
     where
         Self: Sized,
     {

@@ -3,22 +3,13 @@ use alohomora::{
         route, BBoxCookie, BBoxCookieJar, BBoxJson, BBoxRedirect, JsonResponse, RequestBBoxJson, ResponseBBoxJson
     }
 };
-use services_utils::policies::shared_policies::UsernamePolicy;
-use services_utils::{
-    funcs::marketing_parse_conv, policies::marketing_policy::THIRD_PARTY_PROCESSORS,
+
+use core_tahini_utils::{
+    policies::{PromptPolicy, UsernamePolicy, Adapter, advertisement},
+    types::{Message, BBoxConversation},
+    funcs::marketing_parse_conv
 };
-use services_utils::{
-    funcs::parse_conversation, policies::marketing_policy::MarketingPolicy,
-    types::inference_types::Message,
-};
-use services_utils::{
-    policies::inference_policy::PromptPolicy,
-    rpc::marketing::TahiniAdvertisementClient,
-    types::{
-        inference_types::BBoxConversation,
-        marketing_types::{Ad, MarketingData},
-    },
-};
+use advertisement_tahini_utils::{THIRD_PARTY_PROCESSORS, policies::MarketingPolicy, types::{MarketingData, Ad}, service::TahiniAdvertisementClient};
 
 use crate::SERVER_ADDRESS;
 use tarpc::tokio_serde::formats::Json;
@@ -53,7 +44,7 @@ pub(crate) async fn send_to_marketing(
         .unwrap()
         .specialize_policy::<PolicyAnd<UsernamePolicy, PromptPolicy>>()
         .expect("For ad transfer, wrong policy coercion");
-    let payload = payload.into_ppr(PrivacyPureRegion::new(|(username, conv): (String, Vec<Message>)|
+    let payload : BBox<MarketingData, Adapter<_>> =  payload.into_ppr(PrivacyPureRegion::new(|(username, conv): (String, Vec<Message>)|
                 MarketingData {
                     username: match uname.policy().targeted_ads_consent {
                         false => None,
@@ -61,20 +52,22 @@ pub(crate) async fn send_to_marketing(
                     },
                     prompt: marketing_parse_conv(conv),
                 },
-            ));
+            )).into_bbox();
 
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 8002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
 
-    let ad = TahiniAdvertisementClient::new(Default::default(), transport)
+    let ad : Ad = TahiniAdvertisementClient::new(Default::default(), transport)
         .spawn()
         .auction_bidding(context::current(), payload)
         .await
-        .unwrap()
-        .ad;
+        .unwrap();
 
-    ad.into_pcr(
+    //TODO(douk): Lack of ergonomics here: 
+    //We need sending context to reconstruct local policy, as local policy is more expressive than
+    //foreign policy.
+    ad.ad.into_pcr(
         PrivacyCriticalRegion::new(
             |ad_unboxed, _p, _c| {
                 BBox::new(ad_unboxed, PromptPolicy {

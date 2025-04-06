@@ -12,16 +12,11 @@ use alohomora::rocket::BBoxCookieJar;
 use alohomora::rocket::BBoxJson;
 use alohomora::rocket::RequestBBoxJson;
 use alohomora::rocket::{BBoxForm, FromBBoxForm, JsonResponse, ResponseBBoxJson, route};
-use services_utils::policies::inference_policy::InferenceReason;
-use services_utils::policies::inference_policy::PromptPolicy;
-use services_utils::policies::shared_policies::UsernamePolicy;
-use services_utils::rpc::{
-    database::{Database, TahiniDatabaseClient},
-    inference::{Inference, TahiniInferenceClient},
-};
-use services_utils::types::database_types::{CHATUID, DatabaseRetrieveForm, DatabaseStoreForm};
-use services_utils::types::inference_types::Message;
-use services_utils::types::inference_types::{BBoxConversation, UserPrompt};
+use core_tahini_utils::policies::*;
+
+use llm_tahini_utils::service::TahiniInferenceClient;
+use database_tahini_utils::types::{CHATUID, DatabaseRetrieveForm, DatabaseStoreForm};
+use core_tahini_utils::types::{Message, LLMError, LLMResponse, BBoxConversation, UserPrompt};
 use std::collections::HashMap;
 use std::time::Duration;
 use std::time::SystemTime;
@@ -36,7 +31,6 @@ use crate::SERVER_ADDRESS;
 use crate::ads::send_to_marketing;
 use crate::database::get_default_user;
 use crate::database::store_to_database;
-use rand::Rng;
 
 #[derive(Clone, RequestBBoxJson)]
 pub(crate) struct InferenceRequest {

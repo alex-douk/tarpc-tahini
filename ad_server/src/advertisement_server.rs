@@ -99,7 +99,6 @@ fn ad_strategy(pol: &MarketingPolicy) -> AdStrategy {
     }
 }
 
-use keyword_extraction::text_rank::{TextRank, TextRankParams};
 use stop_words::{LANGUAGE, get};
 
 pub fn parse_conversation_into_topics(conv: String) -> String {
