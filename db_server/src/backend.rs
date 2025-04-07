@@ -1,11 +1,6 @@
-use alohomora::bbox::BBox;
 use alohomora::context::Context;
 use alohomora::db::{BBoxConn, BBoxOpts, BBoxParams, BBoxStatement, BBoxValue};
-use alohomora::fold::fold;
-use alohomora::pure::PrivacyPureRegion as PPR;
-use services_utils::policies::shared_policies::UsernamePolicy;
-use services_utils::types::PolicyError;
-use slog::{debug, o, warn};
+use database_tahini_utils::types::PolicyError;
 use std::collections::HashMap;
 use std::error::Error;
 use std::result::Result;
@@ -31,9 +26,6 @@ impl MySqlBackend {
         // let log = match log {
         //     None => slog::Logger::root(slog::Discard, o!()),
         //     Some(l) => l,
-        // };
-        //
-        // println!("File system pwd is {:?}", std::fs::read_dir(".").unwrap().next());
         let schema = std::fs::read_to_string("./resources/schema.sql")?;
         //
         // debug!(
@@ -177,25 +169,12 @@ impl MySqlBackend {
         self.do_insert(table, vals, false, context)
     }
 
-    pub fn get_user_id(
-        &mut self,
-        user: BBox<String, UsernamePolicy>,
-        context: Context<()>,
-    ) -> BBoxValue {
-        self.prep_exec(
-            "IF NOT EXISTS (SELECT * FROM users where username = ?) BEGIN INSERT INTO users (username, targeted_ads_consent) VALUES (?, ?) RETURNING user_id END ELSE BEGIN SELECT * FROM users where username = ? END",
-            (user.clone(), user.clone(), user.policy().targeted_ads_consent, user),
-            context,
-        )[0][0]
-            .clone()
-    }
-
-    pub fn replace<P: Into<BBoxParams>>(
-        &mut self,
-        table: &str,
-        vals: P,
-        context: Context<()>,
-    ) -> Result<(), PolicyError> {
-        self.do_insert(table, vals, true, context)
-    }
+    // pub fn replace<P: Into<BBoxParams>>(
+    //     &mut self,
+    //     table: &str,
+    //     vals: P,
+    //     context: Context<()>,
+    // ) -> Result<(), PolicyError> {
+    //     self.do_insert(table, vals, true, context)
+    // }
 }

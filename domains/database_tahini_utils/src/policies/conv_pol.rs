@@ -1,4 +1,4 @@
-use alohomora::db::{BBoxFromValue, Value};
+use alohomora::db::Value;
 use alohomora::policy::{schema_policy, AnyPolicy, PolicyAnd};
 use alohomora::{
     policy::{FrontendPolicy, Policy, Reason, SchemaPolicy},

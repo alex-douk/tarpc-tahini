@@ -1,5 +1,5 @@
 [workspace]
-members=["llm_server", "db_server", "simple_example", "utils", "ad_server", "fronting2", "domains/advertisement_tahini_utils", "domains/core_tahini_utils", "domains/llm_tahini_utils", "domains/database_tahini_utils"]
+members=["llm_server", "db_server", "simple_example", "utils", "ad_server", "webserver", "domains/advertisement_tahini_utils", "domains/core_tahini_utils", "domains/llm_tahini_utils", "domains/database_tahini_utils"]
 
 [patch.crates-io]
 funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }

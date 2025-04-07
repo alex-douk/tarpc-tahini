@@ -28,15 +28,11 @@ impl PolicyInto<UserIdDBPolicy> for UserIdWebPolicy {
         context: &alohomora::tarpc::context::TahiniContext,
     ) -> Result<UserIdDBPolicy, String> {
         match context.service {
-            "Database" => match context.rpc {
-                "register_user" | "fetch_user" => return Ok(UserIdDBPolicy),
-                _ => (),
-            },
-            _ => (),
+            "Database" => Ok(UserIdDBPolicy),
+            _ => Err(format!(
+                "Policy transformation not allowed from {}",
+                self.name()
+            )),
         }
-        Err(format!(
-            "Policy transformation not allowed from {}",
-            self.name()
-        ))
     }
 }

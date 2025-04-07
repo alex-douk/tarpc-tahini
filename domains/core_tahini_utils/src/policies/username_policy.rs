@@ -15,9 +15,8 @@ pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 
 ///This policy is user-and-session-bound and
 ///is invoked in operations that could lead to current-or-future disclosure of the username
-#[schema_policy(table = "users", column = 0)]
 #[schema_policy(table = "users", column = 1)]
-#[schema_policy(table = "conversations", column = 2)]
+// #[schema_policy(table = "conversations", column = 2)]
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct UsernamePolicy {
     pub targeted_ads_consent: bool,

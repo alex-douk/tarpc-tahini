@@ -1,6 +1,8 @@
-use alohomora::policy::{AnyPolicy, Policy, PolicyAnd, Reason};
+use alohomora::policy::{AnyPolicy, Policy, PolicyAnd, Reason, SchemaPolicy, schema_policy};
 use alohomora::tarpc::{TahiniDeserialize, TahiniSerialize};
 #[derive(TahiniDeserialize, TahiniSerialize, Clone)]
+#[schema_policy(table = "users", column = 0)]
+#[schema_policy(table = "conversations", column = 2)]
 pub struct UserIdDBPolicy;
 
 impl Policy for UserIdDBPolicy {
@@ -34,5 +36,14 @@ impl Policy for UserIdDBPolicy {
         Self: Sized,
     {
         Ok(Self)
+    }
+}
+
+impl SchemaPolicy for UserIdDBPolicy {
+    fn from_row(_table_name: &str, _row: &Vec<alohomora::db::Value>) -> Self
+    where
+        Self: Sized,
+    {
+        Self
     }
 }

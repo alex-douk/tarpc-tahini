@@ -1,11 +1,9 @@
 use alohomora::TahiniType;
 use alohomora::bbox::BBox;
-use alohomora::rocket::RequestBBoxJson;
 use alohomora::tarpc::TahiniType;
 use alohomora::tarpc::{TahiniDeserialize, TahiniSerialize};
 
 use core_tahini_utils::policies::MessagePolicy;
-use core_tahini_utils::policies::UsernamePolicy;
 use core_tahini_utils::types::Message;
 
 use crate::policies::UserIdDBPolicy;

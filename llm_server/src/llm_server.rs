@@ -1,12 +1,8 @@
 #![feature(auto_traits, negative_impls, min_specialization)]
 //Clone model just clones the reference
-use services_utils::{
-    policies::inference_policy::InferenceReason,
-    rpc::{database::TahiniDatabaseClient, marketing::TahiniAdvertisementClient},
-    types::{
-        inference_types::{BBoxConversation, Message},
-        marketing_types::MarketingData,
-    },
+use core_tahini_utils::{
+    policies::{InferenceReason, MessagePolicy},
+    types::{BBoxConversation, Message},
 };
 use std::{collections::HashMap, sync::Arc};
 //Required for model locking across async tasks
@@ -35,8 +31,6 @@ use alohomora::pcr::{PrivacyCriticalRegion as PCR, Signature};
 use alohomora::policy::{Policy, Reason};
 use alohomora::pure::PrivacyPureRegion as PPR;
 
-//Application-wide mods
-use services_utils::policies::{MarketingPolicy, PromptPolicy};
 
 //Inference import
 //Internal LLM functionings
@@ -46,10 +40,11 @@ use crate::model_backend::{TextGeneration, create_pipeline};
 use anyhow::Error as E;
 
 //Tarpc + types
-use services_utils::funcs::parse_conversation;
-use services_utils::rpc::inference::Inference;
-use services_utils::rpc::marketing::Advertisement;
-use services_utils::types::inference_types::{LLMError, LLMResponse, UserPrompt};
+
+
+use core_tahini_utils::funcs::parse_conversation;
+use llm_tahini_utils::service::Inference;
+use core_tahini_utils::types::{LLMError, LLMResponse, UserPrompt};
 
 //Database import
 
@@ -70,36 +65,10 @@ impl InferenceServer {
     }
 }
 
-fn change_marketing_policy(input: PCon<String, PromptPolicy>) -> PCon<String, MarketingPolicy> {
-    let unboxed = input.into_pcr(
-        PCR::new(
-            |v, p, _c| (v, p),
-            Signature {
-                username: "",
-                signature: "",
-            },
-            Signature {
-                username: "",
-                signature: "",
-            },
-            Signature {
-                username: "",
-                signature: "",
-            },
-        ),
-        (),
-    );
-    let new_pol = MarketingPolicy {
-        no_storage: unboxed.1.storage,
-        targeted_ads_consent: true,
-        third_party_processing: HashMap::new(),
-    };
-    PCon::new(unboxed.0, new_pol)
-}
 
 fn apply_chat_template(
     conversation: BBoxConversation,
-) -> Result<PCon<String, PromptPolicy>, LLMError> {
+) -> Result<PCon<String, MessagePolicy>, LLMError> {
     conversation
         .into_ppr(PPR::new(|rounds: Vec<Message>| {
             let parsed = parse_conversation(rounds);

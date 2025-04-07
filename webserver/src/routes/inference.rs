@@ -1,8 +1,6 @@
 use alohomora::bbox::BBox;
 use alohomora::context::Context;
 use alohomora::context::UnprotectedContext;
-use alohomora::pcr::PrivacyCriticalRegion;
-use alohomora::pcr::Signature;
 use alohomora::policy::Policy;
 use alohomora::pure::PrivacyPureRegion as PPR;
 use alohomora::rocket::BBoxCookieJar;
@@ -11,8 +9,7 @@ use alohomora::rocket::RequestBBoxJson;
 use alohomora::rocket::{JsonResponse, ResponseBBoxJson, route};
 use core_tahini_utils::policies::*;
 
-use core_tahini_utils::types::{BBoxConversation, LLMError, LLMResponse, Message, UserPrompt};
-use database_tahini_utils::types::{CHATUID, DatabaseRetrieveForm, DatabaseStoreForm};
+use core_tahini_utils::types::{BBoxConversation, Message, UserPrompt};
 use llm_tahini_utils::service::TahiniInferenceClient;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -34,7 +31,6 @@ use crate::policies::login_uuid::UserIdWebPolicy;
 #[derive(Clone, RequestBBoxJson)]
 pub(crate) struct InferenceRequest {
     pub user: Option<BBox<String, UsernamePolicy>>,
-    pub uuid: Option<BBox<String, UserIdWebPolicy>>,
     pub conv_id: BBox<Option<String>, UserIdWebPolicy>,
     pub conversation: BBoxConversation,
     pub nb_token: u32,
@@ -45,27 +41,6 @@ pub(crate) struct InferenceResponse {
     infered_tokens: BBox<Message, MessagePolicy>,
     ad: Option<BBox<String, AdPolicy>>,
     db_uuid: Option<BBox<String, UserIdWebPolicy>>,
-}
-
-fn fix_policy<T, P1: Policy + Into<P2>, P2: Policy>(a: BBox<T, P1>) -> BBox<T, P2> {
-    a.into_pcr(
-        PrivacyCriticalRegion::new(
-            |v, p: P1, _c| BBox::new(v, p.into()),
-            Signature {
-                username: "",
-                signature: "",
-            },
-            Signature {
-                username: "",
-                signature: "",
-            },
-            Signature {
-                username: "",
-                signature: "",
-            },
-        ),
-        (),
-    )
 }
 
 async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, MessagePolicy>> {

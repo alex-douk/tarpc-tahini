@@ -134,14 +134,15 @@ impl FrontendPolicy for MessagePolicy {
                 Some(c) => bool::from_str(c.value()).unwrap_or(false),
             });
         }
-        let reinforcement_learning_consent =
-            bool::from_str(request.cookies().get("rl_consent").unwrap().value()).unwrap();
+        // let reinforcement_learning_consent =
+            // bool::from_str(request.cookies().get("rl_consent").unwrap().value()).unwrap();
         MessagePolicy {
             third_party_consent: hashmap,
             storage: no_storage,
             marketing_consent,
             unprotected_image_gen,
-            reinforcement_learning_consent
+            reinforcement_learning_consent: false
+            // reinforcement_learning_consent
         }
     }
 

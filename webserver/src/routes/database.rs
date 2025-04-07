@@ -4,10 +4,8 @@ use alohomora::rocket::{BBoxCookieJar, JsonResponse, ResponseBBoxJson, get};
 use core_tahini_utils::policies::{MessagePolicy, UsernamePolicy};
 use core_tahini_utils::types::{BBoxConversation, Message};
 use database_tahini_utils::service::TahiniDatabaseClient;
+use database_tahini_utils::types::DatabaseError;
 use database_tahini_utils::types::PolicyError;
-use database_tahini_utils::types::{
-    CHATUID, DatabaseError, DatabaseRetrieveForm, DatabaseStoreForm,
-};
 use std::collections::HashMap;
 use tarpc::context;
 
@@ -179,10 +177,11 @@ pub(crate) async fn delete_conversation(
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-    let response : Result<bool , tarpc::client::RpcError> = TahiniDatabaseClient::new(Default::default(), transport)
-        .spawn()
-        .delete_conversation(context::current(), (user_id, chat_id))
-        .await;
+    let response: Result<bool, tarpc::client::RpcError> =
+        TahiniDatabaseClient::new(Default::default(), transport)
+            .spawn()
+            .delete_conversation(context::current(), (user_id, chat_id))
+            .await;
 
     response.map(|_| ()).map_err(|_| ())
 }

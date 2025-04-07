@@ -1,17 +1,17 @@
 use alohomora::compose_policies;
-use alohomora::policy::{AnyPolicy, Policy};
+use alohomora::policy::{AnyPolicy, NoPolicy, Policy};
 use backend::MySqlBackend;
 //Clone model just clones the reference
 use alohomora::db::{Value, from_value, from_value_or_null};
 use alohomora::fold::{self, fold};
 use config::Config;
-use services_utils::policies::ConversationMetadataPolicy;
-use services_utils::policies::shared_policies::AbsolutePolicy;
-use services_utils::policies::{PromptPolicy, shared_policies::UsernamePolicy};
-use services_utils::types::PolicyError;
-use services_utils::types::database_types::{DatabaseError, DatabaseRetrieveForm};
-use services_utils::types::inference_types::{BBoxConversation, Message};
-use std::hash::Hash;
+use core_tahini_utils::policies::AbsolutePolicy;
+use core_tahini_utils::policies::{MessagePolicy, UsernamePolicy};
+use database_tahini_utils::policies::{ConversationMetadataPolicy, UserIdDBPolicy};
+use database_tahini_utils::types::{DatabaseError, DatabaseRetrieveForm, DeleteForm, PolicyError};
+
+use core_tahini_utils::types::{BBoxConversation, Message};
+
 use std::{
     collections::{HashMap, hash_map::Entry},
     str::FromStr,
@@ -48,10 +48,9 @@ use alohomora::pure::PrivacyPureRegion as PPR;
 
 //Application-wide mods
 
-use services_utils::rpc::database::Database;
+use database_tahini_utils::service::Database;
 //Database import
-use services_utils::types::database_types::{CHATUID, DatabaseRecord, DatabaseStoreForm};
-
+use database_tahini_utils::types::{CHATUID, DatabaseStoreForm};
 pub type UserMap<T> = HashMap<String, T>;
 pub type ChatHistory = HashMap<u32, PCon<String, ConversationMetadataPolicy>>;
 
@@ -80,12 +79,12 @@ static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 fn parse_row_into_message(
     row: &Vec<PCon<Value, AnyPolicy>>,
-) -> Result<PCon<Message, PromptPolicy>, String> {
-    let role = from_value::<String, PromptPolicy>(row[3].clone())?;
-    let content = from_value::<String, PromptPolicy>(row[4].clone())?;
+) -> Result<PCon<Message, MessagePolicy>, String> {
+    let role = from_value::<String, MessagePolicy>(row[3].clone())?;
+    let content = from_value::<String, MessagePolicy>(row[4].clone())?;
     let pair = fold((role, content)).map_err(|_| "Couldn't fold")?;
     let pair = pair
-        .specialize_policy::<PromptPolicy>()
+        .specialize_policy::<MessagePolicy>()
         .expect("Couldn't specialize policy");
     Ok(pair.into_ppr(PPR::new(|(role, content)| Message { role, content })))
 }
@@ -101,7 +100,15 @@ impl Database for DatabaseServer {
             Some(t) => t,
         }));
         let mut backend = self.conn.lock().await;
-        let ret_pol = form.uuid.policy();
+        let row = backend.prep_exec(
+            "SELECT * FROM users WHERE user_id = ? ",
+            (form.uuid.clone(),),
+            Context::empty(),
+        );
+
+        let username =
+            from_value::<String, UsernamePolicy>(row[0][1].clone()).expect("Row malformed");
+
         let pol_parameters = (
             form.message.policy().storage,
             form.message.policy().marketing_consent,
@@ -115,13 +122,13 @@ impl Database for DatabaseServer {
             (
                 None::<u8>,
                 conv_uid.clone(),
-                form.uuid.clone(),
+                form.uuid,
                 form.message.clone().into_ppr(PPR::new(|x: Message| x.role)),
                 form.message.into_ppr(PPR::new(|x: Message| x.content)),
                 pol_parameters.0,
                 pol_parameters.1,
                 pol_parameters.2,
-                ret_pol.targeted_ads_consent,
+                username.policy().targeted_ads_consent,
                 pol_parameters.3,
             ),
             Context::empty(),
@@ -152,7 +159,7 @@ impl Database for DatabaseServer {
 
         let parsed = fold(parsed)
             .expect("Couldn't fold across messages of conversation")
-            .specialize_policy::<PromptPolicy>()
+            .specialize_policy::<MessagePolicy>()
             .expect("Couldn't join policies");
 
         Some(parsed)
@@ -161,18 +168,16 @@ impl Database for DatabaseServer {
         self,
         _context: tarpc::context::Context,
         username: PCon<String, UsernamePolicy>,
-    ) -> Result<PCon<String, UsernamePolicy>, DatabaseError> {
+    ) -> Result<PCon<String, UserIdDBPolicy>, DatabaseError> {
         let mut backend = self.conn.lock().await;
         let res = backend.prep_exec(
-            "SELECT * FROM users where username = ? AND username != 'anonymous'",
+            "SELECT * FROM users where username = ?",
             (username.clone(),),
             Context::empty(),
         );
         match res.len() {
-            0 => {
-                Err(DatabaseError::UserNotFound)
-            }
-            1 => Ok(from_value::<String, UsernamePolicy>(res[0][0].clone())
+            0 => Err(DatabaseError::UserNotFound),
+            1 => Ok(from_value::<String, UserIdDBPolicy>(res[0][0].clone())
                 .expect("UUID row malformed")),
             _ => Err(DatabaseError::Ambiguous),
         }
@@ -182,7 +187,7 @@ impl Database for DatabaseServer {
         self,
         _context: tarpc::context::Context,
         username: PCon<String, UsernamePolicy>,
-    ) -> Result<PCon<String, UsernamePolicy>, DatabaseError> {
+    ) -> Result<PCon<String, UserIdDBPolicy>, DatabaseError> {
         let mut backend = self.conn.lock().await;
         let res = backend.prep_exec(
             "SELECT * FROM users where username = ?",
@@ -191,20 +196,19 @@ impl Database for DatabaseServer {
         );
         match res.len() {
             0 => {
-                let ret_pol = username.policy();
                 let uuid = format!("{}", Uuid::new_v4());
                 let _ = backend.insert(
                     "users",
                     (
                         uuid.clone(),
                         username.clone(),
-                        ret_pol.targeted_ads_consent,
-                        serde_json::to_string(&ret_pol.third_party_vendors_consent)
+                        username.policy().targeted_ads_consent,
+                        serde_json::to_string(&username.policy().third_party_vendors_consent)
                             .unwrap_or("{}".to_string()),
                     ),
                     Context::empty(),
                 );
-                Ok(PCon::new(uuid, ret_pol.clone()))
+                Ok(PCon::new(uuid, UserIdDBPolicy))
             }
             _ => Err(DatabaseError::AlreadyExists),
         }
@@ -220,7 +224,7 @@ impl Database for DatabaseServer {
         let mut backend = self.conn.lock().await;
         //TODO(douk): Check if there is a more elegant way to combine policies here
         let res = backend.prep_exec(
-            "SELECT * FROM conversations where user_id = ?",
+            "SELECT DISTINCT * FROM conversations where user_id = ?",
             (username,),
             Context::empty(),
         );
@@ -339,25 +343,25 @@ impl Database for DatabaseServer {
         // );
         // conv_id_map.into_pcr(release, ())
     }
-    async fn get_default_user(
-        self,
-        context: tarpc::context::Context,
-    ) -> PCon<String, UsernamePolicy> {
-        let mut backend = self.conn.lock().await;
-        let res = backend.prep_exec(
-            "SELECT * FROM users where username = ?",
-            ("anonymous",),
-            Context::empty(),
-        );
-        from_value::<String, UsernamePolicy>(res[0][0].clone()).expect("Couldn't find default user")
-    }
+    // async fn get_default_user(
+    //     self,
+    //     context: tarpc::context::Context,
+    // ) -> PCon<String, UsernamePolicy> {
+    //     let mut backend = self.conn.lock().await;
+    //     let res = backend.prep_exec(
+    //         "SELECT * FROM users where username = ?",
+    //         ("anonymous",),
+    //         Context::empty(),
+    //     );
+    //     from_value::<String, UsernamePolicy>(res[0][0].clone()).expect("Couldn't find default user")
+    // }
 
     async fn delete_conversation(
         self,
-        context: tarpc::context::Context,
-        user_id: PCon<String, UsernamePolicy>,
-        conv_id: PCon<String, ConversationMetadataPolicy>,
+        _context: tarpc::context::Context,
+        (user_id, conv_id): (PCon<String, UserIdDBPolicy>, PCon<String, UserIdDBPolicy>),
     ) -> bool {
+        // let (user_id, conv_id) = (delete.uuid, delete.conv_id);
         let mut backend = self.conn.lock().await;
         let _ = backend.prep_exec(
             "DELETE FROM conversations WHERE user_id = ? AND conversation_id = ?",

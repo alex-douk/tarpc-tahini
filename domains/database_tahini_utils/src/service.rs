@@ -1,10 +1,10 @@
 use crate::{
     policies::{ConversationMetadataPolicy, UserIdDBPolicy},
     types::{
-        CHATUID, DatabaseError, DatabaseRetrieveForm, DatabaseStoreForm, DeleteForm, PolicyError,
+        DatabaseError, DatabaseRetrieveForm, DatabaseStoreForm, PolicyError, CHATUID
     },
 };
-use core_tahini_utils::policies::{AbsolutePolicy, UsernamePolicy};
+use core_tahini_utils::policies::UsernamePolicy;
 use core_tahini_utils::types::BBoxConversation;
 
 use alohomora::{
@@ -29,7 +29,7 @@ pub trait Database {
     async fn fetch_history_headers(
         //This is UUID
         username: BBox<String, UsernamePolicy>,
-    ) -> Vec<BBox<String, AbsolutePolicy>>;
+    ) -> Vec<BBox<String, ConversationMetadataPolicy>>;
     async fn delete_conversation(
         data: (BBox<String, UserIdDBPolicy>, BBox<String, UserIdDBPolicy>),
     ) -> bool;

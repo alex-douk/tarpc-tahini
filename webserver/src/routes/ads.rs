@@ -8,8 +8,7 @@ use alohomora::{
 };
 
 use advertisement_tahini_utils::{
-    THIRD_PARTY_PROCESSORS, policies::MarketingPolicy, service::TahiniAdvertisementClient,
-    types::MarketingData,
+    THIRD_PARTY_PROCESSORS, service::TahiniAdvertisementClient, types::MarketingData,
 };
 use core_tahini_utils::{
     funcs::marketing_parse_conv,

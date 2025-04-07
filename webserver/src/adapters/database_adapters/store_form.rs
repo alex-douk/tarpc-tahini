@@ -1,6 +1,6 @@
 use alohomora::{bbox::BBox, tarpc::TahiniTransformInto};
 use core_tahini_utils::{
-    policies::{MessagePolicy, UsernamePolicy},
+    policies::MessagePolicy,
     types::Message,
 };
 use database_tahini_utils::{
@@ -63,7 +63,7 @@ impl<
     ) -> Result<DatabaseStoreForm, String> {
         let err = Err("Could not transform into DatabaseStoreForm".to_string());
         match context.service {
-            "Database " => match context.rpc {
+            "Database" => match context.rpc {
                 "store_prompt" => Ok(DatabaseStoreForm {
                     uuid: self.uuid.transform_into(context)?,
                     conv_id: self.conv_id.transform_into(context)?,
@@ -85,9 +85,9 @@ impl<
         self,
         context: &alohomora::tarpc::context::TahiniContext,
     ) -> Result<DatabaseRetrieveForm, String> {
-        let err = Err("Could not transform into DatabaseRetrieveForm".to_string());
+        let err = Err(format!("Could not transform into DatabaseRetrieveForm with context {}.{}", context.service, context.rpc));
         match context.service {
-            "Database " => match context.rpc {
+            "Database" => match context.rpc {
                 "retrieve_prompt" => Ok(DatabaseRetrieveForm {
                     uuid: self.uuid.transform_into(context)?,
                     conv_id: self.conv_id.transform_into(context)?,
