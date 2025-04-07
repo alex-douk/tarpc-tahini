@@ -1,9 +1,9 @@
-use crate::database::{fetch_user, register_user};
+use crate::{database::{fetch_user, register_user}, policies::login_uuid::UserIdWebPolicy};
 use alohomora::{
     bbox::BBox,
     context::Context,
     rocket::{
-        BBoxCookie, BBoxCookieJar, BBoxJson, BBoxRedirect, JsonResponse, RequestBBoxJson,
+        BBoxCookie, BBoxCookieJar, BBoxJson, JsonResponse, RequestBBoxJson,
         ResponseBBoxJson, route,
     },
 };
@@ -17,7 +17,7 @@ pub struct LoginForm {
 
 #[derive(Clone, ResponseBBoxJson)]
 pub struct LoginResponse {
-    uuid: Option<BBox<String, UsernamePolicy>>,
+    uuid: Option<BBox<String, UserIdWebPolicy>>,
 }
 
 #[route(POST, "/login", data = "<data>")]
@@ -35,7 +35,7 @@ pub(crate) async fn login(
             let _ = cookies.add(BBoxCookie::new("user_id", uuid), Context::<()>::empty());
             JsonResponse(resp, Context::empty())
         }
-        Err(e) => JsonResponse(LoginResponse { uuid: None }, Context::empty()),
+        Err(_e) => JsonResponse(LoginResponse { uuid: None }, Context::empty()),
     }
 }
 
@@ -53,6 +53,6 @@ pub(crate) async fn signup(
             let _ = cookies.add(BBoxCookie::new("user_id", uuid), Context::<()>::empty());
             JsonResponse(resp, Context::empty())
         }
-        Err(e) => JsonResponse(LoginResponse { uuid: None }, Context::empty()),
+        Err(_e) => JsonResponse(LoginResponse { uuid: None }, Context::empty()),
     }
 }

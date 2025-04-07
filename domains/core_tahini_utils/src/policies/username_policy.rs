@@ -1,17 +1,16 @@
-use crate::policies::prompt_policy::InferenceReason;
-use alohomora::db::{BBoxFromValue, Value, from_value};
+use crate::policies::message_policy::InferenceReason;
+use alohomora::db::{BBoxFromValue, Value};
 use alohomora::policy::{
-    AnyPolicy, FrontendPolicy, NoPolicy, Policy, PolicyAnd, PolicyInto, Reason, SchemaPolicy,
+    AnyPolicy, FrontendPolicy, Policy, PolicyAnd, Reason, SchemaPolicy,
     schema_policy,
 };
-use alohomora::rocket::{BBoxCookie, RocketCookie, RocketRequest};
-use alohomora::tarpc::context::TahiniContext;
+use alohomora::rocket::{RocketCookie, RocketRequest};
 use serde_json::from_str;
 use std::collections::HashMap;
 use std::str::FromStr;
 use tarpc::serde::{Deserialize, Serialize};
 
-use super::PromptPolicy;
+use super::MessagePolicy;
 pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 
 ///This policy is user-and-session-bound and
@@ -55,8 +54,8 @@ impl Policy for UsernamePolicy {
         if other.is::<UsernamePolicy>() {
             self.join_logic(other.specialize().map_err(|_| ())?)
                 .map(|p| AnyPolicy::new(p))
-        } else if other.is::<PromptPolicy>() {
-            let spec = other.specialize::<PromptPolicy>();
+        } else if other.is::<MessagePolicy>() {
+            let spec = other.specialize::<MessagePolicy>();
             if spec.is_err() {
                 return Err(());
             }
@@ -171,7 +170,7 @@ impl FrontendPolicy for UsernamePolicy {
 ///org nor be passed to checked RPCs.
 ///Such a policy can ensure that data paths terminating in an uncontrolled sink are taken into
 ///account.
-#[derive(Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct AbsolutePolicy {}
 
 impl Policy for AbsolutePolicy {

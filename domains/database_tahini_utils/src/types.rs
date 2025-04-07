@@ -4,28 +4,35 @@ use alohomora::rocket::RequestBBoxJson;
 use alohomora::tarpc::TahiniType;
 use alohomora::tarpc::{TahiniDeserialize, TahiniSerialize};
 
-use core_tahini_utils::policies::PromptPolicy;
+use core_tahini_utils::policies::MessagePolicy;
 use core_tahini_utils::policies::UsernamePolicy;
 use core_tahini_utils::types::Message;
+
+use crate::policies::UserIdDBPolicy;
 
 // use super::inference_types::BBoxConversation;
 
 #[derive(TahiniDeserialize, Clone, TahiniType)]
 pub struct DatabaseStoreForm {
-    pub uuid: BBox<String, UsernamePolicy>,
-    pub conv_id: BBox<Option<String>, UsernamePolicy>,
-    pub message: BBox<Message, PromptPolicy>,
+    pub uuid: BBox<String, UserIdDBPolicy>,
+    pub conv_id: BBox<Option<String>, UserIdDBPolicy>,
+    pub message: BBox<Message, MessagePolicy>,
 }
 
-#[derive(TahiniDeserialize, Clone, TahiniType, RequestBBoxJson)]
+#[derive(TahiniDeserialize, Clone, TahiniType)]
 pub struct DatabaseRetrieveForm {
-    pub uuid: BBox<String, UsernamePolicy>,
+    pub uuid: BBox<String, UserIdDBPolicy>,
     pub conv_id: CHATUID,
 }
 
-pub type CHATUID = BBox<String, UsernamePolicy>;
+#[derive(TahiniDeserialize, Clone, TahiniType)]
+pub struct DeleteForm {
+    pub uuid: BBox<String, UserIdDBPolicy>,
+    //TODO(douk): Change to conv metadata policy
+    pub conv_id: BBox<String, UserIdDBPolicy>
+}
 
-// pub type DatabaseRecord = DatabaseStoreForm;
+pub type CHATUID = BBox<String, UserIdDBPolicy>;
 
 #[derive(TahiniSerialize, TahiniDeserialize, Clone, TahiniType, Debug)]
 pub enum DatabaseError {

@@ -1,33 +1,38 @@
 use alohomora::bbox::BBox;
 use alohomora::context::Context;
 use alohomora::rocket::{BBoxCookieJar, JsonResponse, ResponseBBoxJson, get};
-use database_tahini_utils::policies::ConversationMetadataPolicy;
-use core_tahini_utils::policies::UsernamePolicy;
+use core_tahini_utils::policies::{MessagePolicy, UsernamePolicy};
+use core_tahini_utils::types::{BBoxConversation, Message};
 use database_tahini_utils::service::TahiniDatabaseClient;
 use database_tahini_utils::types::PolicyError;
 use database_tahini_utils::types::{
     CHATUID, DatabaseError, DatabaseRetrieveForm, DatabaseStoreForm,
 };
-use core_tahini_utils::types::BBoxConversation;
 use std::collections::HashMap;
 use tarpc::context;
 
 use crate::SERVER_ADDRESS;
+use crate::adapters::database_adapters::store_form::{RetrieveFormAdapter, StoreFormAdapter};
+use crate::policies::history::HistoryPolicy;
+use crate::policies::login_uuid::UserIdWebPolicy;
 use tarpc::serde_transport::new as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
 pub(crate) async fn store_to_database(
-    submit_form: DatabaseStoreForm,
-) -> Result<CHATUID, PolicyError> {
+    uuid: BBox<String, UserIdWebPolicy>,
+    conv_id: BBox<Option<String>, UserIdWebPolicy>,
+    message: BBox<Message, MessagePolicy>, // submit_form: DatabaseStoreForm,
+) -> Result<BBox<String, UserIdWebPolicy>, PolicyError> {
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+    let adapter = StoreFormAdapter::new(uuid, conv_id, message);
 
     let response = TahiniDatabaseClient::new(Default::default(), transport)
         .spawn()
-        .store_prompt(tarpc::context::current(), submit_form)
+        .store_prompt(tarpc::context::current(), adapter)
         .await;
 
     match response {
@@ -39,7 +44,7 @@ pub(crate) async fn store_to_database(
 
 pub(crate) async fn register_user(
     username: BBox<String, UsernamePolicy>,
-) -> Result<BBox<String, UsernamePolicy>, DatabaseError> {
+) -> Result<BBox<String, UserIdWebPolicy>, DatabaseError> {
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
@@ -55,7 +60,7 @@ pub(crate) async fn register_user(
 
 pub(crate) async fn fetch_user(
     username: BBox<String, UsernamePolicy>,
-) -> Result<BBox<String, UsernamePolicy>, DatabaseError> {
+) -> Result<BBox<String, UserIdWebPolicy>, DatabaseError> {
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
@@ -70,20 +75,28 @@ pub(crate) async fn fetch_user(
     }
 }
 
-pub(crate) async fn get_default_user() -> BBox<String, UsernamePolicy> {
+pub(crate) async fn get_default_user() -> BBox<String, UserIdWebPolicy> {
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-    let response = TahiniDatabaseClient::new(Default::default(), transport)
+    let response: Result<
+        Result<BBox<String, UserIdWebPolicy>, DatabaseError>,
+        tarpc::client::RpcError,
+    > = TahiniDatabaseClient::new(Default::default(), transport)
         .spawn()
-        .get_default_user(tarpc::context::current())
+        .fetch_user(
+            tarpc::context::current(),
+            BBox::new("anonymous".to_string(), UsernamePolicy::default()),
+        )
         .await;
-    response.expect("Couldn't fetch the default user")
+    response
+        .expect("RPC error")
+        .expect("Couldn't fetch the default user")
 }
 
 #[derive(Clone, ResponseBBoxJson)]
 pub struct HistoryResponse {
-    history_list: Vec<BBox<String, ConversationMetadataPolicy>>,
+    history_list: Vec<BBox<String, HistoryPolicy>>,
 }
 
 #[get("/<user_id>")]
@@ -129,22 +142,22 @@ pub struct FetchConversation {
 pub(crate) async fn fetch_conversation(
     // user_id: BBox<String, UsernamePolicy>,
     cookies: BBoxCookieJar<'_, '_>,
-    chat_id: BBox<String, UsernamePolicy>,
+    chat_id: BBox<String, UserIdWebPolicy>,
 ) -> JsonResponse<FetchConversation, ()> {
     if cookies.get::<UsernamePolicy>("user_id").is_none() {
         return JsonResponse(FetchConversation { conv: None }, Context::empty());
     }
-    let user_id = cookies.get("user_id").unwrap().into();
+    let user_id: BBox<String, UserIdWebPolicy> = cookies.get("user_id").unwrap().into();
 
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
     let response = TahiniDatabaseClient::new(Default::default(), transport)
         .spawn()
-        .retrieve_prompt(tarpc::context::current(), DatabaseRetrieveForm {
-            uuid: user_id,
-            conv_id: chat_id,
-        })
+        .retrieve_prompt(
+            tarpc::context::current(),
+            RetrieveFormAdapter::new(user_id, chat_id),
+        )
         .await;
     match response {
         Err(e) => {
@@ -158,16 +171,17 @@ pub(crate) async fn fetch_conversation(
 #[get("/delete/<chat_id>")]
 pub(crate) async fn delete_conversation(
     cookies: BBoxCookieJar<'_, '_>,
-    chat_id: BBox<String, ConversationMetadataPolicy>,
+    chat_id: BBox<String, UserIdWebPolicy>,
 ) -> Result<(), ()> {
     if cookies.get::<UsernamePolicy>("user_id").is_none() {}
-    let user_id = cookies.get::<UsernamePolicy>("user_id").unwrap().into();
+    let user_id: BBox<String, UserIdWebPolicy> =
+        cookies.get::<UserIdWebPolicy>("user_id").unwrap().into();
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-    let response = TahiniDatabaseClient::new(Default::default(), transport)
+    let response : Result<bool , tarpc::client::RpcError> = TahiniDatabaseClient::new(Default::default(), transport)
         .spawn()
-        .delete_conversation(context::current(), user_id, chat_id)
+        .delete_conversation(context::current(), (user_id, chat_id))
         .await;
 
     response.map(|_| ()).map_err(|_| ())

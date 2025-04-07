@@ -1,22 +1,19 @@
 use alohomora::bbox::BBox;
 use alohomora::context::Context;
 use alohomora::context::UnprotectedContext;
-use alohomora::db;
-use alohomora::fold::fold;
 use alohomora::pcr::PrivacyCriticalRegion;
 use alohomora::pcr::Signature;
-use alohomora::policy::NoPolicy;
 use alohomora::policy::Policy;
 use alohomora::pure::PrivacyPureRegion as PPR;
 use alohomora::rocket::BBoxCookieJar;
 use alohomora::rocket::BBoxJson;
 use alohomora::rocket::RequestBBoxJson;
-use alohomora::rocket::{BBoxForm, FromBBoxForm, JsonResponse, ResponseBBoxJson, route};
+use alohomora::rocket::{JsonResponse, ResponseBBoxJson, route};
 use core_tahini_utils::policies::*;
 
-use llm_tahini_utils::service::TahiniInferenceClient;
+use core_tahini_utils::types::{BBoxConversation, LLMError, LLMResponse, Message, UserPrompt};
 use database_tahini_utils::types::{CHATUID, DatabaseRetrieveForm, DatabaseStoreForm};
-use core_tahini_utils::types::{Message, LLMError, LLMResponse, BBoxConversation, UserPrompt};
+use llm_tahini_utils::service::TahiniInferenceClient;
 use std::collections::HashMap;
 use std::time::Duration;
 use std::time::SystemTime;
@@ -31,21 +28,23 @@ use crate::SERVER_ADDRESS;
 use crate::ads::send_to_marketing;
 use crate::database::get_default_user;
 use crate::database::store_to_database;
+use crate::policies::ad_policy::AdPolicy;
+use crate::policies::login_uuid::UserIdWebPolicy;
 
 #[derive(Clone, RequestBBoxJson)]
 pub(crate) struct InferenceRequest {
     pub user: Option<BBox<String, UsernamePolicy>>,
-    // pub uuid: Option<BBox<String, UsernamePolicy>>,
-    pub conv_id: BBox<Option<String>, UsernamePolicy>,
+    pub uuid: Option<BBox<String, UserIdWebPolicy>>,
+    pub conv_id: BBox<Option<String>, UserIdWebPolicy>,
     pub conversation: BBoxConversation,
     pub nb_token: u32,
 }
 
 #[derive(Clone, ResponseBBoxJson)]
 pub(crate) struct InferenceResponse {
-    infered_tokens: BBox<Message, PromptPolicy>,
-    ad: Option<BBox<String, PromptPolicy>>,
-    db_uuid: Option<CHATUID>,
+    infered_tokens: BBox<Message, MessagePolicy>,
+    ad: Option<BBox<String, AdPolicy>>,
+    db_uuid: Option<BBox<String, UserIdWebPolicy>>,
 }
 
 fn fix_policy<T, P1: Policy + Into<P2>, P2: Policy>(a: BBox<T, P1>) -> BBox<T, P2> {
@@ -69,7 +68,7 @@ fn fix_policy<T, P1: Policy + Into<P2>, P2: Policy>(a: BBox<T, P1>) -> BBox<T, P
     )
 }
 
-async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, PromptPolicy>> {
+async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, MessagePolicy>> {
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5000)).await?;
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
@@ -130,7 +129,7 @@ pub(crate) async fn inference(
                     role: "error".to_string(),
                     content: "LLM Internal error".to_string(),
                 },
-                PromptPolicy::default(),
+                MessagePolicy::default(),
             ),
             None,
             None,
@@ -140,13 +139,13 @@ pub(crate) async fn inference(
     //TODO(douk): Change with #[checked] RPC annotation
     let conv_id = match verify_if_send_to_db(tokens.policy()) {
         false => None,
-        true => match store_to_database(DatabaseStoreForm {
-            uuid: uuid.clone(),
-            message: conversation
+        true => match store_to_database(
+            uuid.clone(),
+            data.conv_id.clone(),
+            conversation
                 .clone()
                 .into_ppr(PPR::new(|conv: Vec<Message>| conv.last().unwrap().clone())),
-            conv_id: data.conv_id.clone(),
-        })
+        )
         .await
         {
             Ok(conv_id) => Some(conv_id),
@@ -157,11 +156,11 @@ pub(crate) async fn inference(
         },
     };
     if conv_id.is_some() {
-        match store_to_database(DatabaseStoreForm {
-            uuid: uuid.clone(),
-            conv_id: conv_id.clone().unwrap().into_ppr(PPR::new(|x| Some(x))),
-            message: tokens.clone(),
-        })
+        match store_to_database(
+            uuid.clone(),
+            conv_id.clone().unwrap().into_ppr(PPR::new(|x| Some(x))),
+            tokens.clone(),
+        )
         .await
         {
             Ok(_) => (),
@@ -203,9 +202,9 @@ fn verify_if_send_to_marketing<P: Policy>(p: &P) -> bool {
 }
 
 fn construct_answer(
-    inf_res: &BBox<Message, PromptPolicy>,
-    db_uid: Option<CHATUID>,
-    ad: Option<BBox<String, PromptPolicy>>,
+    inf_res: &BBox<Message, MessagePolicy>,
+    db_uid: Option<BBox<String, UserIdWebPolicy>>,
+    ad: Option<BBox<String, AdPolicy>>,
 ) -> JsonResponse<InferenceResponse, ()> {
     JsonResponse(
         InferenceResponse {

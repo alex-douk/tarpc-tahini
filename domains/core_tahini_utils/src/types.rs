@@ -5,7 +5,7 @@ use alohomora::{AlohomoraType, TahiniType};
 use std::collections::HashMap;
 use alohomora::tarpc::{TahiniDeserialize, TahiniSerialize};
 
-use crate::policies::PromptPolicy;
+use crate::policies::MessagePolicy;
 
 //#[derive(TahiniType)]
 #[derive(TahiniDeserialize, Clone, Debug, TahiniType)]
@@ -16,10 +16,10 @@ pub struct UserPrompt {
 
 #[derive(TahiniDeserialize, Clone, Debug, TahiniType)]
 pub struct LLMResponse {
-    pub infered_tokens: BBox<Result<Message, LLMError>, PromptPolicy>,
+    pub infered_tokens: BBox<Result<Message, LLMError>, MessagePolicy>,
 }
 
-pub type BBoxConversation = BBox<Vec<Message>, PromptPolicy>;
+pub type BBoxConversation = BBox<Vec<Message>, MessagePolicy>;
 
 #[derive(TahiniSerialize, RequestBBoxJson, TahiniDeserialize, Clone, Debug, ResponseBBoxJson)]
 pub struct Message {

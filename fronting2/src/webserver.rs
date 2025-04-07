@@ -2,11 +2,11 @@ use rocket::Build;
 use alohomora::rocket::{BBoxRocket, routes};
 use std::net::{IpAddr, Ipv4Addr};
 
+mod routes;
+pub(crate) mod policies;
+pub(crate) mod adapters;
+use self::routes::*;
 
-mod inference;
-mod database;
-mod login;
-mod ads;
 
 //TODO(douk): Hacky way of sharing a single host. 
 //Will have to get changed for static attestation for sure

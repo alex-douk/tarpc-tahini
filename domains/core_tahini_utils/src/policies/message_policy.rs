@@ -20,14 +20,15 @@ pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 #[derive(TahiniSerialize, TahiniDeserialize, Clone, Debug, Default, PartialEq)]
 #[schema_policy(table = "conversations", column = 3)]
 #[schema_policy(table = "conversations", column = 4)]
-pub struct PromptPolicy {
+pub struct MessagePolicy {
     pub storage: bool,
     pub marketing_consent: bool,
     pub third_party_consent: HashMap<String, bool>,
     pub unprotected_image_gen: bool,
+    pub reinforcement_learning_consent: bool,
 }
 
-impl Policy for PromptPolicy {
+impl Policy for MessagePolicy {
     fn name(&self) -> String {
         "PromptPolicy".to_string()
     }
@@ -60,7 +61,7 @@ impl Policy for PromptPolicy {
         &self,
         other: alohomora::policy::AnyPolicy,
     ) -> Result<alohomora::policy::AnyPolicy, ()> {
-        if other.is::<PromptPolicy>() {
+        if other.is::<MessagePolicy>() {
             self.join_logic(other.specialize().map_err(|_| ())?)
                 .map(|pol| pol.into_any())
         } else if other.is::<UsernamePolicy>() {
@@ -89,11 +90,13 @@ impl Policy for PromptPolicy {
         }
 
         //Take the AND of each
-        Ok(PromptPolicy {
+        Ok(MessagePolicy {
             third_party_consent: hashmap,
             storage: self.storage && other.storage,
             marketing_consent: self.marketing_consent && other.marketing_consent,
             unprotected_image_gen: self.unprotected_image_gen && other.unprotected_image_gen,
+            reinforcement_learning_consent: self.reinforcement_learning_consent
+                && other.reinforcement_learning_consent,
         })
     }
 
@@ -112,7 +115,7 @@ pub enum InferenceReason {
     SendToDB,
 }
 
-impl FrontendPolicy for PromptPolicy {
+impl FrontendPolicy for MessagePolicy {
     fn from_request<'a, 'r>(request: &'a RocketRequest<'r>) -> Self
     where
         Self: Sized,
@@ -131,11 +134,14 @@ impl FrontendPolicy for PromptPolicy {
                 Some(c) => bool::from_str(c.value()).unwrap_or(false),
             });
         }
-        PromptPolicy {
+        let reinforcement_learning_consent =
+            bool::from_str(request.cookies().get("rl_consent").unwrap().value()).unwrap();
+        MessagePolicy {
             third_party_consent: hashmap,
             storage: no_storage,
             marketing_consent,
             unprotected_image_gen,
+            reinforcement_learning_consent
         }
     }
 
@@ -151,7 +157,7 @@ impl FrontendPolicy for PromptPolicy {
     }
 }
 
-impl SchemaPolicy for PromptPolicy {
+impl SchemaPolicy for MessagePolicy {
     fn from_row(_table_name: &str, row: &Vec<Value>) -> Self
     where
         Self: Sized,
@@ -167,11 +173,13 @@ impl SchemaPolicy for PromptPolicy {
                 HashMap::<String, bool>::new()
             }
         };
-        PromptPolicy {
+        MessagePolicy {
             third_party_consent: hashmap,
             storage: BBoxFromValue::from_value(row[5].clone()),
             marketing_consent: BBoxFromValue::from_value(row[6].clone()),
             unprotected_image_gen: BBoxFromValue::from_value(row[7].clone()),
+            //TODO(douk): Change schema to take into account
+            reinforcement_learning_consent: false
         }
     }
 }
