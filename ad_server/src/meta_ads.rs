@@ -1,7 +1,7 @@
 use alohomora::bbox::BBox as PCon;
 use alohomora::fold::fold;
 use alohomora::pure::PrivacyPureRegion as PPR;
-use services_utils::policies::MarketingPolicy;
+use advertisement_tahini_utils::policies::MarketingPolicy;
 // use keyword_extraction::yake::{Yake, YakeParams};
 // use stop_words::{get, LANGUAGE};
 use crate::parse_conversation_into_topics;

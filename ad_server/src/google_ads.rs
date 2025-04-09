@@ -1,7 +1,7 @@
 use alohomora::bbox::BBox as PCon;
 use alohomora::fold::fold;
 use alohomora::pure::PrivacyPureRegion as PPR;
-use services_utils::policies::MarketingPolicy;
+use advertisement_tahini_utils::policies::MarketingPolicy;
 use crate::parse_conversation_into_topics;
 
 static GOOGLE_AD_ANONYMOUS: &str = "Find more about {} on [https://google.com](Google)";

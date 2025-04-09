@@ -1,7 +1,8 @@
 use rand::seq::{IndexedRandom, IteratorRandom};
 //Clone model just clones the reference
-use services_utils::policies::marketing_policy::MarketingReason;
-use services_utils::policies::{MarketingPolicy, marketing_policy::THIRD_PARTY_PROCESSORS};
+
+use advertisement_tahini_utils::policies::MarketingReason;
+use advertisement_tahini_utils::policies::{MarketingPolicy, THIRD_PARTY_PROCESSORS};
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 //Required for model locking across async tasks
 use tokio::sync::Mutex;
@@ -29,9 +30,9 @@ use alohomora::policy::Policy;
 use alohomora::policy::Reason;
 use alohomora::pure::PrivacyPureRegion as PPR;
 
+use advertisement_tahini_utils::service::Advertisement;
 //Application-wide mods
-use services_utils::rpc::marketing::Advertisement;
-use services_utils::types::marketing_types::{Ad, MarketingData};
+use advertisement_tahini_utils::types::{Ad, MarketingData};
 mod email;
 mod google_ads;
 mod meta_ads;
@@ -146,7 +147,7 @@ impl Advertisement for AdServer {
         self,
         context: tarpc::context::Context,
         prompt: PCon<MarketingData, MarketingPolicy>,
-    ) -> services_utils::types::marketing_types::Ad {
+    ) -> Ad {
         let strategy = ad_strategy(prompt.policy());
         let tpd = ThirdPartyProcessorData {
             username: prompt
