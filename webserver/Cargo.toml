@@ -10,7 +10,6 @@ tokio = { version = "1.42.0", features = ["full", "rt", "rt-multi-thread", "toki
 tokio-macros = "2.4.0"
 tokio-util = "0.7.13"
 alohomora = { version = "0.1.0", path = "../Sesame/alohomora", default-features = false, features = ["alohomora_derive", "derive", "tahini"] }
-services_utils = {version = "0.1.0", path= "../utils"}
 anyhow = "1.0.94"
 tarpc = "0.34.0"
 rocket = { git = "https://github.com/KinanBab/Rocket.git", branch = "main", features = ["json"]}

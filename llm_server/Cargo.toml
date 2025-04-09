@@ -24,7 +24,6 @@ serde_json = "1.0.132"
 tokio-stream = "0.1.16"
 educe = { version = "0.6.0", features = ["full"] }
 alohomora = { version = "0.1.0", path = "../Sesame/alohomora", default-features = false, features = ["alohomora_derive", "derive", "tahini"] }
-# services_utils = {version = "0.1.0", path= "../utils"}
 core_tahini_utils = {version = "0.1.0", path = "../domains/core_tahini_utils/"}
 llm_tahini_utils = {version = "0.1.0", path = "../domains/llm_tahini_utils/"}
 candle-core = "0.8.4"

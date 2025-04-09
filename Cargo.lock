@@ -6,6 +6,7 @@ version = 4
 name = "ad_server"
 version = "0.1.0"
 dependencies = [
+ "advertisement_tahini_utils",
  "alohomora",
  "futures",
  "futures-util",
@@ -13,7 +14,6 @@ dependencies = [
  "lettre",
  "lettre_email",
  "rand 0.9.0",
- "services_utils",
  "stop-words",
  "tarpc",
  "tokio",
@@ -1108,7 +1108,6 @@ dependencies = [
  "futures-util",
  "serde",
  "serde_json",
- "services_utils",
  "slog",
  "tarpc",
  "tokio",
@@ -1715,7 +1714,6 @@ dependencies = [
  "rand 0.9.0",
  "rocket",
  "serde",
- "services_utils",
  "tarpc",
  "tokio",
  "tokio-macros",
@@ -5598,16 +5596,6 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
-]
-
-[[package]]
-name = "services_utils"
-version = "0.1.0"
-dependencies = [
- "alohomora",
- "serde",
- "serde_json",
- "tarpc",
 ]
 
 [[package]]
