@@ -62,8 +62,8 @@ impl<
         context: &alohomora::tarpc::context::TahiniContext,
     ) -> Result<DatabaseStoreForm, String> {
         let err = Err("Could not transform into DatabaseStoreForm".to_string());
-        match context.service {
-            "Database" => match context.rpc {
+        match context.service.as_str() {
+            "Database" => match context.rpc.as_str() {
                 "store_prompt" => Ok(DatabaseStoreForm {
                     uuid: self.uuid.transform_into(context)?,
                     conv_id: self.conv_id.transform_into(context)?,
@@ -86,8 +86,8 @@ impl<
         context: &alohomora::tarpc::context::TahiniContext,
     ) -> Result<DatabaseRetrieveForm, String> {
         let err = Err(format!("Could not transform into DatabaseRetrieveForm with context {}.{}", context.service, context.rpc));
-        match context.service {
-            "Database" => match context.rpc {
+        match context.service.as_str() {
+            "Database" => match context.rpc.as_str() {
                 "retrieve_prompt" => Ok(DatabaseRetrieveForm {
                     uuid: self.uuid.transform_into(context)?,
                     conv_id: self.conv_id.transform_into(context)?,

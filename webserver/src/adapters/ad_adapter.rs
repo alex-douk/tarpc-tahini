@@ -30,8 +30,8 @@ impl PolicyFrom<MarketingPolicy> for AdPolicy {
     where
         Self: Sized,
     {
-        match context.service {
-            "Advertisement" => match context.rpc {
+        match context.service.as_str() {
+            "Advertisement" => match context.rpc.as_str() {
                 "auction_bidding" => Ok(Self),
                 _ => Err("Data from unauthorized Advertisement RPC call".to_string()),
             },
@@ -43,8 +43,8 @@ impl PolicyFrom<MarketingPolicy> for AdPolicy {
 impl PolicyInto<MarketingPolicy> for super::PolicyAdapter<PolicyAnd<UsernamePolicy, MessagePolicy>> {
     fn into_policy(self, context: &TahiniContext) -> Result<MarketingPolicy, String> {
         let (p1, p2) = self.0.extract_policies();
-        match context.service {
-            "Advertisement" => match context.rpc {
+        match context.service.as_str() {
+            "Advertisement" => match context.rpc.as_str() {
                 "auction_bidding" => Ok(MarketingPolicy {
                     no_storage: p2.storage,
                     targeted_ads_consent: p1.targeted_ads_consent,

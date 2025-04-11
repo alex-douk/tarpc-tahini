@@ -5,10 +5,13 @@ use alohomora::{
     policy::PolicyAnd,
     pure::PrivacyPureRegion,
     rocket::{JsonResponse, route},
+    tarpc::traits::Fromable,
 };
 
 use advertisement_tahini_utils::{
-    THIRD_PARTY_PROCESSORS, service::TahiniAdvertisementClient, types::MarketingData,
+    THIRD_PARTY_PROCESSORS,
+    service::TahiniAdvertisementClient,
+    types::{Ad, MarketingData},
 };
 use core_tahini_utils::{
     funcs::marketing_parse_conv,
@@ -61,10 +64,16 @@ pub(crate) async fn send_to_marketing(
     let stream = TcpStream::connect((SERVER_ADDRESS, 8002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
 
-    let ad: AdAdapter = TahiniAdvertisementClient::new(Default::default(), transport)
+    let ad: Fromable<Ad> = TahiniAdvertisementClient::new(Default::default(), transport)
         .spawn()
         .auction_bidding(context::current(), payload)
         .await
         .unwrap();
-    ad.0
+
+    let bbb = ad.clone().transform_into::<Ad>();
+    println!("{:?}", bbb);
+
+    ad.transform_into::<AdAdapter>()
+        .expect("Couldn't transform the data because of context")
+        .0
 }

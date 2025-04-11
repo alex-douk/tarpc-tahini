@@ -15,7 +15,7 @@ impl PolicyFrom<UserIdDBPolicy> for UserIdWebPolicy {
             "Policy transformation not allowed from {}",
             other_policy.name()
         ));
-        match context.service {
+        match context.service.as_str() {
             "Database" => Ok(UserIdWebPolicy),
             _ => error,
         }
@@ -27,7 +27,7 @@ impl PolicyInto<UserIdDBPolicy> for UserIdWebPolicy {
         self,
         context: &alohomora::tarpc::context::TahiniContext,
     ) -> Result<UserIdDBPolicy, String> {
-        match context.service {
+        match context.service.as_str() {
             "Database" => Ok(UserIdDBPolicy),
             _ => Err(format!(
                 "Policy transformation not allowed from {}",

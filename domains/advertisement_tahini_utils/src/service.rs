@@ -1,4 +1,5 @@
 use crate::policies::MarketingPolicy;
+use alohomora::tarpc::traits::Fromable;
 use crate::types::{Ad, MarketingData};
 use alohomora::bbox::BBox;
 use alohomora::tahini_service;

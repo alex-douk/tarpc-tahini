@@ -15,8 +15,8 @@ impl PolicyInto<HistoryPolicy> for ConversationMetadataPolicy {
             context.service,
             context.rpc
         ));
-        match context.service {
-            "Database" => match context.rpc {
+        match context.service.as_str() {
+            "Database" => match context.rpc.as_str() {
                 "fetch_history_headers" => Ok(HistoryPolicy),
                 _ => err,
             },
