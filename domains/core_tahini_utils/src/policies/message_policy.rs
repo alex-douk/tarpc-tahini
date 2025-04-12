@@ -1,5 +1,5 @@
 use alohomora::db::{BBoxFromValue, Value};
-use alohomora::policy::{AnyPolicy, PolicyAnd, schema_policy};
+use alohomora::policy::{schema_policy, AnyPolicy, PolicyAnd, PolicyFrom};
 use alohomora::tarpc::{TahiniDeserialize, TahiniSerialize};
 use alohomora::{
     policy::{FrontendPolicy, Policy, Reason, SchemaPolicy},

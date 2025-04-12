@@ -1,8 +1,7 @@
 use crate::policies::message_policy::InferenceReason;
 use alohomora::db::{BBoxFromValue, Value};
 use alohomora::policy::{
-    AnyPolicy, FrontendPolicy, Policy, PolicyAnd, Reason, SchemaPolicy,
-    schema_policy,
+    schema_policy, AnyPolicy, FrontendPolicy, Policy, PolicyAnd, PolicyFrom, Reason, SchemaPolicy
 };
 use alohomora::rocket::{RocketCookie, RocketRequest};
 use serde_json::from_str;
@@ -202,20 +201,3 @@ impl Policy for AbsolutePolicy {
         AnyPolicy::new(self)
     }
 }
-
-// impl PolicyInto<MarketingPolicy> for PolicyAnd<UsernamePolicy, PromptPolicy> {
-//     fn into_policy(self, context: &TahiniContext) -> Result<MarketingPolicy, String> {
-//         let (p1, p2) = self.extract_policies();
-//         match context.service {
-//             "Advertisement" => match context.rpc {
-//                 "auction_bidding" => Ok(MarketingPolicy {
-//                     no_storage: p2.storage,
-//                     targeted_ads_consent: p1.targeted_ads_consent,
-//                     third_party_processing: p2.third_party_consent.clone(),
-//                 }),
-//                 _ => panic!("Transformation not allowed for this RPC"),
-//             },
-//             _ => panic!("Transformation not allowed for this service"),
-//         }
-//     }
-// }

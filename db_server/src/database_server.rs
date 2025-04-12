@@ -93,16 +93,18 @@ impl Database for DatabaseServer {
     async fn store_prompt(
         self,
         _ctxt: tarpc::context::Context,
-        form: DatabaseStoreForm,
+        uuid: PCon<String, UserIdDBPolicy>,
+        conv_id: PCon<Option<String>, UserIdDBPolicy>,
+        message: PCon<Message, MessagePolicy>,
     ) -> Result<CHATUID, PolicyError> {
-        let conv_uid = form.conv_id.into_ppr(PPR::new(|conv_id| match conv_id {
+        let conv_uid = conv_id.into_ppr(PPR::new(|conv_id| match conv_id {
             None => format!("{}", Uuid::new_v4()),
             Some(t) => t,
         }));
         let mut backend = self.conn.lock().await;
         let row = backend.prep_exec(
             "SELECT * FROM users WHERE user_id = ? ",
-            (form.uuid.clone(),),
+            (uuid.clone(),),
             Context::empty(),
         );
 
@@ -110,10 +112,10 @@ impl Database for DatabaseServer {
             from_value::<String, UsernamePolicy>(row[0][1].clone()).expect("Row malformed");
 
         let pol_parameters = (
-            form.message.policy().storage,
-            form.message.policy().marketing_consent,
-            form.message.policy().unprotected_image_gen,
-            serde_json::to_string(&form.message.policy().third_party_consent)
+            message.policy().storage,
+            message.policy().marketing_consent,
+            message.policy().unprotected_image_gen,
+            serde_json::to_string(&message.policy().third_party_consent)
                 .unwrap_or("{}".to_string()),
         );
 
@@ -122,9 +124,9 @@ impl Database for DatabaseServer {
             (
                 None::<u8>,
                 conv_uid.clone(),
-                form.uuid,
-                form.message.clone().into_ppr(PPR::new(|x: Message| x.role)),
-                form.message.into_ppr(PPR::new(|x: Message| x.content)),
+                uuid,
+                message.clone().into_ppr(PPR::new(|x: Message| x.role)),
+                message.into_ppr(PPR::new(|x: Message| x.content)),
                 pol_parameters.0,
                 pol_parameters.1,
                 pol_parameters.2,
@@ -143,12 +145,13 @@ impl Database for DatabaseServer {
     async fn retrieve_prompt(
         self,
         _context: tarpc::context::Context,
-        retrieve: DatabaseRetrieveForm,
+        uuid: PCon<String, UserIdDBPolicy>,
+        conv_id: PCon<String, UserIdDBPolicy>,
     ) -> Option<BBoxConversation> {
         let mut backend = self.conn.lock().await;
         let res = backend.prep_exec(
             "SELECT * FROM conversations WHERE conversation_id = ? AND user_id = ? ORDER BY message_id ASC",
-            (retrieve.conv_id, retrieve.uuid),
+            (conv_id, uuid),
             Context::empty(),
         );
         let parsed = res

@@ -2,19 +2,17 @@ use alohomora::bbox::BBox;
 use alohomora::context::Context;
 use alohomora::pcr::PrivacyCriticalRegion;
 use alohomora::rocket::{BBoxCookieJar, JsonResponse, ResponseBBoxJson, get};
+use alohomora::tarpc::traits::Fromable;
 use core_tahini_utils::policies::{MessagePolicy, UsernamePolicy};
 use core_tahini_utils::types::{BBoxConversation, Message};
 use database_tahini_utils::service::TahiniDatabaseClient;
 use database_tahini_utils::types::DatabaseError;
 use database_tahini_utils::types::PolicyError;
 use std::collections::HashMap;
-use tarpc::client::RpcError;
 use tarpc::context;
 
 use crate::SERVER_ADDRESS;
-use crate::adapters::database_adapters::store_form::{RetrieveFormAdapter, StoreFormAdapter};
 use crate::policies::history::HistoryPolicy;
-use crate::policies::idiot::LeakyPolicy;
 use crate::policies::login_uuid::UserIdWebPolicy;
 use tarpc::serde_transport::new as new_transport;
 use tarpc::tokio_serde::formats::Json;
@@ -29,15 +27,16 @@ pub(crate) async fn store_to_database(
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-    let adapter = StoreFormAdapter::new(uuid, conv_id, message);
 
     let response = TahiniDatabaseClient::new(Default::default(), transport)
         .spawn()
-        .store_prompt(tarpc::context::current(), adapter)
+        .store_prompt(tarpc::context::current(), uuid, conv_id, message)
         .await;
 
     match response {
-        Ok(res) => res,
+        Ok(res) => res
+            .transpose()
+            .map(|x| x.transform_into().expect("Couldn't convert to local type")),
         //TODO(douk): Add better handling of remote calls (with retries and whatnot)
         Err(_) => Err(PolicyError),
     }
@@ -53,8 +52,11 @@ pub(crate) async fn register_user(
         .spawn()
         .register_user(context::current(), username)
         .await;
+
     match response {
-        Ok(r) => r,
+        Ok(r) => r
+            .transform_into()
+            .expect("Couldn't transform to local type"),
         Err(_) => Err(DatabaseError::InternalError),
     }
 }
@@ -71,7 +73,9 @@ pub(crate) async fn fetch_user(
         .await;
 
     match response {
-        Ok(r) => r,
+        Ok(r) => r
+            .transform_into()
+            .expect("Couldn't transform to local type"),
         Err(_) => Err(DatabaseError::InternalError),
     }
 }
@@ -80,19 +84,22 @@ pub(crate) async fn get_default_user() -> BBox<String, UserIdWebPolicy> {
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-    let response: Result<
-        Result<BBox<String, UserIdWebPolicy>, DatabaseError>,
-        tarpc::client::RpcError,
-    > = TahiniDatabaseClient::new(Default::default(), transport)
+    let response = TahiniDatabaseClient::new(Default::default(), transport)
         .spawn()
         .fetch_user(
             tarpc::context::current(),
             BBox::new("anonymous".to_string(), UsernamePolicy::default()),
         )
-        .await;
+        .await
+        .expect("RPC error");
+
     response
-        .expect("RPC error")
-        .expect("Couldn't fetch the default user")
+        .transpose()
+        .map(|x| {
+            x.transform_into()
+                .expect("Couldn't transform to local type")
+        })
+        .expect("Couldn't fetch default user")
 }
 
 #[derive(Clone, ResponseBBoxJson)]
@@ -121,7 +128,11 @@ pub(crate) async fn get_history(
         .await;
     match response {
         Ok(res) => JsonResponse(
-            HistoryResponse { history_list: res },
+            HistoryResponse {
+                history_list: res
+                    .transform_into()
+                    .expect("Couldn't transform to local type"),
+            },
             Context::new("history".to_string(), is_authenticated),
         ),
         //If any kind of error hapen on the remote, of course we fail to fetch
@@ -153,16 +164,10 @@ pub(crate) async fn fetch_conversation(
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-    //TODO(douk): Leaking data here
-    let _unboxed_data = leaky_retrieve(user_id.clone(), chat_id.clone()).await;
-    let response =
-        TahiniDatabaseClient::new(Default::default(), transport)
-            .spawn()
-            .retrieve_prompt(
-                tarpc::context::current(),
-                RetrieveFormAdapter::new(user_id, chat_id),
-            )
-            .await;
+    let response = TahiniDatabaseClient::new(Default::default(), transport)
+        .spawn()
+        .retrieve_prompt(tarpc::context::current(), user_id, chat_id)
+        .await;
     match response {
         Err(e) => {
             eprintln!("When fetching conversation details, received error : {}", e);
@@ -190,55 +195,4 @@ pub(crate) async fn delete_conversation(
             .await;
 
     response.map(|_| ()).map_err(|_| ())
-}
-
-pub(crate) async fn leaky_retrieve(
-    user_id: BBox<String, UserIdWebPolicy>,
-    chat_id: BBox<String, UserIdWebPolicy>,
-) -> Vec<Message> {
-    let codec_builder = LengthDelimitedCodec::builder();
-    let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
-    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-    let response: Result<Option<BBox<Vec<Message>, LeakyPolicy>>, RpcError> =
-        TahiniDatabaseClient::new(Default::default(), transport)
-            .spawn()
-            .retrieve_prompt(
-                tarpc::context::current(),
-                RetrieveFormAdapter::new(user_id, chat_id),
-            )
-            .await;
-    match response {
-        Err(e) => {
-            eprintln!("When fetching conversation details, received error : {}", e);
-            Vec::new()
-        }
-        Ok(boxed_conv) => {
-            if boxed_conv.is_some() {
-                boxed_conv
-                    .unwrap()
-                    .unbox(
-                        alohomora::context::Context::<()>::empty(),
-                        PrivacyCriticalRegion::new(
-                            |v: &Vec<Message>, _c| {println!("Data is {:?}", v); v.clone()},
-                            alohomora::pcr::Signature {
-                                username: "alexandre_doukhan@brown.edu",
-                                signature: "",
-                            },
-                            alohomora::pcr::Signature {
-                                username: "alexandre_doukhan@brown.edu",
-                                signature: "",
-                            },
-                            alohomora::pcr::Signature {
-                                username: "alexandre_doukhan@brown.edu",
-                                signature: "",
-                            },
-                        ),
-                        (),
-                    )
-                    .expect("Couldn't pass the policy check")
-            } else {
-                Vec::new()
-            }
-        }
-    }
 }
