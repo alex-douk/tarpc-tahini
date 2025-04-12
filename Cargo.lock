@@ -1700,27 +1700,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fronting2"
-version = "0.1.0"
-dependencies = [
- "advertisement_tahini_utils",
- "alohomora",
- "anyhow",
- "core_tahini_utils",
- "database_tahini_utils",
- "futures",
- "futures-util",
- "llm_tahini_utils",
- "rand 0.9.0",
- "rocket",
- "serde",
- "tarpc",
- "tokio",
- "tokio-macros",
- "tokio-util 0.7.14",
-]
-
-[[package]]
 name = "frunk"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7364,6 +7343,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2210b291f7ea53617fbafcc4939f10914214ec15aace5ba62293a668f322c5c9"
 dependencies = [
  "rustls-pki-types",
+]
+
+[[package]]
+name = "webserver"
+version = "0.1.0"
+dependencies = [
+ "advertisement_tahini_utils",
+ "alohomora",
+ "anyhow",
+ "core_tahini_utils",
+ "database_tahini_utils",
+ "futures",
+ "futures-util",
+ "llm_tahini_utils",
+ "rand 0.9.0",
+ "rocket",
+ "serde",
+ "tarpc",
+ "tokio",
+ "tokio-macros",
+ "tokio-util 0.7.14",
 ]
 
 [[package]]
