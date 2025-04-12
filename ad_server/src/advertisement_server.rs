@@ -145,8 +145,9 @@ fn local_process(data: ThirdPartyProcessorData) -> PCon<String, MarketingPolicy>
 impl Advertisement for AdServer {
     async fn auction_bidding(
         self,
-        context: tarpc::context::Context,
+        _context: tarpc::context::Context,
         prompt: PCon<MarketingData, MarketingPolicy>,
+        _billing: PCon<String, MarketingPolicy>
     ) -> Ad {
         let strategy = ad_strategy(prompt.policy());
         let tpd = ThirdPartyProcessorData {
