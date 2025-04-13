@@ -31,26 +31,35 @@ use alohomora::pcr::{PrivacyCriticalRegion as PCR, Signature};
 use alohomora::policy::{Policy, Reason};
 use alohomora::pure::PrivacyPureRegion as PPR;
 
-
 //Inference import
 //Internal LLM functionings
 mod model_backend;
 mod token_output_stream;
+mod utils;
+// mod quantized_gemma3;
 use crate::model_backend::{TextGeneration, create_pipeline};
 use anyhow::Error as E;
 
 //Tarpc + types
 
-
 use core_tahini_utils::funcs::parse_conversation;
-use llm_tahini_utils::service::Inference;
 use core_tahini_utils::types::{LLMError, LLMResponse, UserPrompt};
+use llm_tahini_utils::service::Inference;
 
 //Database import
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
-static SYSTEM_PROMPT: &str = "<start_of_turn>user
-You are a helpful assistant. You should reply to the user demands in a thoughtful yet concise manner. Do not go beyond the user's initial requests. Remain on topic, truthful, and accurate. Keep your response simple and short. Only answer the initial requests. Do not ask questions.<end_of_turn>";
+static SYSTEM_PROMPT: &str = "You are a helpful assistant. You are tasked with responding to user queries, in an accurate, up-to-date, truthful manner. Keep your replies short and polite, with professional language. Never answer beyond the user's queries. Always stay on topic. Reply in a minimal manner." ;//Your knowledge goes up to March, 2024. Today's date is April,9, 2025. At each turn, if you decide to invoke any of the function(s), it should be wrapped with ```tool_code```. The methods described below are imported and available, you can only use defined methods. The generated code should be readable and efficient. The response to a method will be wrapped in ```tool_output``` use it to call more tools or generate a helpful, friendly response. When using a ```tool_call``` think step by step why and how it should be used.
+// ```python
+// def web_search(search_string: str) -> str:
+//    \"\"\"Fetches up-to-date information on the research string given by the argument
+//    Args:
+//        search_string: The topic you want to search the internet for.
+//     Returns:
+//        The content of the two most relevant pages for this given search
+//     \"\"\"
+// ```
+// <end_of_turn>";
 
 #[derive(Clone)]
 pub struct InferenceServer {
@@ -64,7 +73,6 @@ impl InferenceServer {
         }
     }
 }
-
 
 fn apply_chat_template(
     conversation: BBoxConversation,
@@ -86,21 +94,25 @@ impl Inference for InferenceServer {
 
         let mut locked_model = self.model.lock_owned().await;
 
-        let conversation = apply_chat_template(prompt.conversation);
-        match conversation {
-            Err(e) => {
-                println!("Got an error parsing the conversation, we failed?");
+        // let conversation = apply_chat_template(prompt.conversation);
+        // match conversation {
+        //     Err(e) => {
+        //         println!("Got an error parsing the conversation, we failed?");
+        //
+        //         return LLMResponse {
+        //             infered_tokens: PCon::new(Err(e), pol.clone()),
+        //         };
+        //     }
+        //     _ => (),
+        // };
+        let parsed_conversation = prompt.conversation; //conversation.unwrap();
 
-                return LLMResponse {
-                    infered_tokens: PCon::new(Err(e), pol.clone()),
-                };
-            }
-            _ => (),
-        };
-        let parsed_conversation = conversation.unwrap();
-
-        let inf = PPR::new(move |unboxed_prompt: String| {
-            locked_model.run(unboxed_prompt.as_str(), prompt.nb_token as usize)
+        let inf = PPR::new(move |mut unboxed_prompt: Vec<Message>| {
+            unboxed_prompt.insert(0, Message {
+                role: "system".to_string(),
+                content: SYSTEM_PROMPT.to_string(),
+            });
+            locked_model.run(unboxed_prompt, prompt.nb_token as usize)
         });
 
         // Keeping it here in case i ever need it later

@@ -1,13 +1,23 @@
+use std::path::PathBuf;
+use std::str::FromStr;
+
 use crate::token_output_stream::TokenOutputStream;
+use crate::utils::TEMPLATE;
+use minijinja::{Environment, context, Error, ErrorKind};
+use core_tahini_utils::types::{Message, LLMError};
 use anyhow::Error as E;
 use candle_core::{DType, Device, Result as Res, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::generation::LogitsProcessor;
 use candle_transformers::models::gemma3::{Config as ConfigBase, Model as ModelBase};
+// use crate::quantized_gemma3::{Model as QuantModel, Config as QuantConfig};
+use candle_transformers::models::quantized_recurrent_gemma::Model;
 use hf_hub::api::sync::ApiBuilder;
 use hf_hub::{Repo, RepoType, api::sync::Api};
 use tokenizers::Tokenizer;
 
+// const MODEL_STR: &str = "google/gemma-3-12b-it-qat-q4_0-gguf";
+// const MODEL_STR: &str = "unsloth/gemma-3-12b-it-GGUF";
 const MODEL_STR: &str = "google/gemma-3-1b-it";
 
 pub struct TextGeneration {
@@ -42,7 +52,9 @@ impl TextGeneration {
         }
     }
 
-    pub fn run(&mut self, prompt: &str, sample_len: usize) -> Result<String, E> {
+    pub fn run(&mut self, prompt: Vec<Message>, sample_len: usize) -> Result<String, E> {
+        let prompt = apply_chat_template(prompt)?;
+        
         use std::io::Write;
         self.tokenizer.clear();
         self.model.clear_kv_cache();
@@ -113,6 +125,8 @@ impl TextGeneration {
             "\n{generated_tokens} tokens generated ({:.2} token/s)",
             generated_tokens as f64 / dt.as_secs_f64(),
         );
+        self.tokenizer.clear();
+        self.model.clear_kv_cache();
         Ok(llm_output)
     }
 
@@ -176,7 +190,10 @@ pub fn create_pipeline() -> Result<TextGeneration, E> {
     ));
 
     let tokenizer_file = repo.get("tokenizer.json")?;
+    // let tokenizer_file = PathBuf::from_str("/home/m3d0/.cache/huggingface/hub/models--google--gemma-3-12b-it-qat-q4_0-gguf/tokenizer.json")?;
     let filenames = vec![repo.get("model.safetensors")?];
+    // let filenames = repo.get("gemma-3-12b-it-Q3_K_M.gguf")?;
+    // let filenames = repo.get("gemma-3-12b-it-q4_0.gguf")?;
     // let filenames = hub_load_safetensors(&repo, "model.safetensors.index.json")?;
     let tokenizer = Tokenizer::from_file(tokenizer_file).map_err(E::msg)?;
     let config_file = repo.get("config.json")?;
@@ -186,7 +203,8 @@ pub fn create_pipeline() -> Result<TextGeneration, E> {
     } else {
         DType::F32
     };
-    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&filenames, dtype, &device)? };
+    // let vb = candle_transformers::quantized_var_builder::VarBuilder::from_gguf(&filenames, &device)?;
+    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&filenames, dtype , &device)? };
     let config: ConfigBase = serde_json::from_slice(&std::fs::read(config_file)?)?;
     //TODO(douk): When running on GPU, maybe have Flash-attention and bigger models
     let model = ModelBase::new(false, &config, vb)?;
@@ -211,6 +229,29 @@ pub fn create_pipeline() -> Result<TextGeneration, E> {
     Ok(pipeline)
 }
 
+fn apply_chat_template(conv: Vec<Message>) -> Result<String, E> {
+
+    fn trim(a: String) -> String {
+        a
+    }
+
+    fn raise_exception(detail: String) -> Result<(), Error> {
+        Err(Error::new(ErrorKind::SyntaxError, detail))
+    }
+
+    let mut env = Environment::new();
+
+    env.add_template("gemma", TEMPLATE)
+        .expect("Couldn't parse template");
+    // let conv = vec![CONVERSATION];
+    let context = context!(bos_token => "<bos>", messages => conv, add_generation_prompt => true);
+    env.add_filter("trim", trim);
+    env.add_function("raise_exception", raise_exception);
+    let template = env.get_template("gemma").unwrap();
+    let res = template.render(context);
+    res.map_err(|_| E::new(LLMError::ValidationError))
+
+}
 // fn hub_load_safetensors(
 //     repo: &hf_hub::api::sync::ApiRepo,
 //     json_file: &str,

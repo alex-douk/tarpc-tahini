@@ -30,6 +30,8 @@ candle-core = "0.8.4"
 candle-nn = "0.8.4"
 candle-examples = "0.8.4"
 candle-transformers = "0.8.4"
+minijinja = "2.9.0"
+tracing = "0.1.41"
 
 [[bin]]
 name = "llm_server"
