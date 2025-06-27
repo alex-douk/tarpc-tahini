@@ -25,7 +25,10 @@ Use the justfile provided to setup the project to work with [Tahini](https://git
 
 Usage:
 ```just
-#Compiles all services, and puts them in a common runtime directory (can be adapted for separate deployment configurations)
+#Compiles all services
+#Puts them in a common runtime directory
+#Generate project metadata for sidecar
+#This can be adapted for separate deployment configurations
 just setup_part1
 
 
@@ -33,7 +36,7 @@ just setup_part1
 #You should call tahini_lib's justfile toolchain at this moment
 #========================================
 
-# Copy certificates to runtime dir
+# Make certificates available to runtime
 just setup_part2
 
 #Launch webserver
