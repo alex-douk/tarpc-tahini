@@ -3,4 +3,9 @@
 .gradio/
 .env
 ./db_server/resources/config.toml
-./client/components/__pycache__/
+client/components/__pycache__/
+certificates/
+policy_hashes/
+attest.log
+runtime/
+project_metadata.toml
