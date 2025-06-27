@@ -1,5 +1,6 @@
 use alohomora::compose_policies;
 use alohomora::policy::{AnyPolicy, NoPolicy, Policy};
+use alohomora::tarpc::transport::new_tahini_transport;
 use backend::MySqlBackend;
 //Clone model just clones the reference
 use alohomora::db::{Value, from_value, from_value_or_null};
@@ -392,7 +393,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (stream, _peer_addr) = listener.accept().await.unwrap();
         let framed = codec_builder.new_framed(stream);
 
-        let transport = new_transport(framed, Json::default());
+        let transport = new_tahini_transport(framed, Json::default());
 
         // let transport = new_transport(framed, Bincode::default());
         let fut = TahiniBaseChannel::with_defaults(transport)

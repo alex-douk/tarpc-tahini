@@ -13,3 +13,7 @@ core_tahini_utils = {version = "0.1.0", path = "../core_tahini_utils/"}
 [lib]
 name="llm_tahini_utils"
 path="src/lib.rs"
+
+[features]
+client = ["alohomora/tahini_client"]
+server = ["alohomora/tahini_server"]

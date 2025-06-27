@@ -13,7 +13,7 @@ use futures::{
     Future, StreamExt,
     future::{self, Ready},
 };
-use tarpc::serde_transport::new as new_transport;
+use alohomora::tarpc::transport::new_tahini_transport as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio_util::codec::LengthDelimitedCodec;
 
@@ -147,7 +147,6 @@ impl Advertisement for AdServer {
         self,
         _context: tarpc::context::Context,
         prompt: PCon<MarketingData, MarketingPolicy>,
-        _billing: PCon<String, MarketingPolicy>
     ) -> Ad {
         let strategy = ad_strategy(prompt.policy());
         let tpd = ThirdPartyProcessorData {

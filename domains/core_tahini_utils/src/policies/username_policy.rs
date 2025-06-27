@@ -168,7 +168,7 @@ impl FrontendPolicy for UsernamePolicy {
 ///org nor be passed to checked RPCs.
 ///Such a policy can ensure that data paths terminating in an uncontrolled sink are taken into
 ///account.
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct AbsolutePolicy {}
 
 impl Policy for AbsolutePolicy {

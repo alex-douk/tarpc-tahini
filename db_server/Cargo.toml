@@ -10,8 +10,8 @@ tokio-util = "0.7.13"
 futures = "0.3.31"
 futures-util = "0.3.31"
 tarpc = "0.34.0"
-alohomora = { version = "0.1.0", path = "../Sesame/alohomora", default-features = false, features = ["alohomora_derive", "derive", "tahini"] }
-database_tahini_utils = {version = "0.1.0", path = "../domains/database_tahini_utils/"}
+alohomora = { version = "0.1.0", path = "../Sesame/alohomora/", default-features = false, features = ["alohomora_derive", "derive", "tahini", "tahini_server"] }
+database_tahini_utils = {version = "0.1.0", path = "../domains/database_tahini_utils/", features=["server"]}
 core_tahini_utils = {version = "0.1.0", path = "../domains/core_tahini_utils/"}
 slog = "2.7.0"
 uuid = { version = "1.16.0", features = ["v4"] }

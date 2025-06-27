@@ -1,34 +1,27 @@
 #![feature(auto_traits, negative_impls, min_specialization)]
 //Clone model just clones the reference
 use core_tahini_utils::{
-    policies::{InferenceReason, MessagePolicy},
+    policies::MessagePolicy,
     types::{BBoxConversation, Message},
 };
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 //Required for model locking across async tasks
 use tokio::sync::Mutex;
 
 //Channel transport Code
-use alohomora::tarpc::server::{TahiniBaseChannel, TahiniChannel};
+use alohomora::tarpc::{server::{TahiniBaseChannel, TahiniChannel}, transport::new_tahini_transport};
 use futures::{
     Future, StreamExt,
-    future::{self, Ready},
 };
-use tarpc::serde_transport::new as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio_util::codec::LengthDelimitedCodec;
 
 //Network code
 use std::net::{IpAddr, Ipv4Addr};
 use tokio::net::TcpListener;
-use tokio::net::TcpStream;
 
 //Sesame basics
 use alohomora::bbox::BBox as PCon;
-use alohomora::context::UnprotectedContext;
-use alohomora::fold::fold;
-use alohomora::pcr::{PrivacyCriticalRegion as PCR, Signature};
-use alohomora::policy::{Policy, Reason};
 use alohomora::pure::PrivacyPureRegion as PPR;
 
 //Inference import
@@ -38,7 +31,6 @@ mod token_output_stream;
 mod utils;
 // mod quantized_gemma3;
 use crate::model_backend::{TextGeneration, create_pipeline};
-use anyhow::Error as E;
 
 //Tarpc + types
 
@@ -94,18 +86,7 @@ impl Inference for InferenceServer {
 
         let mut locked_model = self.model.lock_owned().await;
 
-        // let conversation = apply_chat_template(prompt.conversation);
-        // match conversation {
-        //     Err(e) => {
-        //         println!("Got an error parsing the conversation, we failed?");
-        //
-        //         return LLMResponse {
-        //             infered_tokens: PCon::new(Err(e), pol.clone()),
-        //         };
-        //     }
-        //     _ => (),
-        // };
-        let parsed_conversation = prompt.conversation; //conversation.unwrap();
+        let parsed_conversation = prompt.conversation; 
 
         let inf = PPR::new(move |mut unboxed_prompt: Vec<Message>| {
             unboxed_prompt.insert(0, Message {
@@ -157,6 +138,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(model) => {
             println!("Successfully created the pipeline!");
 
+
             let listener = TcpListener::bind(&(SERVER_ADDRESS, 5000)).await.unwrap();
             let codec_builder = LengthDelimitedCodec::builder();
             let server = InferenceServer {
@@ -167,9 +149,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Accepted a connection");
                 let framed = codec_builder.new_framed(stream);
 
-                let transport = new_transport(framed, Json::default());
+                let transport = new_tahini_transport(framed, Json::default());
                 let fut = TahiniBaseChannel::with_defaults(transport)
-                    // .execute(server.serve());
                     .execute(server.clone().serve())
                     .for_each(wait_upon);
                 tokio::spawn(fut);

@@ -13,7 +13,10 @@ alohomora = { version = "0.1.0", path = "../Sesame/alohomora", default-features 
 anyhow = "1.0.94"
 tarpc = "0.34.0"
 serde = { version = "1.0.219", features = ["derive", "serde_derive"] }
-
+ml-dsa = { version = "0.0.4", features = ["pkcs8", "rand_core"] }
+rand = { version = "0.8.5", features = ["serde"] }
+aws-lc-rs = "1.13.1"
+socket2 = "0.5.9"
 
 [[bin]]
 name="server"

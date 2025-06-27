@@ -2,11 +2,12 @@ use advertisement_tahini_utils::{policies::MarketingPolicy, types::Ad as RemoteA
 use alohomora::{
     bbox::BBox,
     policy::{PolicyAnd, PolicyFrom, PolicyInto},
-    tarpc::{TahiniTransformFrom, TahiniTransformInto, context::TahiniContext},
+    tarpc::{TahiniTransformFrom, TahiniTransformInto, context::TahiniContext as ProtectedTahiniContext},
 };
 use core_tahini_utils::policies::{MessagePolicy, UsernamePolicy};
 
 use crate::policies::ad_policy::AdPolicy;
+use super::PolicyAdapter;
 
 pub struct AdAdapter(pub BBox<String, AdPolicy>);
 
@@ -40,8 +41,12 @@ impl PolicyFrom<MarketingPolicy> for AdPolicy {
     }
 }
 
-impl PolicyInto<MarketingPolicy> for super::PolicyAdapter<PolicyAnd<UsernamePolicy, MessagePolicy>> {
-    fn into_policy(self, context: &TahiniContext) -> Result<MarketingPolicy, String> {
+impl PolicyInto<MarketingPolicy> for 
+    PolicyAdapter<PolicyAnd<UsernamePolicy, MessagePolicy>> 
+{
+    fn into_policy(
+        self, context: &ProtectedTahiniContext
+        ) -> Result<MarketingPolicy, String> {
         let (p1, p2) = self.0.extract_policies();
         match context.service.as_str() {
             "Advertisement" => match context.rpc.as_str() {
@@ -56,3 +61,5 @@ impl PolicyInto<MarketingPolicy> for super::PolicyAdapter<PolicyAnd<UsernamePoli
         }
     }
 }
+
+

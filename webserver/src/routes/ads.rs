@@ -6,9 +6,10 @@ use alohomora::{
     fold::fold,
     policy::PolicyAnd,
     pure::PrivacyPureRegion,
-    rocket::{JsonResponse, route},
-    tarpc::traits::Fromable,
+    rocket::{route, JsonResponse},
+    tarpc::{traits::Fromable, transport::new_tahini_transport},
 };
+
 
 use advertisement_tahini_utils::{
     policies::MarketingPolicy, service::TahiniAdvertisementClient, types::{Ad, MarketingData}, THIRD_PARTY_PROCESSORS
@@ -62,22 +63,13 @@ pub(crate) async fn send_to_marketing(
 
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 8002)).await.unwrap();
-    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+    let transport = new_tahini_transport(codec_builder.new_framed(stream), Json::default());
 
-    let billing_pol = MarketingPolicy {
-        no_storage: false,
-        targeted_ads_consent: false,
-        third_party_processing: HashMap::new()
-    };
     let ad: Fromable<Ad> = TahiniAdvertisementClient::new(Default::default(), transport)
-        .spawn()
-        .auction_bidding(context::current(), payload, BBox::new("billing@tahini.org".to_string(), billing_pol))
+        .spawn().await
+        .auction_bidding(context::current(), payload)
         .await
         .unwrap();
-
-    //TODO(douk): Fix self-cast maybe? Might not have a reason to live
-    // let bbb = ad.clone().transform_into::<Ad>();
-    // println!("{:?}", bbb);
 
     ad.transform_into::<AdAdapter>()
         .expect("Couldn't transform the data because of context")

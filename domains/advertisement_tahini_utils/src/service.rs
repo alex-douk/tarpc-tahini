@@ -10,6 +10,5 @@ pub trait Advertisement {
     #[allow_client_transform]
     async fn auction_bidding(
         prompt: BBox<MarketingData, MarketingPolicy>,
-        billing_infomation: BBox<String, MarketingPolicy>,
     ) -> Ad;
 }

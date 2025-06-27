@@ -3,12 +3,17 @@ use alohomora::bbox::BBox;
 use alohomora::pcr::{PrivacyCriticalRegion, Signature};
 use alohomora::tarpc::client::new as new2;
 use alohomora::tarpc::enums::TahiniSafeWrapper;
+use service::test_keys;
 use std::net::{IpAddr, Ipv4Addr};
+use std::thread::sleep;
+use std::time::Duration;
 use tarpc::client::RpcError;
 use tarpc::serde_transport::new as new_transport;
+use alohomora::tarpc::transport::new_tahini_transport;
 use tarpc::tokio_serde::formats::Bincode;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
+use socket2::SockRef;
 use tokio_util::codec::LengthDelimitedCodec;
 // use alohomora::tarpc::hacky::ExamplePolicy;
 
@@ -27,7 +32,10 @@ static SENSITIVE_VALUE: i32 = 987654321;
 async fn main() -> anyhow::Result<()> {
     // check_format();
     // Standard tarpc code
+    let _ = test_keys();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5003)).await?;
+    // let stream = SockRef::from(&stream);
+    // stream.set_keepalive(true);
     let codec_builder = LengthDelimitedCodec::builder();
 
     let x: MyType = MyType {
@@ -36,18 +44,13 @@ async fn main() -> anyhow::Result<()> {
         c: Ok(4),
     };
 
-    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+    let transport = new_tahini_transport(codec_builder.new_framed(stream), Json::default());
     //
     // // Modified client instance
     //
-    let response: Result<BBox<String, ExamplePolicy>, RpcError> =
-        TahiniSimpleServiceClient::new(Default::default(), transport)
-            // The spawn call comes from the `NewClient` type which is unchanged
-            .spawn()
-            // // // This is a changed call: We redefine the service's Client API to be Tahini-protected.
-            // // // Note the API comes from the `TahiniSimpleClient` object, which is the only client
-            // // // available
-            // .test_types(tarpc::context::current(), x)
+    //
+    let active_client = TahiniSimpleServiceClient::new(Default::default(), transport).spawn().await;
+    let response = active_client
             .increment(
                 tarpc::context::current(),
                 BBox::new(SENSITIVE_VALUE, ExamplePolicy { field: 201 }),

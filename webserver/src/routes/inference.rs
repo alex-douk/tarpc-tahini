@@ -16,7 +16,7 @@ use std::time::Duration;
 use std::time::SystemTime;
 use tarpc::context;
 
-use tarpc::serde_transport::new as new_transport;
+use alohomora::tarpc::transport::new_tahini_transport as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
@@ -53,7 +53,7 @@ async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, 
     let mut context = context::current();
     context.deadline = SystemTime::now() + Duration::from_secs(45);
     let response = TahiniInferenceClient::new(Default::default(), transport)
-        .spawn()
+        .spawn().await
         .inference(context, prompt)
         .await?;
 

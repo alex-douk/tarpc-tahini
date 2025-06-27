@@ -10,13 +10,13 @@ tokio-util = "0.7.13"
 futures = "0.3.31"
 futures-util = "0.3.31"
 tarpc = "0.34.0"
-alohomora = { version = "0.1.0", path = "../Sesame/alohomora", default-features = false, features = ["alohomora_derive", "derive", "tahini"] }
+alohomora = { version = "0.1.0", path = "../Sesame/alohomora/", default-features = false, features = ["alohomora_derive", "derive", "tahini", "tahini_server"] }
 lettre = "0.9.2"
 lettre_email = "0.9.2"
 keyword_extraction = { version = "1.5.0", features = ["yake"] }
 stop-words = "0.8.1"
 rand = "0.9.0"
-advertisement_tahini_utils = { version = "0.1.0", path = "../domains/advertisement_tahini_utils/"}
+advertisement_tahini_utils = { version = "0.1.0", path = "../domains/advertisement_tahini_utils/", features = ["server"]}
 
 
 [[bin]]

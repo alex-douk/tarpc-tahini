@@ -1,0 +1,17 @@
+[certificates]
+llm_server = "../certificates/llm_server_certificate.json"
+ad_server = "../certificates/ad_server_certificate.json"
+db_server = "../certificates/db_server_certificate.json"
+
+[keys]
+certificate_key = "../keys/certif_key/certificate_verifier.der"
+attestation_key = "../keys/runtime_key/runtime_client_pkey.der"
+
+[sidecar]
+host = ""
+port = 4000
+
+[service_mapping]
+llm_server = "Inference"
+db_server = "Database"
+ad_server = "Advertisement"
