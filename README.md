@@ -5,38 +5,40 @@ a Tahini wrapper around a tarpc service.
 
 # Examples
 
-## Simple example
-
-### Description
-
-This example contains two RPC calls :
-- one to test the overall infrastructure (jsut increments a counter)
-- One to check various types for serializability
-
-### Run
-Server-side : `cargo run --bin simple_server`
-Client-side : `cargo run --bin simple_client`
-
 ## LLM example
 
-### Description
+This example is made of five total components :
 
-This example is made of three binaries:
-- `llm_server.rs` : Contains an LLM inference server that takes a prompt as an input, does inference on it. In case of success, store the conversation to a database. Return to a user the infered tokens or an error, with the associated UUID of the DB entry.
+- `llm_server` : Simple LLM inference server. 
 
-- `database_server.rs`: Contains a two-level database: One table per user, which contains UUID: chats pairs. Returns the optional entry if it exists for this (user, UUID) pair.
+- `db_server`: Database server that stores conversations, user privacy preferences and user login information.
 
-- `llm_client.rs`: Requires inference to the LLM server, then tries to access the database entry associated with the UUID. Also tries to access a nonexsistent UUID for testing.
+- `ad_server`: A service outside of the main "company" that serves ads based on prompt content.
 
-### Run
-LLM server: `cargo run --bin llm_server [--release]`
-Run as release for better performance
+- `webserver`: Webserver handling coordination between services and the end-client
 
-Database server: `cargo run --bin llm_db`
+- `client`: Python webapp running locally. Provides an interface to the webserver. Requires `streamlit`.
 
-Client: `cargo run --bin llm_client`
+## Run
 
-# Code changes
+Use the justfile provided to setup the project to work with [Tahini](https://github.com/alex-douk/tahini_lib).
 
-## Changes to Sesame
-A lot: TODO
+Usage:
+```just
+#Compiles all services, and puts them in a common runtime directory (can be adapted for separate deployment configurations)
+just setup_part1
+
+
+#========================================
+#You should call tahini_lib's justfile toolchain at this moment
+#========================================
+
+# Copy certificates to runtime dir
+just setup_part2
+
+#Launch webserver
+just run_webserver
+
+#Launch python client 
+just run_client
+```
