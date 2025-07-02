@@ -1,16 +1,12 @@
 use alohomora::bbox::BBox as PCon;
 use alohomora::context::Context;
-use alohomora::pcr::PrivacyCriticalRegion;
 use alohomora::rocket::{BBoxCookieJar, JsonResponse, ResponseBBoxJson, get};
-use alohomora::tarpc::traits::Fromable;
-use alohomora::tarpc::transport::new_tahini_transport;
 use core_tahini_utils::policies::{MessagePolicy, UsernamePolicy};
 use core_tahini_utils::types::{BBoxConversation, Message};
 use database_tahini_utils::service::TahiniDatabaseClient;
 use database_tahini_utils::types::DatabaseError;
 use database_tahini_utils::types::PolicyError;
 use std::collections::HashMap;
-use std::default;
 use std::sync::OnceLock;
 use tarpc::context;
 
@@ -29,17 +25,27 @@ pub(crate) async fn store_to_database(
     conv_id: PCon<Option<String>, UserIdWebPolicy>,
     message: PCon<Message, MessagePolicy>, // submit_form: DatabaseStoreForm,
 ) -> Result<PCon<String, UserIdWebPolicy>, PolicyError> {
-    let codec_builder = LengthDelimitedCodec::builder();
-    let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
-    let transport = new_tahini_transport(codec_builder.new_framed(stream), Json::default());
-
-    let tarpc_request_context = tarpc::context::current();
-
-    let response = TahiniDatabaseClient::new(Default::default(), transport)
-        .spawn()
-        .await
-        .store_prompt(tarpc_request_context, uuid, conv_id, message)
-        .await;
+    let response = match DBCLIENT.get() {
+        None => {
+            println!("Creating new DB client");
+            let codec_builder = LengthDelimitedCodec::builder();
+            let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
+            let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+            let client = TahiniDatabaseClient::new(Default::default(), transport)
+                .spawn()
+                .await;
+            let resp = client
+                .store_prompt(context::current(), uuid, conv_id, message)
+                .await;
+            let _ = DBCLIENT.set(client);
+            resp
+        }
+        Some(client) => {
+            client
+                .store_prompt(context::current(), uuid, conv_id, message)
+                .await
+        }
+    };
 
     match response {
         Ok(res) => res.transpose().map(|x| {
@@ -55,6 +61,7 @@ pub(crate) async fn register_user(
 ) -> Result<PCon<String, UserIdWebPolicy>, DatabaseError> {
     let response = match DBCLIENT.get() {
         None => {
+            println!("Creating new DB client");
             let codec_builder = LengthDelimitedCodec::builder();
             let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
             let transport = new_transport(codec_builder.new_framed(stream), Json::default());
@@ -81,6 +88,7 @@ pub(crate) async fn fetch_user(
 ) -> Result<PCon<String, UserIdWebPolicy>, DatabaseError> {
     let response = match DBCLIENT.get() {
         None => {
+            println!("Creating new DB client");
             let codec_builder = LengthDelimitedCodec::builder();
             let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
             let transport = new_transport(codec_builder.new_framed(stream), Json::default());
@@ -106,6 +114,7 @@ pub(crate) async fn get_default_user() -> PCon<String, UserIdWebPolicy> {
     let default_user = PCon::new("anonymous".to_string(), UsernamePolicy::default());
     let response = match DBCLIENT.get() {
         None => {
+            println!("Creating new DB client");
             let codec_builder = LengthDelimitedCodec::builder();
             let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
             let transport = new_transport(codec_builder.new_framed(stream), Json::default());
@@ -148,6 +157,7 @@ pub(crate) async fn get_history(
 
     let response = match DBCLIENT.get() {
         None => {
+            println!("Creating new DB client");
             let codec_builder = LengthDelimitedCodec::builder();
             let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
             let transport = new_transport(codec_builder.new_framed(stream), Json::default());
@@ -192,7 +202,6 @@ pub struct FetchConversation {
 
 #[get("/<chat_id>")]
 pub(crate) async fn fetch_conversation(
-    // user_id: PCon<String, UsernamePolicy>,
     cookies: BBoxCookieJar<'_, '_>,
     chat_id: PCon<String, UserIdWebPolicy>,
 ) -> JsonResponse<FetchConversation, ()> {
@@ -203,6 +212,7 @@ pub(crate) async fn fetch_conversation(
 
     let response = match DBCLIENT.get() {
         None => {
+            println!("Creating new DB client");
             let codec_builder = LengthDelimitedCodec::builder();
             let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
             let transport = new_transport(codec_builder.new_framed(stream), Json::default());
@@ -240,6 +250,7 @@ pub(crate) async fn delete_conversation(
         cookies.get::<UserIdWebPolicy>("user_id").unwrap().into();
     let response = match DBCLIENT.get() {
         None => {
+            println!("Creating new DB client");
             let codec_builder = LengthDelimitedCodec::builder();
             let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
             let transport = new_transport(codec_builder.new_framed(stream), Json::default());

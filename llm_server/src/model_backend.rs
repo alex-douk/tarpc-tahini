@@ -9,7 +9,7 @@ use anyhow::Error as E;
 use candle_core::{DType, Device, Result as Res, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::generation::LogitsProcessor;
-use candle_transformers::models::gemma3::{Config as ConfigBase, Model as ModelBase};
+use candle_transformers::models::gemma2::{Config as ConfigBase, Model as ModelBase};
 // use crate::quantized_gemma3::{Model as QuantModel, Config as QuantConfig};
 use candle_transformers::models::quantized_recurrent_gemma::Model;
 use hf_hub::api::sync::ApiBuilder;
@@ -18,7 +18,7 @@ use tokenizers::Tokenizer;
 
 // const MODEL_STR: &str = "google/gemma-3-12b-it-qat-q4_0-gguf";
 // const MODEL_STR: &str = "unsloth/gemma-3-12b-it-GGUF";
-const MODEL_STR: &str = "google/gemma-3-1b-it";
+const MODEL_STR: &str = "google/gemma-2-2b-it";
 
 pub struct TextGeneration {
     model: ModelBase,

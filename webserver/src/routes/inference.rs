@@ -10,8 +10,10 @@ use alohomora::rocket::{JsonResponse, ResponseBBoxJson, route};
 use core_tahini_utils::policies::*;
 
 use core_tahini_utils::types::{BBoxConversation, Message, UserPrompt};
+use futures::stream::Once;
 use llm_tahini_utils::service::TahiniInferenceClient;
 use std::collections::HashMap;
+use std::sync::OnceLock;
 use std::time::Duration;
 use std::time::SystemTime;
 use tarpc::context;
@@ -43,19 +45,32 @@ pub(crate) struct InferenceResponse {
     db_uuid: Option<BBox<String, UserIdWebPolicy>>,
 }
 
-async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, MessagePolicy>> {
-    let codec_builder = LengthDelimitedCodec::builder();
-    let stream = TcpStream::connect((SERVER_ADDRESS, 5000)).await?;
-    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+pub static LLMCLIENT : OnceLock<TahiniInferenceClient> = OnceLock::new();
 
-    //Custom deadline for inference calls. Will also potentially allow for streaming
-    //responses (but GitHub issues suggest tarpc is unable to do so)
+async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, MessagePolicy>> {
     let mut context = context::current();
     context.deadline = SystemTime::now() + Duration::from_secs(45);
-    let response = TahiniInferenceClient::new(Default::default(), transport)
-        .spawn().await
-        .inference(context, prompt)
-        .await?;
+    let response = match LLMCLIENT.get() {
+        None => {
+            println!("Creating a new LLM client");
+            let codec_builder = LengthDelimitedCodec::builder();
+            let stream = TcpStream::connect((SERVER_ADDRESS, 5000)).await?;
+            let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+
+            //Custom deadline for inference calls. Will also potentially allow for streaming
+            //responses (but GitHub issues suggest tarpc is unable to do so)
+            let client = TahiniInferenceClient::new(Default::default(), transport)
+                .spawn().await;
+
+            let resp = client
+                .inference(context, prompt)
+                .await?;
+
+            let _ = LLMCLIENT.set(client);
+            resp
+        }
+        Some(client) => client.inference(context, prompt).await?
+    };
 
     Ok(response.infered_tokens.transpose()?)
 }
@@ -66,6 +81,7 @@ pub(crate) async fn inference(
     data: BBoxJson<InferenceRequest>,
 ) -> alohomora::rocket::JsonResponse<InferenceResponse, ()> {
     //Parse whether anonymous or connected user
+    //Could probably handle that via some pre-hooks. A lot of boilerplate here
     let username = match &data.user {
         None => BBox::new("anonymous".to_string(), UsernamePolicy {
             targeted_ads_consent: false,

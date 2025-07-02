@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::OnceLock};
 
 use alohomora::{
     bbox::BBox,
@@ -6,13 +6,15 @@ use alohomora::{
     fold::fold,
     policy::PolicyAnd,
     pure::PrivacyPureRegion,
-    rocket::{route, JsonResponse},
+    rocket::{JsonResponse, route},
     tarpc::{traits::Fromable, transport::new_tahini_transport},
 };
 
-
 use advertisement_tahini_utils::{
-    policies::MarketingPolicy, service::TahiniAdvertisementClient, types::{Ad, MarketingData}, THIRD_PARTY_PROCESSORS
+    THIRD_PARTY_PROCESSORS,
+    policies::MarketingPolicy,
+    service::TahiniAdvertisementClient,
+    types::{Ad, MarketingData},
 };
 use core_tahini_utils::{
     funcs::marketing_parse_conv,
@@ -29,6 +31,8 @@ use tarpc::tokio_serde::formats::Json;
 use tarpc::{context, serde_transport::new as new_transport};
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
+
+pub static ADCLIENT: OnceLock<TahiniAdvertisementClient> = OnceLock::new();
 
 #[route(GET, "/get_vendors")]
 pub(crate) async fn get_ads_vendors() -> JsonResponse<Vec<String>, ()> {
@@ -61,15 +65,29 @@ pub(crate) async fn send_to_marketing(
         ))
         .into_bbox();
 
-    let codec_builder = LengthDelimitedCodec::builder();
-    let stream = TcpStream::connect((SERVER_ADDRESS, 8002)).await.unwrap();
-    let transport = new_tahini_transport(codec_builder.new_framed(stream), Json::default());
+    let ad: Fromable<Ad> = match ADCLIENT.get() {
+        None => {
+            println!("Creating new Ad client");
+            let codec_builder = LengthDelimitedCodec::builder();
+            let stream = TcpStream::connect((SERVER_ADDRESS, 8002)).await.unwrap();
+            let transport = new_tahini_transport(codec_builder.new_framed(stream), Json::default());
 
-    let ad: Fromable<Ad> = TahiniAdvertisementClient::new(Default::default(), transport)
-        .spawn().await
-        .auction_bidding(context::current(), payload)
-        .await
-        .unwrap();
+            let client = TahiniAdvertisementClient::new(Default::default(), transport)
+                .spawn()
+                .await;
+
+            let ad = client
+                .auction_bidding(context::current(), payload)
+                .await
+                .unwrap();
+            let _ = ADCLIENT.set(client);
+            ad
+        }
+        Some(client) => client
+            .auction_bidding(context::current(), payload)
+            .await
+            .unwrap(),
+    };
 
     ad.transform_into::<AdAdapter>()
         .expect("Couldn't transform the data because of context")
