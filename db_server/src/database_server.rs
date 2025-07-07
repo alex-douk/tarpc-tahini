@@ -98,8 +98,9 @@ impl Database for DatabaseServer {
         conv_id: PCon<Option<String>, UserIdDBPolicy>,
         message: PCon<Message, MessagePolicy>,
     ) -> Result<CHATUID, PolicyError> {
+        let uuid_str = format!("{}", Uuid::new_v4());
         let conv_uid = conv_id.into_ppr(PPR::new(|conv_id| match conv_id {
-            None => format!("{}", Uuid::new_v4()),
+            None => uuid_str,
             Some(t) => t,
         }));
         let mut backend = self.conn.lock().await;
