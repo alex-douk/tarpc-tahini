@@ -75,9 +75,9 @@ impl TextGeneration {
         let mut llm_output: String = String::new();
 
         let mut generated_tokens = 0usize;
-        let eos_token = match self.tokenizer.get_token("<end_of_turn>") {
+        let eos_token = match self.tokenizer.get_token("<eos>") {
             Some(token) => token,
-            None => anyhow::bail!("cannot find the <end_of_turn> token"),
+            None => anyhow::bail!("cannot find the <eos> token"),
         };
         println!("Starting generation");
         std::io::stdout().flush()?;
@@ -181,8 +181,8 @@ impl TextGeneration {
 }
 
 pub fn create_pipeline() -> Result<TextGeneration, E> {
-    let api = Api::new()?;
-    // let api = ApiBuilder::new().with_token(Some("TOKEN".to_string())).build()?;
+    // let api = Api::new()?;
+    let api = ApiBuilder::new().with_token(Some("TOKEN".to_string())).build()?;
     let repo = api.repo(Repo::with_revision(
         MODEL_STR.to_string(),
         RepoType::Model,
@@ -194,7 +194,7 @@ pub fn create_pipeline() -> Result<TextGeneration, E> {
     let filenames = vec![repo.get("model.safetensors")?];
     // let filenames = repo.get("gemma-3-12b-it-Q3_K_M.gguf")?;
     // let filenames = repo.get("gemma-3-12b-it-q4_0.gguf")?;
-    // let filenames = hub_load_safetensors(&repo, "model.safetensors.index.json")?;
+    let filenames = hub_load_safetensors(&repo, "model.safetensors.index.json")?;
     let tokenizer = Tokenizer::from_file(tokenizer_file).map_err(E::msg)?;
     let config_file = repo.get("config.json")?;
     let device = Device::Cpu;
@@ -242,38 +242,40 @@ fn apply_chat_template(conv: Vec<Message>) -> Result<String, E> {
     let mut env = Environment::new();
 
     env.add_template("gemma", TEMPLATE)
-        .expect("Couldn't parse template");
+        .map_err(|_| E::new(LLMError::ValidationError));
     // let conv = vec![CONVERSATION];
     let context = context!(bos_token => "<bos>", messages => conv, add_generation_prompt => true);
     env.add_filter("trim", trim);
     env.add_function("raise_exception", raise_exception);
-    let template = env.get_template("gemma").unwrap();
+    let template = env.get_template("gemma").map_err(|_| E::new(LLMError::ValidationError));
     let res = template.render(context);
     res.map_err(|_| E::new(LLMError::ValidationError))
 
 }
-// fn hub_load_safetensors(
-//     repo: &hf_hub::api::sync::ApiRepo,
-//     json_file: &str,
-// ) -> Res<Vec<std::path::PathBuf>> {
-//     let json_file = repo.get(json_file).map_err(candle_core::Error::wrap)?;
-//     let json_file = std::fs::File::open(json_file)?;
-//     let json: serde_json::Value =
-//         serde_json::from_reader(&json_file).map_err(candle_core::Error::wrap)?;
-//     let weight_map = match json.get("weight_map") {
-//         None => candle_core::bail!("no weight map in {json_file:?}"),
-//         Some(serde_json::Value::Object(map)) => map,
-//         Some(_) => candle_core::bail!("weight map in {json_file:?} is not a map"),
-//     };
-//     let mut safetensors_files = std::collections::HashSet::new();
-//     for value in weight_map.values() {
-//         if let Some(file) = value.as_str() {
-//             safetensors_files.insert(file.to_string());
-//         }
-//     }
-//     let safetensors_files = safetensors_files
-//         .iter()
-//         .map(|v| repo.get(v).map_err(candle_core::Error::wrap))
-//         .collect::<Res<Vec<_>>>()?;
-//     Ok(safetensors_files)
-// }
+pub fn hub_load_safetensors(
+    repo: &hf_hub::api::sync::ApiRepo,
+    json_file: &str,
+) -> candle_core::Result<Vec<std::path::PathBuf>> {
+    let json_file = repo.get(json_file).map_err(candle_core::Error::wrap)?;
+    let json_file = std::fs::File::open(json_file)?;
+    let json: serde_json::Value =
+        serde_json::from_reader(&json_file).map_err(candle_core::Error::wrap)?;
+    let weight_map = match json.get("weight_map") {
+        None => candle_core::bail!("no weight map in {json_file:?}"),
+        Some(serde_json::Value::Object(map)) => map,
+        Some(_) => candle_core::bail!("weight map in {json_file:?} is not a map"),
+    };
+
+    let mut safetensors_files = std::collections::HashSet::new();
+    for value in weight_map.values() {
+        if let Some(file) = value.as_str() {
+            safetensors_files.insert(file.to_string());
+        }
+    }
+
+    let safetensors_files = safetensors_files
+        .iter()
+        .map(|v| repo.get(v).map_err(candle_core::Error::wrap))
+        .collect::<candle_core::Result<Vec<_>>>()?;
+    Ok(safetensors_files)
+}

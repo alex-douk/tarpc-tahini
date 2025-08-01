@@ -66,20 +66,6 @@ impl InferenceServer {
     }
 }
 
-fn apply_chat_template(
-    conversation: BBoxConversation,
-) -> Result<PCon<String, MessagePolicy>, LLMError> {
-    conversation
-        .into_ppr(PPR::new(|rounds: Vec<Message>| {
-            let parsed = parse_conversation(rounds);
-            match parsed {
-                Ok(conv) => Ok(format!("{}\n{}", SYSTEM_PROMPT, conv)),
-                Err(e) => Err(e),
-            }
-        }))
-        .transpose()
-}
-
 impl Inference for InferenceServer {
     async fn inference(self, _context: tarpc::context::Context, prompt: UserPrompt) -> LLMResponse {
         let pol = prompt.conversation.policy().clone();
