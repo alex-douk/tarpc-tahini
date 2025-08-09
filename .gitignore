@@ -1,4 +1,4 @@
-/target
+target/
 .idea/
 .gradio/
 .env
@@ -6,6 +6,10 @@
 client/components/__pycache__/
 certificates/
 policy_hashes/
-attest.log
+*.log
 runtime/
 project_metadata.toml
+rust-toolchain.toml
+scrutinizer-config.toml
+*.json
+*.txt
