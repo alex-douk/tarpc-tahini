@@ -1,6 +1,6 @@
 use alohomora::bbox::BBox as PCon;
 use alohomora::context::Context;
-use alohomora::rocket::{BBoxCookieJar, JsonResponse, ResponseBBoxJson, get};
+use alohomora::rocket::{get, BBoxCookieJar, JsonResponse, ResponseBBoxJson};
 use core_tahini_utils::policies::{MessagePolicy, UsernamePolicy};
 use core_tahini_utils::types::{BBoxConversation, Message};
 use database_tahini_utils::service::TahiniDatabaseClient;
@@ -10,15 +10,28 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 use tarpc::context;
 
-use crate::SERVER_ADDRESS;
 use crate::policies::history::HistoryPolicy;
 use crate::policies::login_uuid::UserIdWebPolicy;
-use tahini_tarpc::transport::new_tahini_transport as new_transport;
+use crate::SERVER_ADDRESS;
+use tahini_tarpc::transport::new_tahini_client_transport as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
 pub static DBCLIENT: OnceLock<TahiniDatabaseClient> = OnceLock::new();
+
+pub(crate) async fn initialize_db_client() {
+    println!("Creating new DB client");
+    let codec_builder = LengthDelimitedCodec::builder();
+    let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
+    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+    let client = TahiniDatabaseClient::new(Default::default(), transport)
+        .spawn()
+        .await;
+    if let Err(_) = DBCLIENT.set(client) {
+        panic!("Client connection already exists");
+    }
+}
 
 pub(crate) async fn store_to_database(
     uuid: PCon<String, UserIdWebPolicy>,
@@ -27,18 +40,7 @@ pub(crate) async fn store_to_database(
 ) -> Result<PCon<String, UserIdWebPolicy>, PolicyError> {
     let response = match DBCLIENT.get() {
         None => {
-            println!("Creating new DB client");
-            let codec_builder = LengthDelimitedCodec::builder();
-            let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
-            let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-            let client = TahiniDatabaseClient::new(Default::default(), transport)
-                .spawn()
-                .await;
-            let resp = client
-                .store_prompt(context::current(), uuid, conv_id, message)
-                .await;
-            let _ = DBCLIENT.set(client);
-            resp
+            panic!("Client should already exist");
         }
         Some(client) => {
             client
@@ -61,16 +63,7 @@ pub(crate) async fn register_user(
 ) -> Result<PCon<String, UserIdWebPolicy>, DatabaseError> {
     let response = match DBCLIENT.get() {
         None => {
-            println!("Creating new DB client");
-            let codec_builder = LengthDelimitedCodec::builder();
-            let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
-            let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-            let client = TahiniDatabaseClient::new(Default::default(), transport)
-                .spawn()
-                .await;
-            let resp = client.register_user(context::current(), username).await;
-            let _ = DBCLIENT.set(client);
-            resp
+            panic!("Client should already exist");
         }
         Some(client) => client.register_user(context::current(), username).await,
     };
@@ -88,16 +81,7 @@ pub(crate) async fn fetch_user(
 ) -> Result<PCon<String, UserIdWebPolicy>, DatabaseError> {
     let response = match DBCLIENT.get() {
         None => {
-            println!("Creating new DB client");
-            let codec_builder = LengthDelimitedCodec::builder();
-            let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
-            let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-            let client = TahiniDatabaseClient::new(Default::default(), transport)
-                .spawn()
-                .await;
-            let resp = client.fetch_user(context::current(), username).await;
-            let _ = DBCLIENT.set(client);
-            resp
+            panic!("Client should already exist");
         }
         Some(client) => client.fetch_user(context::current(), username).await,
     };
@@ -114,16 +98,7 @@ pub(crate) async fn get_default_user() -> PCon<String, UserIdWebPolicy> {
     let default_user = PCon::new("anonymous".to_string(), UsernamePolicy::default());
     let response = match DBCLIENT.get() {
         None => {
-            println!("Creating new DB client");
-            let codec_builder = LengthDelimitedCodec::builder();
-            let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
-            let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-            let client = TahiniDatabaseClient::new(Default::default(), transport)
-                .spawn()
-                .await;
-            let resp = client.fetch_user(context::current(), default_user).await;
-            let _ = DBCLIENT.set(client);
-            resp
+            panic!("Client should already exist");
         }
         Some(client) => client.fetch_user(context::current(), default_user).await,
     };
@@ -157,18 +132,7 @@ pub(crate) async fn get_history(
 
     let response = match DBCLIENT.get() {
         None => {
-            println!("Creating new DB client");
-            let codec_builder = LengthDelimitedCodec::builder();
-            let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
-            let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-            let client = TahiniDatabaseClient::new(Default::default(), transport)
-                .spawn()
-                .await;
-            let resp = client
-                .fetch_history_headers(tarpc::context::current(), user_id)
-                .await;
-            let _ = DBCLIENT.set(client);
-            resp
+            panic!("Client should already exist");
         }
         Some(client) => {
             client
@@ -212,18 +176,7 @@ pub(crate) async fn fetch_conversation(
 
     let response = match DBCLIENT.get() {
         None => {
-            println!("Creating new DB client");
-            let codec_builder = LengthDelimitedCodec::builder();
-            let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
-            let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-            let client = TahiniDatabaseClient::new(Default::default(), transport)
-                .spawn()
-                .await;
-            let resp = client
-                .retrieve_prompt(tarpc::context::current(), user_id, chat_id)
-                .await;
-            let _ = DBCLIENT.set(client);
-            resp
+            panic!("Client should already exist");
         }
         Some(client) => {
             client
@@ -250,18 +203,7 @@ pub(crate) async fn delete_conversation(
         cookies.get::<UserIdWebPolicy>("user_id").unwrap().into();
     let response = match DBCLIENT.get() {
         None => {
-            println!("Creating new DB client");
-            let codec_builder = LengthDelimitedCodec::builder();
-            let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
-            let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-            let client = TahiniDatabaseClient::new(Default::default(), transport)
-                .spawn()
-                .await;
-            let resp = client
-                .delete_conversation(context::current(), (user_id, chat_id))
-                .await;
-            let _ = DBCLIENT.set(client);
-            resp
+            panic!("Client should already exist");
         }
         Some(client) => {
             client

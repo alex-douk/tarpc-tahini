@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::OnceLock};
+use std::sync::OnceLock;
 
 use alohomora::{
     bbox::BBox,
@@ -6,16 +6,15 @@ use alohomora::{
     fold::fold,
     policy::PolicyAnd,
     pure::PrivacyPureRegion,
-    rocket::{JsonResponse, route},
+    rocket::{route, JsonResponse},
 };
 
-use tahini_tarpc::{traits::Fromable, transport::new_tahini_transport};
+use tahini_tarpc::{traits::Fromable, transport::new_tahini_client_transport};
 
 use advertisement_tahini_utils::{
-    THIRD_PARTY_PROCESSORS,
-    policies::MarketingPolicy,
     service::TahiniAdvertisementClient,
     types::{Ad, MarketingData},
+    THIRD_PARTY_PROCESSORS,
 };
 use core_tahini_utils::{
     funcs::marketing_parse_conv,
@@ -24,16 +23,29 @@ use core_tahini_utils::{
 };
 
 use crate::{
-    SERVER_ADDRESS,
-    adapters::{PolicyAdapter, ad_adapter::AdAdapter},
+    adapters::{ad_adapter::AdAdapter, PolicyAdapter},
     policies::ad_policy::AdPolicy,
+    SERVER_ADDRESS,
 };
+use tarpc::context;
 use tarpc::tokio_serde::formats::Json;
-use tarpc::{context, serde_transport::new as new_transport};
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
 pub static ADCLIENT: OnceLock<TahiniAdvertisementClient> = OnceLock::new();
+
+pub(crate) async fn initialize_ad_client() {
+    println!("Creating new AdCorp client");
+    let codec_builder = LengthDelimitedCodec::builder();
+    let stream = TcpStream::connect((SERVER_ADDRESS, 8002)).await.unwrap();
+    let transport = new_tahini_client_transport(codec_builder.new_framed(stream), Json::default());
+    let client = TahiniAdvertisementClient::new(Default::default(), transport)
+        .spawn()
+        .await;
+    if let Err(_) = ADCLIENT.set(client) {
+        panic!("Client connection already exists");
+    }
+}
 
 #[route(GET, "/get_vendors")]
 pub(crate) async fn get_ads_vendors() -> JsonResponse<Vec<String>, ()> {
@@ -68,21 +80,7 @@ pub(crate) async fn send_to_marketing(
 
     let ad: Fromable<Ad> = match ADCLIENT.get() {
         None => {
-            println!("Creating new Ad client");
-            let codec_builder = LengthDelimitedCodec::builder();
-            let stream = TcpStream::connect((SERVER_ADDRESS, 8002)).await.unwrap();
-            let transport = new_tahini_transport(codec_builder.new_framed(stream), Json::default());
-
-            let client = TahiniAdvertisementClient::new(Default::default(), transport)
-                .spawn()
-                .await;
-
-            let ad = client
-                .auction_bidding(context::current(), payload)
-                .await
-                .unwrap();
-            let _ = ADCLIENT.set(client);
-            ad
+            panic!("Ad client connection should already exist");
         }
         Some(client) => client
             .auction_bidding(context::current(), payload)

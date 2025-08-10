@@ -8,12 +8,13 @@ pub(crate) mod adapters;
 use self::routes::*;
 
 
-//TODO(douk): Hacky way of sharing a single host. 
-//Will have to get changed for static attestation for sure
+//FIXME(douk): Hacky way of sharing a single host. 
 pub static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 
 fn prepare_server() -> BBoxRocket<Build>{
+
+
     BBoxRocket::build().mount("/chat", routes![inference::inference])
         .mount("/history", routes![database::get_history, database::delete_conversation])
         .mount("/account", routes![login::login, login::signup])
@@ -23,6 +24,9 @@ fn prepare_server() -> BBoxRocket<Build>{
 
 #[rocket::main]
 async fn main() {
+    routes::database::initialize_db_client().await;
+    routes::ads::initialize_ad_client().await;
+    routes::inference::initialize_llm_client().await;
     if let Err(e) = prepare_server().launch().await {
         println!("Failed to launch fronting server");
         drop(e)

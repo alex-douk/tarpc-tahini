@@ -18,7 +18,7 @@ use std::time::Duration;
 use std::time::SystemTime;
 use tarpc::context;
 
-use tahini_tarpc::transport::new_tahini_transport as new_transport;
+use tahini_tarpc::transport::new_tahini_client_transport as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
@@ -46,28 +46,27 @@ pub(crate) struct InferenceResponse {
 }
 
 pub static LLMCLIENT : OnceLock<TahiniInferenceClient> = OnceLock::new();
+pub(crate) async fn initialize_llm_client() {
+    println!("Creating new LLM client");
+    let codec_builder = LengthDelimitedCodec::builder();
+    let stream = TcpStream::connect((SERVER_ADDRESS, 5000)).await.unwrap();
+    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+
+    //Custom deadline for inference calls. Will also potentially allow for streaming
+    //responses (but GitHub issues suggest tarpc is unable to do so)
+    let client = TahiniInferenceClient::new(Default::default(), transport)
+        .spawn().await;
+    if let Err(_) = LLMCLIENT.set(client) {
+        panic!("Client connection already exists");
+    }
+}
 
 async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, MessagePolicy>> {
     let mut context = context::current();
     context.deadline = SystemTime::now() + Duration::from_secs(45);
     let response = match LLMCLIENT.get() {
         None => {
-            println!("Creating a new LLM client");
-            let codec_builder = LengthDelimitedCodec::builder();
-            let stream = TcpStream::connect((SERVER_ADDRESS, 5000)).await?;
-            let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-
-            //Custom deadline for inference calls. Will also potentially allow for streaming
-            //responses (but GitHub issues suggest tarpc is unable to do so)
-            let client = TahiniInferenceClient::new(Default::default(), transport)
-                .spawn().await;
-
-            let resp = client
-                .inference(context, prompt)
-                .await?;
-
-            let _ = LLMCLIENT.set(client);
-            resp
+            panic!("LLM Client should already exist");
         }
         Some(client) => client.inference(context, prompt).await?
     };
