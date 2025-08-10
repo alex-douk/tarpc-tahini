@@ -1,9 +1,10 @@
 use alohomora::bbox::BBox;
 use alohomora::rocket::{RequestBBoxJson, ResponseBBoxJson};
-use alohomora::tarpc::{TahiniEnum, TahiniType};
-use alohomora::{AlohomoraType, TahiniType};
+use tahini_tarpc::{TahiniEnum, TahiniType};
 use std::collections::HashMap;
-use alohomora::tarpc::{TahiniDeserialize, TahiniSerialize};
+// use serde::{TahiniSerialize, TahiniDeserialize};
+use tahini_tarpc::{TahiniSerialize, TahiniDeserialize};
+
 
 use crate::policies::MessagePolicy;
 
@@ -40,4 +41,4 @@ impl std::fmt::Display for LLMError {
 }
 
 impl std::error::Error for LLMError {}
-impl alohomora::tarpc::traits::TahiniError for LLMError {}
+impl tahini_tarpc::traits::TahiniError for LLMError {}

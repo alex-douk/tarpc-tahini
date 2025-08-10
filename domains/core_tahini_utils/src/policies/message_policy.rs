@@ -1,6 +1,8 @@
 use alohomora::db::{BBoxFromValue, Value};
-use alohomora::policy::{schema_policy, AnyPolicy, PolicyAnd, PolicyFrom};
-use alohomora::tarpc::{TahiniDeserialize, TahiniSerialize};
+use alohomora::policy::{schema_policy, AnyPolicy, PolicyAnd};
+use tahini_tarpc::{TahiniDeserialize, TahiniSerialize};
+use tahini_tarpc::traits::PolicyFrom;
+
 use alohomora::{
     policy::{FrontendPolicy, Policy, Reason, SchemaPolicy},
     rocket::{RocketCookie, RocketRequest},

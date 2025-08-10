@@ -1,13 +1,14 @@
 use crate::policies::message_policy::InferenceReason;
 use alohomora::db::{BBoxFromValue, Value};
 use alohomora::policy::{
-    schema_policy, AnyPolicy, FrontendPolicy, Policy, PolicyAnd, PolicyFrom, Reason, SchemaPolicy
+    schema_policy, AnyPolicy, FrontendPolicy, Policy, PolicyAnd, Reason, SchemaPolicy
 };
+use tahini_tarpc::traits::PolicyFrom;
 use alohomora::rocket::{RocketCookie, RocketRequest};
 use serde_json::from_str;
 use std::collections::HashMap;
 use std::str::FromStr;
-use tarpc::serde::{Deserialize, Serialize};
+use tahini_tarpc::{TahiniDeserialize, TahiniSerialize};
 
 use super::MessagePolicy;
 pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
@@ -16,7 +17,7 @@ pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 ///is invoked in operations that could lead to current-or-future disclosure of the username
 #[schema_policy(table = "users", column = 1)]
 // #[schema_policy(table = "conversations", column = 2)]
-#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[derive(TahiniSerialize, TahiniDeserialize, Clone, Debug, Default, PartialEq)]
 pub struct UsernamePolicy {
     pub targeted_ads_consent: bool,
     pub third_party_vendors_consent: HashMap<String, bool>,
@@ -168,7 +169,7 @@ impl FrontendPolicy for UsernamePolicy {
 ///org nor be passed to checked RPCs.
 ///Such a policy can ensure that data paths terminating in an uncontrolled sink are taken into
 ///account.
-#[derive(Deserialize, Serialize, Clone, Debug)]
+#[derive(TahiniDeserialize, TahiniSerialize, Clone, Debug)]
 pub struct AbsolutePolicy {}
 
 impl Policy for AbsolutePolicy {

@@ -4,18 +4,22 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-alohomora = { version = "0.1.0", path = "../../Sesame/alohomora/", default-features = false, features = ["alohomora_derive", "derive", "tahini"] }
-tarpc = { version = "0.34.0", features = ["full"] }
+# alohomora = { version = "0.1.0", path = "../../Sesame/alohomora/", default-features = false, features = ["alohomora_derive", "derive", "tahini"] }
+alohomora = {version = "0.1.0", git = "https://github.com/brownsys/Sesame", branch = "extensions_devel", default-features = false, features = ["alohomora_derive", "derive"]}
+# tarpc = { version = "0.34.0", features = ["full"] }
 serde = { version = "1.0.219", features = ["derive", "serde_derive"] }
+# tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", branch = "standalone_tahini", features = ["derive"]}
+# tahini_tarpc = {version = "0.1.0", path = "../../../tahini_lib/tahini_tarpc/", features = ["derive"]}
+tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", rev = "f75e671a477cc0c8cb59340c78c0afbe772dd296", features = ["derive"]}
 serde_json = "1.0.140"
 
 [lib]
 name="core_tahini_utils"
 path="src/lib.rs"
 
-[features]
-client = ["alohomora/tahini_client"]
-server = ["alohomora/tahini_server"]
+# [features]
+# client = ["alohomora/tahini_client"]
+# server = ["alohomora/tahini_server"]
 
 [patch.crates-io]
 funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }
