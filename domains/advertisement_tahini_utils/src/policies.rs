@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use alohomora::policy::{Policy, Reason};
-use alohomora::tarpc::{TahiniSerialize, TahiniDeserialize};
+use tahini_tarpc::{TahiniSerialize, TahiniDeserialize};
 pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 
 ///This policy is given by an external organization so that remote clients can

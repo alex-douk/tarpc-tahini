@@ -1,8 +1,7 @@
 use crate::policies::MarketingPolicy;
 use alohomora::bbox::BBox;
-use alohomora::tarpc::TahiniType;
-use alohomora::TahiniType;
-use alohomora::tarpc::{TahiniSerialize, TahiniDeserialize};
+use tahini_tarpc::TahiniType;
+use tahini_tarpc::{TahiniSerialize, TahiniDeserialize};
 
 #[derive(TahiniSerialize, TahiniDeserialize, Clone, Debug)]
 pub struct MarketingData {
