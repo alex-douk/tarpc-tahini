@@ -4,16 +4,36 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-alohomora = { version = "0.1.0", path = "../../Sesame/alohomora/", default-features = false, features = ["alohomora_derive", "derive", "tahini"] }
+alohomora = {version = "0.1.0", git = "https://github.com/brownsys/Sesame", branch = "extensions_devel", default-features = false, features = ["alohomora_derive", "derive"]}
 tarpc = { version = "0.34.0", features = ["full"] }
 serde = { version = "1.0.219", features = ["derive", "serde_derive"] }
 serde_json = "1.0.140"
 core_tahini_utils = {version = "0.1.0", path = "../core_tahini_utils/"}
+# tahini_tarpc = {version = "0.1.0", path = "../../../tahini_lib/tahini_tarpc/", features = ["derive"]}
+tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", rev = "f75e671a477cc0c8cb59340c78c0afbe772dd296", features = ["derive"]}
 
 [lib]
 name="llm_tahini_utils"
 path="src/lib.rs"
 
-[features]
-client = ["alohomora/tahini_client"]
-server = ["alohomora/tahini_server"]
+[patch.crates-io]
+funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }
+# url={version="=2.5.0"}
+
+[dependencies.url]
+version = "=2.5.0"
+
+[dependencies.icu_properties_data]
+version = "=1.5.1"
+
+[dependencies.pest]
+version="=2.8.0"
+
+[dependencies.pest_meta]
+version="=2.8.0"
+
+[dependencies.pest_generator]
+version="=2.8.0"
+
+[dependencies.native-tls]
+version="=0.2.11"
