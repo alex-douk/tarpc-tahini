@@ -16,7 +16,7 @@ serde = { version = "1.0.219", features = ["derive", "serde_derive"] }
 rand = { version = "0.8.5", features = ["serde"] }
 aws-lc-rs = "1.13.1"
 socket2 = "0.5.9"
-tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", rev = "f75e671a477cc0c8cb59340c78c0afbe772dd296", features = ["derive"]}
+tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", branch = "standalone_tahini", features = ["derive"]}
 
 [[bin]]
 name="server"

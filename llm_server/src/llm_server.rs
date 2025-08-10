@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 //Channel transport Code
-use tahini_tarpc::{server::{TahiniBaseChannel, TahiniChannel}, transport::new_tahini_transport};
+use tahini_tarpc::{server::{TahiniBaseChannel, TahiniChannel}, transport::new_tahini_server_transport};
 use futures::{
     Future, StreamExt,
 };
@@ -37,6 +37,7 @@ use crate::model_backend::{TextGeneration, create_pipeline};
 use core_tahini_utils::funcs::parse_conversation;
 use core_tahini_utils::types::{LLMError, LLMResponse, UserPrompt};
 use llm_tahini_utils::service::Inference;
+use hoodini_server::*;
 
 //Database import
 
@@ -135,7 +136,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Accepted a connection");
                 let framed = codec_builder.new_framed(stream);
 
-                let transport = new_tahini_transport(framed, Json::default());
+                let transport = new_tahini_server_transport(framed, Json::default(), (*CLIENT_MAP).clone());
                 let fut = TahiniBaseChannel::with_defaults(transport)
                     .execute(server.clone().serve())
                     .for_each(wait_upon);

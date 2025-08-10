@@ -10,7 +10,7 @@ dependencies = [
  "alohomora",
  "futures",
  "futures-util",
- "hoodini_server 0.1.0 (git+https://github.com/alex-douk/tahini_lib?rev=f75e671a477cc0c8cb59340c78c0afbe772dd296)",
+ "hoodini_server",
  "icu_properties_data",
  "keyword_extraction",
  "lettre",
@@ -1149,7 +1149,7 @@ dependencies = [
  "database_tahini_utils",
  "futures",
  "futures-util",
- "hoodini_server 0.1.0 (git+https://github.com/alex-douk/tahini_lib?rev=f75e671a477cc0c8cb59340c78c0afbe772dd296)",
+ "hoodini_server",
  "icu_properties_data",
  "native-tls",
  "pest",
@@ -2255,11 +2255,11 @@ dependencies = [
 [[package]]
 name = "hoodini_client"
 version = "0.1.0"
-source = "git+https://github.com/alex-douk/tahini_lib?rev=c651aad#c651aad9d53a9f408ec1605e21d792478e9bf218"
+source = "git+https://github.com/alex-douk/tahini_lib?branch=standalone_tahini#05af4ac55a4c32aa005040d0de775e3f57b78e84"
 dependencies = [
  "aws-lc-rs",
  "hex",
- "hoodini_core 0.1.0 (git+https://github.com/alex-douk/tahini_lib?rev=c651aad)",
+ "hoodini_core",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -2271,7 +2271,7 @@ dependencies = [
 [[package]]
 name = "hoodini_core"
 version = "0.1.0"
-source = "git+https://github.com/alex-douk/tahini_lib?branch=separate_crates#ca2b636a4f3a3c1a13a646253f5db3bb2f2118ee"
+source = "git+https://github.com/alex-douk/tahini_lib?branch=standalone_tahini#05af4ac55a4c32aa005040d0de775e3f57b78e84"
 dependencies = [
  "aws-lc-rs",
  "hex",
@@ -2280,52 +2280,6 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "tarpc 0.36.0",
- "tokio-util 0.7.16",
- "toml",
-]
-
-[[package]]
-name = "hoodini_core"
-version = "0.1.0"
-source = "git+https://github.com/alex-douk/tahini_lib?branch=standalone_tahini#9d3d50dbce4b5dc19e0008908495ae24ae87457a"
-dependencies = [
- "aws-lc-rs",
- "hex",
- "libc",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tokio-util 0.7.16",
- "toml",
-]
-
-[[package]]
-name = "hoodini_core"
-version = "0.1.0"
-source = "git+https://github.com/alex-douk/tahini_lib?rev=c651aad#c651aad9d53a9f408ec1605e21d792478e9bf218"
-dependencies = [
- "aws-lc-rs",
- "hex",
- "libc",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tarpc 0.36.0",
- "tokio-util 0.7.16",
- "toml",
-]
-
-[[package]]
-name = "hoodini_core"
-version = "0.1.0"
-source = "git+https://github.com/alex-douk/tahini_lib?rev=f75e671a477cc0c8cb59340c78c0afbe772dd296#f75e671a477cc0c8cb59340c78c0afbe772dd296"
-dependencies = [
- "aws-lc-rs",
- "hex",
- "libc",
- "serde",
- "serde_json",
- "sha2 0.10.9",
  "tokio-util 0.7.16",
  "toml",
 ]
@@ -2333,24 +2287,13 @@ dependencies = [
 [[package]]
 name = "hoodini_server"
 version = "0.1.0"
-source = "git+https://github.com/alex-douk/tahini_lib?branch=standalone_tahini#9d3d50dbce4b5dc19e0008908495ae24ae87457a"
-dependencies = [
- "aws-lc-rs",
- "hex",
- "hoodini_core 0.1.0 (git+https://github.com/alex-douk/tahini_lib?branch=standalone_tahini)",
- "lazy_static",
-]
-
-[[package]]
-name = "hoodini_server"
-version = "0.1.0"
-source = "git+https://github.com/alex-douk/tahini_lib?rev=f75e671a477cc0c8cb59340c78c0afbe772dd296#f75e671a477cc0c8cb59340c78c0afbe772dd296"
+source = "git+https://github.com/alex-douk/tahini_lib?branch=standalone_tahini#05af4ac55a4c32aa005040d0de775e3f57b78e84"
 dependencies = [
  "aws-lc-rs",
  "clap 4.5.43",
  "ctor",
  "hex",
- "hoodini_core 0.1.0 (git+https://github.com/alex-douk/tahini_lib?rev=f75e671a477cc0c8cb59340c78c0afbe772dd296)",
+ "hoodini_core",
  "lazy_static",
 ]
 
@@ -2907,7 +2850,7 @@ dependencies = [
  "futures-util",
  "half",
  "hf-hub",
- "hoodini_server 0.1.0 (git+https://github.com/alex-douk/tahini_lib?rev=f75e671a477cc0c8cb59340c78c0afbe772dd296)",
+ "hoodini_server",
  "llm_tahini_utils",
  "minijinja",
  "serde",
@@ -5336,7 +5279,7 @@ dependencies = [
 [[package]]
 name = "tahini_tarpc"
 version = "0.1.0"
-source = "git+https://github.com/alex-douk/tahini_lib?rev=f75e671a477cc0c8cb59340c78c0afbe772dd296#f75e671a477cc0c8cb59340c78c0afbe772dd296"
+source = "git+https://github.com/alex-douk/tahini_lib?branch=standalone_tahini#05af4ac55a4c32aa005040d0de775e3f57b78e84"
 dependencies = [
  "alohomora",
  "async-trait",
@@ -5345,8 +5288,8 @@ dependencies = [
  "erased-serde 0.4.6",
  "futures",
  "hoodini_client",
- "hoodini_core 0.1.0 (git+https://github.com/alex-douk/tahini_lib?branch=separate_crates)",
- "hoodini_server 0.1.0 (git+https://github.com/alex-douk/tahini_lib?branch=standalone_tahini)",
+ "hoodini_core",
+ "hoodini_server",
  "pin-project-lite",
  "serde",
  "serde_json",
@@ -5361,7 +5304,7 @@ dependencies = [
 [[package]]
 name = "tahini_tarpc_derive"
 version = "0.1.0"
-source = "git+https://github.com/alex-douk/tahini_lib?branch=standalone_tahini#9d3d50dbce4b5dc19e0008908495ae24ae87457a"
+source = "git+https://github.com/alex-douk/tahini_lib?branch=standalone_tahini#05af4ac55a4c32aa005040d0de775e3f57b78e84"
 dependencies = [
  "attribute-derive",
  "proc-macro2",

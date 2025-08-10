@@ -36,8 +36,9 @@ candle-core = "0.7.0"
 candle-nn = "0.7.0"
 candle-transformers = "0.7.0"
 # tracing = "0.1.41"
-tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", rev = "f75e671a477cc0c8cb59340c78c0afbe772dd296", features = ["derive"]}
-hoodini_server = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", rev = "f75e671a477cc0c8cb59340c78c0afbe772dd296", features = ["sidecar"]}
+tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", branch = "standalone_tahini", features = ["derive"]}
+hoodini_server = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", branch = "standalone_tahini", features = ["sidecar"]}
+# hoodini_server = {version = "0.1.0", path = "../../tahini_lib/tahini_attest/crates/hoodini-server/", features = ["sidecar"]}
 
 [[bin]]
 name = "llm_server"

@@ -10,7 +10,7 @@ alohomora = {version = "0.1.0", git = "https://github.com/brownsys/Sesame", bran
 serde = { version = "1.0.219", features = ["derive", "serde_derive"] }
 # tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", branch = "standalone_tahini", features = ["derive"]}
 # tahini_tarpc = {version = "0.1.0", path = "../../../tahini_lib/tahini_tarpc/", features = ["derive"]}
-tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", rev = "f75e671a477cc0c8cb59340c78c0afbe772dd296", features = ["derive"]}
+tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", branch = "standalone_tahini", features = ["derive"]}
 serde_json = "1.0.140"
 
 [lib]

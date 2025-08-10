@@ -11,7 +11,6 @@ use candle_nn::VarBuilder;
 use candle_transformers::generation::LogitsProcessor;
 use candle_transformers::models::gemma2::{Config as ConfigBase, Model as ModelBase};
 // use crate::quantized_gemma3::{Model as QuantModel, Config as QuantConfig};
-use candle_transformers::models::quantized_recurrent_gemma::Model;
 use hf_hub::api::sync::ApiBuilder;
 use hf_hub::{Repo, RepoType, api::sync::Api};
 use tokenizers::Tokenizer;
@@ -19,6 +18,8 @@ use tokenizers::Tokenizer;
 // const MODEL_STR: &str = "google/gemma-3-12b-it-qat-q4_0-gguf";
 // const MODEL_STR: &str = "unsloth/gemma-3-12b-it-GGUF";
 const MODEL_STR: &str = "google/gemma-2-2b-it";
+
+const HF_TOKEN: &str = "SOME_TOKEN";
 
 pub struct TextGeneration {
     model: ModelBase,
@@ -182,7 +183,7 @@ impl TextGeneration {
 
 pub fn create_pipeline() -> Result<TextGeneration, E> {
     // let api = Api::new()?;
-    let api = ApiBuilder::new().with_token(Some("TOKEN".to_string())).build()?;
+    let api = ApiBuilder::new().with_token(Some(HF_TOKEN.to_string())).build()?;
     let repo = api.repo(Repo::with_revision(
         MODEL_STR.to_string(),
         RepoType::Model,
@@ -191,7 +192,7 @@ pub fn create_pipeline() -> Result<TextGeneration, E> {
 
     let tokenizer_file = repo.get("tokenizer.json")?;
     // let tokenizer_file = PathBuf::from_str("/home/m3d0/.cache/huggingface/hub/models--google--gemma-3-12b-it-qat-q4_0-gguf/tokenizer.json")?;
-    let filenames = vec![repo.get("model.safetensors")?];
+    // let filenames = vec![repo.get("model.safetensors")?];
     // let filenames = repo.get("gemma-3-12b-it-Q3_K_M.gguf")?;
     // let filenames = repo.get("gemma-3-12b-it-q4_0.gguf")?;
     let filenames = hub_load_safetensors(&repo, "model.safetensors.index.json")?;

@@ -6,7 +6,7 @@ use advertisement_tahini_utils::policies::{MarketingPolicy, THIRD_PARTY_PROCESSO
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 //Required for model locking across async tasks
 use tokio::sync::Mutex;
-use hoodini_server;
+use hoodini_server::CLIENT_MAP;
 
 //Channel transport Code
 use tahini_tarpc::server::{TahiniBaseChannel, TahiniChannel};
@@ -14,7 +14,7 @@ use futures::{
     Future, StreamExt,
     future::{self, Ready},
 };
-use tahini_tarpc::transport::new_tahini_transport as new_transport;
+use tahini_tarpc::transport::new_tahini_server_transport as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio_util::codec::LengthDelimitedCodec;
 
@@ -190,8 +190,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (stream, _peer_addr) = listener.accept().await.unwrap();
         println!("Accepted a connection");
         let framed = codec_builder.new_framed(stream);
-
-        let transport = new_transport(framed, Json::default());
+        
+        let transport = new_transport(framed, Json::default(), (*CLIENT_MAP).clone());
 
         // let transport = new_transport(framed, Bincode::default());
         let fut = TahiniBaseChannel::with_defaults(transport)

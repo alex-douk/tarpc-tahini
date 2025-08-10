@@ -17,8 +17,8 @@ keyword_extraction = { version = "1.5.0", features = ["yake"] }
 stop-words = "0.8.1"
 rand = "0.9.0"
 advertisement_tahini_utils = { version = "0.1.0", path = "../domains/advertisement_tahini_utils/"}
-tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", rev = "f75e671a477cc0c8cb59340c78c0afbe772dd296", features = ["derive"]}
-hoodini_server = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", rev = "f75e671a477cc0c8cb59340c78c0afbe772dd296", features = ["sidecar"]}
+tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", branch = "standalone_tahini", features = ["derive"]}
+hoodini_server = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", branch = "standalone_tahini",features = ["sidecar"]}
 
 
 [[bin]]

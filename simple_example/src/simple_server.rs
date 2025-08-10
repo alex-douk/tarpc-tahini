@@ -1,28 +1,34 @@
-use std::net::{Ipv4Addr, IpAddr};
+use std::{
+    net::{IpAddr, Ipv4Addr},
+    sync::{Arc, OnceLock, RwLock},
+};
 
-use tahini_tarpc::{server::{TahiniBaseChannel, TahiniChannel, TahiniServe}, transport::new_tahini_transport};
 use futures::future::Future;
 use futures::StreamExt;
+use tahini_tarpc::{
+    client::new,
+    server::{TahiniBaseChannel, TahiniChannel, TahiniServe},
+    transport::{new_tahini_server_transport},
+};
+use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpListener;
 use tokio_util::codec::LengthDelimitedCodec;
-use tarpc::serde_transport::new as new_transport;
-use tarpc::tokio_serde::formats::Json;
 
-mod service;
 mod policy;
+mod service;
 
 use crate::service::{SimpleService, SimpleServiceServer};
 
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
-async fn wait_upon(fut: impl Future<Output =  ()> + Send + 'static) {
+async fn wait_upon(fut: impl Future<Output = ()> + Send + 'static) {
     fut.await
 }
 
 pub struct SimpleServer;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> { 
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup for connection
     let listener = TcpListener::bind(&(SERVER_ADDRESS, 5003)).await.unwrap();
 
@@ -36,9 +42,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Bincode represents the codec for ser/de over the wire.
         // let transport = new_transport(framed, Bincode::default());
-        let transport = new_tahini_transport(framed, Json::default());
+        // FIXME: Compiles but does not work because it expects a sidecar for the key session
+        // management!!!!
+        let transport =
+            new_tahini_server_transport(framed, Json::default(), Arc::new(RwLock::default()));
         let server = TahiniBaseChannel::with_defaults(transport);
-        tokio::spawn(server.execute(SimpleServiceServer.serve()).for_each(wait_upon));
-
+        tokio::spawn(
+            server
+                .execute(SimpleServiceServer.serve())
+                .for_each(wait_upon),
+        );
     }
 }

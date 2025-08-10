@@ -20,7 +20,7 @@ advertisement_tahini_utils = {version="0.1.0", path="../domains/advertisement_ta
 llm_tahini_utils = {version="0.1.0", path="../domains/llm_tahini_utils"}
 database_tahini_utils = {version = "0.1.0", path = "../domains/database_tahini_utils"}
 lazy_static = "1.5.0"
-tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", rev = "f75e671a477cc0c8cb59340c78c0afbe772dd296", features = ["derive"]}
+tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", branch = "standalone_tahini", features = ["derive"]}
 
 [[bin]]
 name="webserver"

@@ -1,26 +1,15 @@
 use crate::policy::ExamplePolicy;
 use alohomora::bbox::BBox;
-use alohomora::pcr::{PrivacyCriticalRegion, Signature};
-use tahini_tarpc::client::new as new2;
-use tahini_tarpc::enums::TahiniSafeWrapper;
 use service::test_keys;
 use std::net::{IpAddr, Ipv4Addr};
-use std::thread::sleep;
-use std::time::Duration;
-use tarpc::client::RpcError;
-use tarpc::serde_transport::new as new_transport;
-use tahini_tarpc::transport::new_tahini_transport;
-use tarpc::tokio_serde::formats::Bincode;
+use tahini_tarpc::transport::new_tahini_client_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
-use socket2::SockRef;
 use tokio_util::codec::LengthDelimitedCodec;
-// use tahini_tarpc::hacky::ExamplePolicy;
 
 mod policy;
 mod service;
 
-// use crate::policy::ExamplePolicy;
 use crate::service::TahiniSimpleServiceClient;
 use crate::service::{InnerStruct, MyType};
 
@@ -44,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
         c: Ok(4),
     };
 
-    let transport = new_tahini_transport(codec_builder.new_framed(stream), Json::default());
+    let transport = new_tahini_client_transport(codec_builder.new_framed(stream), Json::default());
     //
     // // Modified client instance
     //
