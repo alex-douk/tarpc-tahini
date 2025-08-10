@@ -7,8 +7,9 @@ use alohomora::{
     policy::PolicyAnd,
     pure::PrivacyPureRegion,
     rocket::{JsonResponse, route},
-    tarpc::{traits::Fromable, transport::new_tahini_transport},
 };
+
+use tahini_tarpc::{traits::Fromable, transport::new_tahini_transport};
 
 use advertisement_tahini_utils::{
     THIRD_PARTY_PROCESSORS,

@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 //Channel transport Code
-use alohomora::tarpc::{server::{TahiniBaseChannel, TahiniChannel}, transport::new_tahini_transport};
+use tahini_tarpc::{server::{TahiniBaseChannel, TahiniChannel}, transport::new_tahini_transport};
 use futures::{
     Future, StreamExt,
 };

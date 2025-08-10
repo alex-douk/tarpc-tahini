@@ -1,6 +1,6 @@
 use std::net::{Ipv4Addr, IpAddr};
 
-use alohomora::tarpc::{server::{TahiniBaseChannel, TahiniChannel}, transport::new_tahini_transport};
+use tahini_tarpc::{server::{TahiniBaseChannel, TahiniChannel, TahiniServe}, transport::new_tahini_transport};
 use futures::future::Future;
 use futures::StreamExt;
 use tokio::net::TcpListener;

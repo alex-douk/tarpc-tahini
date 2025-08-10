@@ -1,6 +1,7 @@
 use alohomora::{
-    bbox::BBox, policy::{Policy, PolicyFrom}, tarpc::TahiniTransformFrom
+    bbox::BBox, policy::Policy
 };
+use tahini_tarpc::{traits::PolicyFrom, TahiniTransformFrom};
 use core_tahini_utils::policies::MessagePolicy;
 
 pub struct LeakyPolicy;
@@ -36,7 +37,7 @@ impl Policy for LeakyPolicy {
 impl PolicyFrom<MessagePolicy> for LeakyPolicy {
     fn from_policy(
         other_policy: MessagePolicy,
-        context: &alohomora::tarpc::context::TahiniContext,
+        context: &tahini_tarpc::context::TahiniContext,
     ) -> Result<Self, String>
     where
         Self: Sized,

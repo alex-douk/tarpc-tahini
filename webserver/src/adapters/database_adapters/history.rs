@@ -1,6 +1,6 @@
 use alohomora::policy::Policy;
-use alohomora::policy::PolicyFrom;
-use alohomora::tarpc::context::TahiniContext;
+use tahini_tarpc::traits::PolicyFrom;
+use tahini_tarpc::context::TahiniContext;
 use database_tahini_utils::policies::ConversationMetadataPolicy;
 
 use crate::policies::history::HistoryPolicy;

@@ -247,7 +247,7 @@ fn apply_chat_template(conv: Vec<Message>) -> Result<String, E> {
     let context = context!(bos_token => "<bos>", messages => conv, add_generation_prompt => true);
     env.add_filter("trim", trim);
     env.add_function("raise_exception", raise_exception);
-    let template = env.get_template("gemma").map_err(|_| E::new(LLMError::ValidationError));
+    let template = env.get_template("gemma").map_err(|_| E::new(LLMError::ValidationError))?;
     let res = template.render(context);
     res.map_err(|_| E::new(LLMError::ValidationError))
 

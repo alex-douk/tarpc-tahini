@@ -1,9 +1,11 @@
 use advertisement_tahini_utils::{policies::MarketingPolicy, types::Ad as RemoteAd};
 use alohomora::{
     bbox::BBox,
-    policy::{PolicyAnd, PolicyFrom, PolicyInto},
-    tarpc::{TahiniTransformFrom, TahiniTransformInto, context::TahiniContext as ProtectedTahiniContext},
+    policy::PolicyAnd,
 };
+
+use tahini_tarpc::{traits::{PolicyFrom, PolicyInto}, TahiniTransformFrom, TahiniTransformInto};
+use tahini_tarpc::context::TahiniContext as ProtectedTahiniContext;
 use core_tahini_utils::policies::{MessagePolicy, UsernamePolicy};
 
 use crate::policies::ad_policy::AdPolicy;
@@ -14,7 +16,7 @@ pub struct AdAdapter(pub BBox<String, AdPolicy>);
 impl TahiniTransformFrom<RemoteAd> for AdAdapter {
     fn transform_from(
         other: RemoteAd,
-        context: &alohomora::tarpc::context::TahiniContext,
+        context: &tahini_tarpc::context::TahiniContext,
     ) -> Result<Self, String>
     where
         Self: Sized,
@@ -26,7 +28,7 @@ impl TahiniTransformFrom<RemoteAd> for AdAdapter {
 impl PolicyFrom<MarketingPolicy> for AdPolicy {
     fn from_policy(
         _other_policy: MarketingPolicy,
-        context: &alohomora::tarpc::context::TahiniContext,
+        context: &tahini_tarpc::context::TahiniContext,
     ) -> Result<Self, String>
     where
         Self: Sized,

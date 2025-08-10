@@ -1,21 +1,21 @@
 use crate::policy::ExamplePolicy;
 use alohomora::bbox::BBox;
 use alohomora::pcr::{PrivacyCriticalRegion, Signature};
-use alohomora::tarpc::client::new as new2;
-use alohomora::tarpc::enums::TahiniSafeWrapper;
+use tahini_tarpc::client::new as new2;
+use tahini_tarpc::enums::TahiniSafeWrapper;
 use service::test_keys;
 use std::net::{IpAddr, Ipv4Addr};
 use std::thread::sleep;
 use std::time::Duration;
 use tarpc::client::RpcError;
 use tarpc::serde_transport::new as new_transport;
-use alohomora::tarpc::transport::new_tahini_transport;
+use tahini_tarpc::transport::new_tahini_transport;
 use tarpc::tokio_serde::formats::Bincode;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use socket2::SockRef;
 use tokio_util::codec::LengthDelimitedCodec;
-// use alohomora::tarpc::hacky::ExamplePolicy;
+// use tahini_tarpc::hacky::ExamplePolicy;
 
 mod policy;
 mod service;

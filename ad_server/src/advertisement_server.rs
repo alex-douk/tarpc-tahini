@@ -6,14 +6,15 @@ use advertisement_tahini_utils::policies::{MarketingPolicy, THIRD_PARTY_PROCESSO
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 //Required for model locking across async tasks
 use tokio::sync::Mutex;
+use hoodini_server;
 
 //Channel transport Code
-use alohomora::tarpc::server::{TahiniBaseChannel, TahiniChannel};
+use tahini_tarpc::server::{TahiniBaseChannel, TahiniChannel};
 use futures::{
     Future, StreamExt,
     future::{self, Ready},
 };
-use alohomora::tarpc::transport::new_tahini_transport as new_transport;
+use tahini_tarpc::transport::new_tahini_transport as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio_util::codec::LengthDelimitedCodec;
 

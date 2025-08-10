@@ -1,9 +1,10 @@
 use core_tahini_utils::types::{LLMResponse, UserPrompt};
-use alohomora::tarpc::{
+use tahini_tarpc::enums;
+use tahini_tarpc::{
     client::TahiniStub,
     TahiniType,
 };
-use alohomora::tahini_service;
+use tahini_tarpc::tahini_service;
 
 #[tahini_service(domain=internal)]
 pub trait Inference {

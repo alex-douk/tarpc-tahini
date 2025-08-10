@@ -1,5 +1,5 @@
 use alohomora::policy::{Policy, Reason};
-use alohomora::tarpc::{TahiniDeserialize, TahiniSerialize};
+use tahini_tarpc::{TahiniDeserialize, TahiniSerialize};
 
 #[derive(TahiniSerialize, TahiniDeserialize, Clone)]
 pub struct AdPolicy;

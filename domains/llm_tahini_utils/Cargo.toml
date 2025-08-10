@@ -15,25 +15,3 @@ tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_li
 [lib]
 name="llm_tahini_utils"
 path="src/lib.rs"
-
-[patch.crates-io]
-funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }
-# url={version="=2.5.0"}
-
-[dependencies.url]
-version = "=2.5.0"
-
-[dependencies.icu_properties_data]
-version = "=1.5.1"
-
-[dependencies.pest]
-version="=2.8.0"
-
-[dependencies.pest_meta]
-version="=2.8.0"
-
-[dependencies.pest_generator]
-version="=2.8.0"
-
-[dependencies.native-tls]
-version="=0.2.11"

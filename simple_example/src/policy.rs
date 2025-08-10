@@ -1,8 +1,8 @@
-use tarpc::serde::{Deserialize, Serialize};
+use tahini_tarpc::{TahiniSerialize, TahiniDeserialize};
 use alohomora::context::UnprotectedContext;
 use alohomora::policy::{AnyPolicy, Policy, Reason};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(TahiniSerialize, TahiniDeserialize, Debug, Clone)]
 pub struct ExamplePolicy {
     pub field: u32,
 }

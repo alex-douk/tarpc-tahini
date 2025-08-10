@@ -18,7 +18,7 @@ use std::time::Duration;
 use std::time::SystemTime;
 use tarpc::context;
 
-use alohomora::tarpc::transport::new_tahini_transport as new_transport;
+use tahini_tarpc::transport::new_tahini_transport as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;

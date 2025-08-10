@@ -13,7 +13,7 @@ use tarpc::context;
 use crate::SERVER_ADDRESS;
 use crate::policies::history::HistoryPolicy;
 use crate::policies::login_uuid::UserIdWebPolicy;
-use alohomora::tarpc::transport::new_tahini_transport as new_transport;
+use tahini_tarpc::transport::new_tahini_transport as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;

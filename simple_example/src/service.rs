@@ -1,16 +1,15 @@
 use alohomora::bbox::BBox as PCon;
 use alohomora::pure::PrivacyPureRegion as PPR;
-use alohomora::tarpc::TahiniEnum;
-use alohomora::tarpc::client::TahiniStub;
-use alohomora::tarpc::traits::{TahiniError, TahiniType};
-use alohomora::{TahiniType, tahini_service};
+use tahini_tarpc::TahiniEnum;
+use tahini_tarpc::client::TahiniStub;
+use tahini_tarpc::traits::TahiniError;
+use tahini_tarpc::{TahiniType, tahini_service};
 use aws_lc_rs::aead::{AES_128_GCM, RandomizedNonceKey};
 use aws_lc_rs::agreement::{self, UnparsedPublicKey, agree_ephemeral};
 use aws_lc_rs::error::Unspecified;
 use aws_lc_rs::kdf::{self, SskdfHmacAlgorithmId, get_sskdf_hmac_algorithm, sskdf_hmac};
 use tarpc::serde::{Deserialize, Serialize};
 
-// use alohomora::tarpc::hacky::ExamplePolicy;
 use crate::policy::ExamplePolicy;
 //
 #[derive(Debug, Deserialize, Clone, TahiniType)]
@@ -98,4 +97,3 @@ impl SimpleService for SimpleServiceServer {
     //     x
     // }
 }
-// E
