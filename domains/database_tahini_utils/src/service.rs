@@ -8,11 +8,9 @@ use core_tahini_utils::{
     types::Message,
 };
 
+use tahini_tarpc::{allow_client_transform, tahini_service, TahiniType, client::TahiniStub};
 use alohomora::{
-    allow_client_transform,
     bbox::BBox as PCon,
-    tahini_service,
-    tarpc::{TahiniType, client::TahiniStub},
 };
 
 #[tahini_service(domain = company)]

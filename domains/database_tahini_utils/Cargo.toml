@@ -4,12 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-alohomora = { version = "0.1.0", path = "../../Sesame/alohomora/", default-features = false, features = ["alohomora_derive", "derive", "tahini"] }
+alohomora = {version = "0.1.0", git = "https://github.com/brownsys/Sesame", branch = "extensions_devel", default-features = false, features = ["alohomora_derive", "derive"]}
 tarpc = { version = "0.34.0", features = ["full"] }
 serde = { version = "1.0.219", features = ["derive", "serde_derive"] }
 serde_json = "1.0.140"
 core_tahini_utils = { version = "0.1.0", path = "../core_tahini_utils/"}
-
-[features]
-client = ["alohomora/tahini_client"]
-server = ["alohomora/tahini_server"]
+tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", rev = "f75e671a477cc0c8cb59340c78c0afbe772dd296", features = ["derive"]}

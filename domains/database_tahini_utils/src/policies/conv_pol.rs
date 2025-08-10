@@ -4,7 +4,7 @@ use alohomora::{
     policy::{FrontendPolicy, Policy, Reason, SchemaPolicy},
     rocket::{RocketCookie, RocketRequest},
 };
-use alohomora::tarpc::{TahiniDeserialize, TahiniSerialize};
+use tahini_tarpc::{TahiniDeserialize, TahiniSerialize};
 
 ///A policy for conversational metadata (such as conversation id)
 ///Only allows for authenticated disclosure, and even so, only on specific routes.

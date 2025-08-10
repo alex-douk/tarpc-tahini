@@ -1,7 +1,6 @@
-use alohomora::TahiniType;
+use tahini_tarpc::TahiniType;
 use alohomora::bbox::BBox;
-use alohomora::tarpc::TahiniType;
-use alohomora::tarpc::{TahiniDeserialize, TahiniSerialize};
+use tahini_tarpc::{TahiniDeserialize, TahiniSerialize};
 
 use core_tahini_utils::policies::MessagePolicy;
 use core_tahini_utils::types::Message;
@@ -53,7 +52,7 @@ impl std::fmt::Display for DatabaseError {
         write!(f, "{}", string)
     }
 }
-impl alohomora::tarpc::traits::TahiniError for DatabaseError {}
+impl tahini_tarpc::traits::TahiniError for DatabaseError {}
 
 #[derive(TahiniSerialize, TahiniDeserialize, Debug, Clone)]
 pub struct PolicyError;
@@ -65,4 +64,4 @@ impl std::fmt::Display for PolicyError {
 }
 
 impl std::error::Error for PolicyError {}
-impl alohomora::tarpc::traits::TahiniError for PolicyError {}
+impl tahini_tarpc::traits::TahiniError for PolicyError {}

@@ -1,5 +1,5 @@
 use alohomora::policy::{AnyPolicy, Policy, PolicyAnd, Reason, SchemaPolicy, schema_policy};
-use alohomora::tarpc::{TahiniDeserialize, TahiniSerialize};
+use tahini_tarpc::{TahiniDeserialize, TahiniSerialize};
 #[derive(TahiniDeserialize, TahiniSerialize, Clone, Debug)]
 #[schema_policy(table = "users", column = 0)]
 #[schema_policy(table = "conversations", column = 2)]
