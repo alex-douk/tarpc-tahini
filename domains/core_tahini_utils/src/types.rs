@@ -1,34 +1,25 @@
-use alohomora::bbox::BBox;
-use alohomora::rocket::{RequestBBoxJson, ResponseBBoxJson};
-use tahini_tarpc::{TahiniEnum, TahiniType};
-use std::collections::HashMap;
-// use serde::{TahiniSerialize, TahiniDeserialize};
-use tahini_tarpc::{TahiniSerialize, TahiniDeserialize};
+use serde::{Deserialize, Serialize};
 
-
-use crate::policies::MessagePolicy;
-
-//#[derive(TahiniType)]
-#[derive(TahiniDeserialize, Clone, Debug, TahiniType)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct UserPrompt {
-    pub conversation: BBoxConversation,
+    pub conversation: Conversation,
     pub nb_token: u32,
 }
 
-#[derive(TahiniDeserialize, Clone, Debug, TahiniType)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LLMResponse {
-    pub infered_tokens: BBox<Result<Message, LLMError>, MessagePolicy>,
+    pub infered_tokens: Result<Message, LLMError>
 }
 
-pub type BBoxConversation = BBox<Vec<Message>, MessagePolicy>;
+pub type Conversation = Vec<Message>;
 
-#[derive(TahiniSerialize, RequestBBoxJson, TahiniDeserialize, Clone, Debug, ResponseBBoxJson)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Message {
     pub role: String,
     pub content: String,
 }
 
-#[derive(Debug, TahiniDeserialize, TahiniSerialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum LLMError {
     InternalError,
     ValidationError,
@@ -41,4 +32,3 @@ impl std::fmt::Display for LLMError {
 }
 
 impl std::error::Error for LLMError {}
-impl tahini_tarpc::traits::TahiniError for LLMError {}

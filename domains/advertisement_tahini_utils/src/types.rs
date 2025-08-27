@@ -1,15 +1,15 @@
-use crate::policies::MarketingPolicy;
-use alohomora::bbox::BBox;
-use tahini_tarpc::TahiniType;
-use tahini_tarpc::{TahiniSerialize, TahiniDeserialize};
+use std::collections::HashMap;
 
-#[derive(TahiniSerialize, TahiniDeserialize, Clone, Debug)]
+use tarpc::serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MarketingData {
     pub username: Option<String>,
     pub prompt: String,
+    pub third_party_ad_vendors_allowed: Vec<String>
 }
 
-#[derive(TahiniDeserialize, Clone, Debug, TahiniType)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Ad {
-    pub ad: BBox<String, MarketingPolicy>,
+    pub ad: String
 }
