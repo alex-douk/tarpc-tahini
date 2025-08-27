@@ -85,6 +85,7 @@ def parse_roles(role):
 def history_list(new_chat_callback):
     if "history" in st.session_state and len(st.session_state.history)> 0:
         for conv in st.session_state.history:
+            print("Creating button with id", conv)
             main, delete_col = st.columns([0.98, 0.02])
             with main:
                 st.button(conv, key=str(conv), on_click=load_conversation, args=(conv,), type="tertiary", use_container_width=True)
