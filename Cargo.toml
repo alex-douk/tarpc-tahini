@@ -1,7 +1,6 @@
 [workspace]
 members=["llm_server",
 "db_server",
-"simple_example",
 "ad_server",
 "webserver",
 "domains/advertisement_tahini_utils",
@@ -17,11 +16,6 @@ edition="2021"
 
 [patch.crates-io]
 funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }
-
-[workspace.metadata.dylint]
-libraries = [  
-   { path = "./Sesame/alohomora_lints" },
-]
 
 # [dependencies.url]
 # version = "=2.5.0"
