@@ -1,10 +1,9 @@
 use rocket::Build;
-use alohomora::rocket::{BBoxRocket, routes};
+use rocket::Rocket;
+use rocket::routes;
 use std::net::{IpAddr, Ipv4Addr};
 
 mod routes;
-pub(crate) mod policies;
-pub(crate) mod adapters;
 use self::routes::*;
 
 
@@ -12,10 +11,10 @@ use self::routes::*;
 pub static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 
-fn prepare_server() -> BBoxRocket<Build>{
+fn prepare_server() -> Rocket<Build>{
 
 
-    BBoxRocket::build().mount("/chat", routes![inference::inference])
+    Rocket::build().mount("/chat", routes![inference::inference])
         .mount("/history", routes![database::get_history, database::delete_conversation])
         .mount("/account", routes![login::login, login::signup])
         .mount("/c", routes![database::fetch_conversation])

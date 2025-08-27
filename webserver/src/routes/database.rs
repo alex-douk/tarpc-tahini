@@ -1,43 +1,35 @@
-use alohomora::bbox::BBox as PCon;
-use alohomora::context::Context;
-use alohomora::rocket::{get, BBoxCookieJar, JsonResponse, ResponseBBoxJson};
-use core_tahini_utils::policies::{MessagePolicy, UsernamePolicy};
-use core_tahini_utils::types::{BBoxConversation, Message};
-use database_tahini_utils::service::TahiniDatabaseClient;
+use rocket::{get, http::CookieJar, serde::json::Json as JsonGuard};
+use core_tahini_utils::types::{Conversation, Message};
+use database_tahini_utils::service::{DatabaseClient};
 use database_tahini_utils::types::DatabaseError;
-use database_tahini_utils::types::PolicyError;
-use std::collections::HashMap;
 use std::sync::OnceLock;
 use tarpc::context;
 
-use crate::policies::history::HistoryPolicy;
-use crate::policies::login_uuid::UserIdWebPolicy;
 use crate::SERVER_ADDRESS;
-use tahini_tarpc::transport::new_tahini_client_transport as new_transport;
+use tarpc::serde_transport::new as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
-pub static DBCLIENT: OnceLock<TahiniDatabaseClient> = OnceLock::new();
+pub static DBCLIENT: OnceLock<DatabaseClient> = OnceLock::new();
 
 pub(crate) async fn initialize_db_client() {
     println!("Creating new DB client");
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-    let client = TahiniDatabaseClient::new(Default::default(), transport)
-        .spawn()
-        .await;
+    let client = DatabaseClient::new(Default::default(), transport)
+        .spawn();
     if let Err(_) = DBCLIENT.set(client) {
         panic!("Client connection already exists");
     }
 }
 
 pub(crate) async fn store_to_database(
-    uuid: PCon<String, UserIdWebPolicy>,
-    conv_id: PCon<Option<String>, UserIdWebPolicy>,
-    message: PCon<Message, MessagePolicy>, // submit_form: DatabaseStoreForm,
-) -> Result<PCon<String, UserIdWebPolicy>, PolicyError> {
+    uuid: String,
+    conv_id: Option<String>,
+    message: Message, // submit_form: DatabaseStoreForm,
+) -> String {
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
@@ -49,36 +41,24 @@ pub(crate) async fn store_to_database(
         }
     };
 
-    match response {
-        Ok(res) => res.transpose().map(|x| {
-            x.transform_into::<PCon<String, UserIdWebPolicy>>()
-                .expect("Couldn't convert to local type")
-        }),
-        Err(_) => Err(PolicyError),
-    }
+    response.unwrap()
 }
 
 pub(crate) async fn register_user(
-    username: PCon<String, UsernamePolicy>,
-) -> Result<PCon<String, UserIdWebPolicy>, DatabaseError> {
+    username: String,
+) -> Result<String, DatabaseError> {
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
         }
         Some(client) => client.register_user(context::current(), username).await,
     };
-
-    match response {
-        Ok(r) => r
-            .transform_into()
-            .expect("Couldn't transform to local type"),
-        Err(_) => Err(DatabaseError::InternalError),
-    }
+    response.unwrap()
 }
 
 pub(crate) async fn fetch_user(
-    username: PCon<String, UsernamePolicy>,
-) -> Result<PCon<String, UserIdWebPolicy>, DatabaseError> {
+    username: String,
+) -> Result<String, DatabaseError> {
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
@@ -86,48 +66,37 @@ pub(crate) async fn fetch_user(
         Some(client) => client.fetch_user(context::current(), username).await,
     };
 
-    match response {
-        Ok(r) => r
-            .transform_into()
-            .expect("Couldn't transform to local type"),
-        Err(_) => Err(DatabaseError::InternalError),
-    }
+    response.unwrap()
 }
 
-pub(crate) async fn get_default_user() -> PCon<String, UserIdWebPolicy> {
-    let default_user = PCon::new("anonymous".to_string(), UsernamePolicy::default());
+pub(crate) async fn get_default_user() -> String {
+    // let default_user = PCon::new("anonymous".to_string(), UsernamePolicy::default());
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
         }
-        Some(client) => client.fetch_user(context::current(), default_user).await,
+        Some(client) => client.fetch_user(context::current(), "anonymous".to_string()).await,
     };
-    response
-        .expect("Default user not found")
-        .transpose()
-        .map(|x| {
-            x.transform_into()
-                .expect("Couldn't transform to local type")
-        })
-        .expect("Couldn't fetch default user")
+    response.expect("Call to DB failed").expect("Couldn't find default user")
 }
 
-#[derive(Clone, ResponseBBoxJson)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct HistoryResponse {
-    history_list: Vec<PCon<String, HistoryPolicy>>,
+    history_list: Vec<String>
 }
 
 #[get("/<user_id>")]
 pub(crate) async fn get_history(
-    cookies: BBoxCookieJar<'_, '_>,
-    user_id: PCon<String, UsernamePolicy>,
-) -> JsonResponse<HistoryResponse, bool> {
+    cookies: &CookieJar<'_>,
+    user_id: String,
+) -> JsonGuard<HistoryResponse> {
     //Verify the cookie is present
-    let mut is_authenticated = cookies.get::<UsernamePolicy>("user_id").is_some();
-    //Verify if the path matches that of the cookie
-    if is_authenticated {
-        let ground_truth: PCon<String, UsernamePolicy> = cookies.get("user_id").unwrap().into();
-        is_authenticated = is_authenticated && (ground_truth == user_id);
+    if let false = cookies.get("user_id").is_some_and(|uid| uid.value() == user_id.as_str()) {
+        JsonGuard(
+            HistoryResponse {
+                history_list: Vec::new(),
+            }
+        );
     }
 
     let response = match DBCLIENT.get() {
@@ -141,38 +110,35 @@ pub(crate) async fn get_history(
         }
     };
     match response {
-        Ok(res) => JsonResponse(
+        Ok(res) => JsonGuard(
             HistoryResponse {
                 history_list: res
-                    .transform_into()
-                    .expect("Couldn't transform to local type"),
             },
-            Context::new("history".to_string(), is_authenticated),
         ),
         //If any kind of error hapen on the remote, of course we fail to fetch
-        Err(_) => JsonResponse(
+        Err(_) => JsonGuard(
             HistoryResponse {
                 history_list: Vec::new(),
-            },
-            Context::new("history".to_string(), false),
+            }
         ),
     }
 }
 
-#[derive(Clone, ResponseBBoxJson)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct FetchConversation {
-    conv: Option<BBoxConversation>,
+    conv: Option<Conversation>,
 }
 
 #[get("/<chat_id>")]
 pub(crate) async fn fetch_conversation(
-    cookies: BBoxCookieJar<'_, '_>,
-    chat_id: PCon<String, UserIdWebPolicy>,
-) -> JsonResponse<FetchConversation, ()> {
-    if cookies.get::<UsernamePolicy>("user_id").is_none() {
-        return JsonResponse(FetchConversation { conv: None }, Context::empty());
+    cookies: &CookieJar<'_>,
+    chat_id: String,
+) -> JsonGuard<FetchConversation> {
+    if cookies.get("user_id").is_none() {
+        return JsonGuard(FetchConversation { conv: None });
+
     }
-    let user_id: PCon<String, UserIdWebPolicy> = cookies.get("user_id").unwrap().into();
+    let user_id: String = cookies.get("user_id").unwrap().value().to_string();
 
     let response = match DBCLIENT.get() {
         None => {
@@ -187,29 +153,31 @@ pub(crate) async fn fetch_conversation(
     match response {
         Err(e) => {
             eprintln!("When fetching conversation details, received error : {}", e);
-            JsonResponse(FetchConversation { conv: None }, Context::empty())
+            JsonGuard(FetchConversation { conv: None })
         }
-        Ok(boxed_conv) => JsonResponse(FetchConversation { conv: boxed_conv }, Context::empty()),
+        Ok(conv) => JsonGuard(FetchConversation { conv: conv })
     }
 }
 
 #[get("/delete/<chat_id>")]
 pub(crate) async fn delete_conversation(
-    cookies: BBoxCookieJar<'_, '_>,
-    chat_id: PCon<String, UserIdWebPolicy>,
+    cookies: &CookieJar<'_>,
+    chat_id: String,
 ) -> Result<(), ()> {
-    if cookies.get::<UsernamePolicy>("user_id").is_none() {}
-    let user_id: PCon<String, UserIdWebPolicy> =
-        cookies.get::<UserIdWebPolicy>("user_id").unwrap().into();
-    let response = match DBCLIENT.get() {
-        None => {
-            panic!("Client should already exist");
-        }
-        Some(client) => {
-            client
-                .delete_conversation(context::current(), (user_id, chat_id))
-                .await
-        }
-    };
+    if let Some(uid) = cookies.get("user_id") {
+        println!("Cookie UUID is {:?}", uid);
+        let response = match DBCLIENT.get() {
+            None => {
+                panic!("Client should already exist");
+            }
+            Some(client) => {
+                client
+                    .delete_conversation(context::current(), (uid.value().to_string(), chat_id))
+                    .await
+            }
+        };
     response.map(|_| ()).map_err(|_| ())
+    }else {
+        Err(())
+    }
 }

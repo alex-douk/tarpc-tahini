@@ -1,30 +1,30 @@
-use crate::{database::{fetch_user, register_user}, policies::login_uuid::UserIdWebPolicy};
-use alohomora::{
-    bbox::BBox,
-    context::Context,
-    rocket::{
-        BBoxCookie, BBoxCookieJar, BBoxJson, JsonResponse, RequestBBoxJson,
-        ResponseBBoxJson, route,
-    },
-};
-use core_tahini_utils::policies::UsernamePolicy;
-use std::collections::HashMap;
+use crate::database::{fetch_user, register_user};
+use rocket::{http::Cookie, route, serde::json::Json as JsonGuard};
+// use alohomora::{
+//     bbox::BBox,
+//     context::Context,
+//     rocket::{
+//         BBoxCookie, BBoxCookieJar, BBoxJson, JsonResponse, RequestBBoxJson,
+//         ResponseBBoxJson, route,
+//     },
+// };
+use rocket::http::CookieJar;
 
-#[derive(Clone, RequestBBoxJson)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct LoginForm {
-    username: BBox<String, UsernamePolicy>,
+    username: String,
 }
 
-#[derive(Clone, ResponseBBoxJson)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct LoginResponse {
-    uuid: Option<BBox<String, UserIdWebPolicy>>,
+    uuid: Option<String>,
 }
 
-#[route(POST, "/login", data = "<data>")]
+#[route(POST, uri = "/login", data = "<data>")]
 pub(crate) async fn login(
-    cookies: BBoxCookieJar<'_, '_>,
-    data: BBoxJson<LoginForm>,
-) -> alohomora::rocket::JsonResponse<LoginResponse, ()> {
+    cookies: &CookieJar<'_>,
+    data: JsonGuard<LoginForm>,
+) -> JsonGuard<LoginResponse> {
     // let is_authenticated = cookies.get(name)
     let uuid = fetch_user(data.username.clone()).await;
     match uuid {
@@ -32,27 +32,27 @@ pub(crate) async fn login(
             let resp = LoginResponse {
                 uuid: Some(uuid.clone()),
             };
-            let _ = cookies.add(BBoxCookie::new("user_id", uuid), Context::<()>::empty());
-            JsonResponse(resp, Context::empty())
+            let _ = cookies.add(Cookie::new("user_id", uuid));
+            JsonGuard(resp)
         }
-        Err(_e) => JsonResponse(LoginResponse { uuid: None }, Context::empty()),
+        Err(_) => JsonGuard(LoginResponse { uuid: None }),
     }
 }
 
-#[route(POST, "/signup", data = "<data>")]
+#[route(POST, uri = "/signup", data = "<data>")]
 pub(crate) async fn signup(
-    cookies: BBoxCookieJar<'_, '_>,
-    data: BBoxJson<LoginForm>,
-) -> alohomora::rocket::JsonResponse<LoginResponse, ()> {
+    cookies: &CookieJar<'_>,
+    data: JsonGuard<LoginForm>,
+) -> JsonGuard<LoginResponse> {
     let uuid = register_user(data.username.clone()).await;
     match uuid {
         Ok(uuid) => {
             let resp = LoginResponse {
                 uuid: Some(uuid.clone()),
             };
-            let _ = cookies.add(BBoxCookie::new("user_id", uuid), Context::<()>::empty());
-            JsonResponse(resp, Context::empty())
+            let _ = cookies.add(Cookie::new("user_id", uuid));
+            JsonGuard(resp)
         }
-        Err(_e) => JsonResponse(LoginResponse { uuid: None }, Context::empty()),
+        Err(_) => JsonGuard(LoginResponse { uuid: None }),
     }
 }

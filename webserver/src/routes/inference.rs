@@ -1,51 +1,40 @@
-use alohomora::bbox::BBox;
-use alohomora::context::Context;
-use alohomora::context::UnprotectedContext;
-use alohomora::policy::Policy;
-use alohomora::pure::PrivacyPureRegion as PPR;
-use alohomora::rocket::BBoxCookieJar;
-use alohomora::rocket::BBoxJson;
-use alohomora::rocket::RequestBBoxJson;
-use alohomora::rocket::{JsonResponse, ResponseBBoxJson, route};
-use core_tahini_utils::policies::*;
-
-use core_tahini_utils::types::{BBoxConversation, Message, UserPrompt};
-use futures::stream::Once;
-use llm_tahini_utils::service::TahiniInferenceClient;
-use std::collections::HashMap;
+use core_tahini_utils::types::{Conversation, Message, UserPrompt};
+use llm_tahini_utils::service::InferenceClient;
+use rocket::http::CookieJar;
+use rocket::route;
+use rocket::serde::json::Json as JsonGuard;
 use std::sync::OnceLock;
 use std::time::Duration;
 use std::time::SystemTime;
 use tarpc::context;
 
-use tahini_tarpc::transport::new_tahini_client_transport as new_transport;
+use tarpc::serde_transport::new as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
-use crate::SERVER_ADDRESS;
 use crate::ads::send_to_marketing;
 use crate::database::get_default_user;
 use crate::database::store_to_database;
-use crate::policies::ad_policy::AdPolicy;
-use crate::policies::login_uuid::UserIdWebPolicy;
+use crate::routes::database::fetch_user;
+use crate::SERVER_ADDRESS;
 
-#[derive(Clone, RequestBBoxJson)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub(crate) struct InferenceRequest {
-    pub user: Option<BBox<String, UsernamePolicy>>,
-    pub conv_id: BBox<Option<String>, UserIdWebPolicy>,
-    pub conversation: BBoxConversation,
+    pub user: Option<String>,
+    pub conv_id: Option<String>,
+    pub conversation: Conversation,
     pub nb_token: u32,
 }
 
-#[derive(Clone, ResponseBBoxJson)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub(crate) struct InferenceResponse {
-    infered_tokens: BBox<Message, MessagePolicy>,
-    ad: Option<BBox<String, AdPolicy>>,
-    db_uuid: Option<BBox<String, UserIdWebPolicy>>,
+    infered_tokens: Message,
+    ad: Option<String>,
+    db_uuid: Option<String>,
 }
 
-pub static LLMCLIENT : OnceLock<TahiniInferenceClient> = OnceLock::new();
+pub static LLMCLIENT: OnceLock<InferenceClient> = OnceLock::new();
 pub(crate) async fn initialize_llm_client() {
     println!("Creating new LLM client");
     let codec_builder = LengthDelimitedCodec::builder();
@@ -54,38 +43,42 @@ pub(crate) async fn initialize_llm_client() {
 
     //Custom deadline for inference calls. Will also potentially allow for streaming
     //responses (but GitHub issues suggest tarpc is unable to do so)
-    let client = TahiniInferenceClient::new(Default::default(), transport)
-        .spawn().await;
+    let client = InferenceClient::new(Default::default(), transport).spawn();
     if let Err(_) = LLMCLIENT.set(client) {
         panic!("Client connection already exists");
     }
 }
 
-async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, MessagePolicy>> {
+async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<Message> {
     let mut context = context::current();
     context.deadline = SystemTime::now() + Duration::from_secs(45);
     let response = match LLMCLIENT.get() {
         None => {
             panic!("LLM Client should already exist");
         }
-        Some(client) => client.inference(context, prompt).await?
+        Some(client) => client.inference(context, prompt).await?,
     };
 
-    Ok(response.infered_tokens.transpose()?)
+    Ok(response.infered_tokens?)
 }
 
-#[route(POST, "/", data = "<data>")]
+// #[derive(serde::Deserialize)]
+// struct OptionalUserConsent {
+//     storage_consent: Option<bool>,
+//     targeted_ads_consent: Option<bool>,
+//     allowed_third_party_vendors: Vec<String>
+// }
+
+#[route(POST, uri = "/", data = "<data>")]
 pub(crate) async fn inference(
-    cookies: BBoxCookieJar<'_, '_>,
-    data: BBoxJson<InferenceRequest>,
-) -> alohomora::rocket::JsonResponse<InferenceResponse, ()> {
+    cookies: &CookieJar<'_>,
+    data: JsonGuard<InferenceRequest>,
+) -> JsonGuard<InferenceResponse> {
     //Parse whether anonymous or connected user
     //Could probably handle that via some pre-hooks. A lot of boilerplate here
+
     let username = match &data.user {
-        None => BBox::new("anonymous".to_string(), UsernamePolicy {
-            targeted_ads_consent: false,
-            third_party_vendors_consent: HashMap::new(),
-        }),
+        None => "anonymous".to_string(),
         Some(t) => t.clone(),
     };
     //Parse whether user knows their uuid or not
@@ -95,12 +88,25 @@ pub(crate) async fn inference(
             println!("Assuming anonymous user");
             get_default_user().await
         }
-        //Weirdly enough, only implementation for From<BBoxCookie<'c, P: FrontendPolicy> for BBox<String, P>
         Some(t) => {
             println!("Authenticated user");
-            t.into()
+            t.value().to_string()
         }
     };
+
+    //User provided a wrong username/UUID pair
+    let ground_uid = fetch_user(username.clone()).await.ok();
+    if let false = ground_uid.is_some_and(|u| u == uuid) {
+        return JsonGuard(construct_answer(
+            Message {
+                role: "error".to_string(),
+                content: "LLM Internal error".to_string(),
+            },
+            None,
+            None,
+        ));
+    }
+
     let conversation = data.conversation.clone();
     let payload = UserPrompt {
         conversation: conversation.clone(),
@@ -113,95 +119,87 @@ pub(crate) async fn inference(
     //If policy says no_db, do not go to DB, instead early return with None
     //Otherwise, go to DB then return
     if tokens.is_err() {
-        return construct_answer(
-            &BBox::new(
-                Message {
-                    role: "error".to_string(),
-                    content: "LLM Internal error".to_string(),
-                },
-                MessagePolicy::default(),
-            ),
+        return JsonGuard(construct_answer(
+            Message {
+                role: "error".to_string(),
+                content: "LLM Internal error".to_string(),
+            },
             None,
             None,
-        );
+        ));
     }
     let tokens = tokens.unwrap();
     //TODO(douk): Change with #[checked] RPC annotation
-    let conv_id = match verify_if_send_to_db(tokens.policy()) {
-        false => None,
-        true => match store_to_database(
-            uuid.clone(),
-            data.conv_id.clone(),
-            conversation
-                .clone()
-                .into_ppr(PPR::new(|conv: Vec<Message>| conv.last().unwrap().clone())),
-        )
-        .await
-        {
-            Ok(conv_id) => Some(conv_id),
-            Err(e) => {
-                eprintln!("DB error: {}", e);
-                None
-            }
-        },
+    // let conv_id = match verify_if_send_to_db(tokens.policy()) {
+    let conv_id = match cookies.get("storage_consent") {
+        None => None,
+        Some(_) => Some(
+            store_to_database(
+                uuid.clone(),
+                data.conv_id.clone(),
+                conversation.last().unwrap().clone(),
+            )
+            .await,
+        ),
     };
+
     if conv_id.is_some() {
-        match store_to_database(
-            uuid.clone(),
-            conv_id.clone().unwrap().into_ppr(PPR::new(|x| Some(x))),
-            tokens.clone(),
-        )
-        .await
-        {
-            Ok(_) => (),
-            Err(e) => {
-                eprint!("Db error: {}", e);
-            }
-        }
+        store_to_database(uuid.clone(), conv_id.clone(), tokens.clone()).await;
     }
 
     //If allowed to check AND 30% AD presence
-    let ad = match verify_if_send_to_marketing(tokens.policy()) {
-        false => None,
-        true => Some(send_to_marketing(username, conversation).await),
+    // let ad = match verify_if_send_to_marketing(tokens.policy()) {
+
+    let ad = match cookies.get("ad_consent") {
+        None => None,
+        Some(_) => {
+            let ad_username = cookies.get("targeted_ads_consent").map(|_| username);
+            let tpp_vendors =
+                cookies
+                    .get("allowed_third_party_data_vendors")
+                    .map_or_else(Vec::new, |c| {
+                        println!("Vendor value is {:?}", c.value());
+                        serde_json::from_str::<Vec<String>>(c.value())
+                            .expect("Couldn't parse the vendors list")
+                    });
+            println!("Vendors is {:?}", tpp_vendors);
+            Some(send_to_marketing(ad_username, conversation, tpp_vendors).await)
+        }
     };
 
-    construct_answer(&tokens, conv_id, ad)
+    JsonGuard(construct_answer(tokens, conv_id, ad))
 }
 
-fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {
-    let context = UnprotectedContext {
-        route: "".to_string(),
-        data: Box::new(0),
-    };
-    p.check(
-        &context,
-        alohomora::policy::Reason::Custom(Box::new(InferenceReason::SendToDB)),
-    )
-}
-
-fn verify_if_send_to_marketing<P: Policy>(p: &P) -> bool {
-    let context = UnprotectedContext {
-        route: "".to_string(),
-        data: Box::new(0),
-    };
-    p.check(
-        &context,
-        alohomora::policy::Reason::Custom(Box::new(InferenceReason::SendToMarketing)),
-    )
-}
+// fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {
+//     let context = UnprotectedContext {
+//         route: "".to_string(),
+//         data: Box::new(0),
+//     };
+//     p.check(
+//         &context,
+//         alohomora::policy::Reason::Custom(Box::new(InferenceReason::SendToDB)),
+//     )
+// }
+//
+// fn verify_if_send_to_marketing<P: Policy>(p: &P) -> bool {
+//     let context = UnprotectedContext {
+//         route: "".to_string(),
+//         data: Box::new(0),
+//     };
+//     p.check(
+//         &context,
+//         alohomora::policy::Reason::Custom(Box::new(InferenceReason::SendToMarketing)),
+//     )
+// }
 
 fn construct_answer(
-    inf_res: &BBox<Message, MessagePolicy>,
-    db_uid: Option<BBox<String, UserIdWebPolicy>>,
-    ad: Option<BBox<String, AdPolicy>>,
-) -> JsonResponse<InferenceResponse, ()> {
-    JsonResponse(
-        InferenceResponse {
-            infered_tokens: inf_res.clone(),
-            db_uuid: db_uid,
-            ad,
-        },
-        Context::empty(),
-    )
+    inf_res: Message,
+    db_uid: Option<String>,
+    ad: Option<String>,
+) -> InferenceResponse {
+    InferenceResponse {
+        infered_tokens: inf_res.clone(),
+        db_uuid: db_uid,
+        ad,
+    }
 }
