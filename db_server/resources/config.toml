@@ -1,5 +1,5 @@
 [db_config]
-username="tahini"
-password="tahini_pwd"
-database="etosLM"
+username="baseline_db"
+password="baseline_db_pwd"
+database="baseline_etosLM"
 prime=false
