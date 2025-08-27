@@ -1,35 +1,23 @@
 use rand::seq::{IndexedRandom, IteratorRandom};
 //Clone model just clones the reference
 
-use advertisement_tahini_utils::policies::MarketingReason;
-use advertisement_tahini_utils::policies::{MarketingPolicy, THIRD_PARTY_PROCESSORS};
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::collections::HashMap;
 //Required for model locking across async tasks
-use tokio::sync::Mutex;
-use hoodini_server::CLIENT_MAP;
+use advertisement_tahini_utils::THIRD_PARTY_PROCESSORS;
 
 //Channel transport Code
-use tahini_tarpc::server::{TahiniBaseChannel, TahiniChannel};
 use futures::{
     Future, StreamExt,
-    future::{self, Ready},
 };
-use tahini_tarpc::transport::new_tahini_server_transport as new_transport;
-use tarpc::tokio_serde::formats::Json;
+use tarpc::{serde_transport::new as new_transport, server::BaseChannel, tokio_serde::formats::Json};
 use tokio_util::codec::LengthDelimitedCodec;
+use tarpc::server::Channel;
 
 //Network code
 use std::net::{IpAddr, Ipv4Addr};
 use tokio::net::TcpListener;
 
 //Sesame basics
-use alohomora::bbox::BBox as PCon;
-use alohomora::context::UnprotectedContext;
-use alohomora::fold::fold;
-use alohomora::pcr::{PrivacyCriticalRegion, Signature};
-use alohomora::policy::Policy;
-use alohomora::policy::Reason;
-use alohomora::pure::PrivacyPureRegion as PPR;
 
 use advertisement_tahini_utils::service::Advertisement;
 //Application-wide mods
@@ -46,16 +34,17 @@ static META_AD: &str =
 struct AdServer;
 
 enum AdStrategy {
-    ThirdPartyTracked(&'static str),
-    ThirdPartyAnonymous(&'static str),
+    ThirdPartyTracked(String),
+    ThirdPartyAnonymous(String),
     LocalProcessTracked,
     LocalProcessAnonymous,
 }
 
-fn find_vendor(consent_map: &HashMap<String, bool>) -> Result<&'static str, ()> {
+fn find_vendor(consent_map: &Vec<String>) -> Result<String, ()> {
     let mut allowed_vendor = Vec::new();
-    for vendor in THIRD_PARTY_PROCESSORS {
-        if *consent_map.get(&vendor.to_string()).unwrap_or(&false) {
+    let tpp_vec = THIRD_PARTY_PROCESSORS.to_vec();
+    for vendor in consent_map {
+        if tpp_vec.contains(&vendor.as_str()) {
             allowed_vendor.push(vendor);
         }
     }
@@ -63,20 +52,20 @@ fn find_vendor(consent_map: &HashMap<String, bool>) -> Result<&'static str, ()> 
         0 => Err(()),
         _ => {
             let mut rng = rand::rng();
-            allowed_vendor.iter().choose(&mut rng).ok_or(()).copied()
+            allowed_vendor.choose(&mut rng).ok_or(()).map(|x: &&String| (**x).clone())
         }
     }
 }
 
 pub(crate) struct ThirdPartyProcessorData {
-    pub username: Option<PCon<String, MarketingPolicy>>,
-    pub prompt: PCon<String, MarketingPolicy>,
+    pub username: Option<String>,
+    pub prompt: String
 }
 
 fn fetch_ad_from_third_party(
     vendor: &str,
     data: ThirdPartyProcessorData,
-) -> PCon<String, MarketingPolicy> {
+) -> String {
     println!("Vendor is {}", vendor);
     match vendor {
         "Google_Ads" => google_ads::get_ad(data),
@@ -85,15 +74,15 @@ fn fetch_ad_from_third_party(
     }
 }
 
-fn ad_strategy(pol: &MarketingPolicy) -> AdStrategy {
-    match pol.targeted_ads_consent {
-        false => match find_vendor(&pol.third_party_processing) {
+fn ad_strategy(targeted: bool, allowed_vendors: Vec<String>) -> AdStrategy {
+    match targeted {
+        false => match find_vendor(&allowed_vendors) {
             Ok(vendor) => AdStrategy::ThirdPartyAnonymous(vendor),
             Err(_) => AdStrategy::LocalProcessAnonymous,
         },
         true => {
             println!("We have targed consent");
-            match find_vendor(&pol.third_party_processing) {
+            match find_vendor(&allowed_vendors) {
                 Ok(vendor) => AdStrategy::ThirdPartyTracked(vendor),
                 Err(_) => AdStrategy::LocalProcessTracked,
             }
@@ -121,25 +110,18 @@ pub fn parse_conversation_into_topics(conv: String) -> String {
     // return ranked_keywords[0].clone();
 }
 
-fn local_process(data: ThirdPartyProcessorData) -> PCon<String, MarketingPolicy> {
+fn local_process(data: ThirdPartyProcessorData) -> String {
     match data.username {
-        None => data.prompt.into_ppr(PPR::new(|conv| {
+        None => 
             format!(
                 "Find more about {} on [https://SomeRandomWebSite.com](https://brown.edu)",
-                parse_conversation_into_topics(conv)
+                parse_conversation_into_topics(data.prompt)
             )
-        })),
-        Some(username) => fold((username, data.prompt))
-            .unwrap()
-            .into_ppr(PPR::new(|(uname_unboxed, conv_unboxed)| {
-                format!(
-                    "Hi {}! You can find more about {} on [https://SomeRandomWebSite.com](https://brown.edu)",
-                    uname_unboxed,
-                    parse_conversation_into_topics(conv_unboxed)
+        ,
+        Some(username) => format!("Hi {}! You can find more about {} on [https://SomeRandomWebSite.com](https://brown.edu)",
+                    username,
+                    parse_conversation_into_topics(data.prompt)
                 )
-            }))
-            .specialize_policy()
-            .expect("Couldn't coerce ad policies together during local processing"),
     }
 }
 
@@ -147,19 +129,16 @@ impl Advertisement for AdServer {
     async fn auction_bidding(
         self,
         _context: tarpc::context::Context,
-        prompt: PCon<MarketingData, MarketingPolicy>,
+        prompt: MarketingData
     ) -> Ad {
-        let strategy = ad_strategy(prompt.policy());
+        let strategy = ad_strategy(prompt.username.is_some(), prompt.third_party_ad_vendors_allowed);
         let tpd = ThirdPartyProcessorData {
-            username: prompt
-                .clone()
-                .into_ppr(PPR::new(|x: MarketingData| x.username))
-                .transpose(),
-            prompt: prompt.into_ppr(PPR::new(|x: MarketingData| x.prompt)),
+            username: prompt.username,
+            prompt: prompt.prompt
         };
         let ad = match strategy {
             AdStrategy::ThirdPartyTracked(vendor) | AdStrategy::ThirdPartyAnonymous(vendor) => {
-                fetch_ad_from_third_party(vendor, tpd)
+                fetch_ad_from_third_party(vendor.as_str(), tpd)
             }
             AdStrategy::LocalProcessAnonymous | AdStrategy::LocalProcessTracked => {
                 local_process(tpd)
@@ -191,10 +170,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Accepted a connection");
         let framed = codec_builder.new_framed(stream);
         
-        let transport = new_transport(framed, Json::default(), (*CLIENT_MAP).clone());
+        let transport = new_transport(framed, Json::default());
 
         // let transport = new_transport(framed, Bincode::default());
-        let fut = TahiniBaseChannel::with_defaults(transport)
+        let fut = BaseChannel::with_defaults(transport)
             // .execute(server.serve());
             .execute(server.clone().serve())
             .for_each(wait_upon);
