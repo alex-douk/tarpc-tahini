@@ -46,16 +46,17 @@ static META_AD: &str =
 struct AdServer;
 
 enum AdStrategy {
-    ThirdPartyTracked(&'static str),
-    ThirdPartyAnonymous(&'static str),
+    ThirdPartyTracked(String),
+    ThirdPartyAnonymous(String),
     LocalProcessTracked,
     LocalProcessAnonymous,
 }
 
-fn find_vendor(consent_map: &HashMap<String, bool>) -> Result<&'static str, ()> {
+fn find_vendor(consent_map: &Vec<String>) -> Result<String, ()> {
     let mut allowed_vendor = Vec::new();
-    for vendor in THIRD_PARTY_PROCESSORS {
-        if *consent_map.get(&vendor.to_string()).unwrap_or(&false) {
+    let tpp_vec = THIRD_PARTY_PROCESSORS.to_vec();
+    for vendor in consent_map {
+        if tpp_vec.contains(&vendor.as_str()) {
             allowed_vendor.push(vendor);
         }
     }
@@ -63,7 +64,7 @@ fn find_vendor(consent_map: &HashMap<String, bool>) -> Result<&'static str, ()> 
         0 => Err(()),
         _ => {
             let mut rng = rand::rng();
-            allowed_vendor.iter().choose(&mut rng).ok_or(()).copied()
+            allowed_vendor.choose(&mut rng).ok_or(()).map(|x: &&String| (**x).clone())
         }
     }
 }
@@ -87,13 +88,13 @@ fn fetch_ad_from_third_party(
 
 fn ad_strategy(pol: &MarketingPolicy) -> AdStrategy {
     match pol.targeted_ads_consent {
-        false => match find_vendor(&pol.third_party_processing) {
+        false => match find_vendor(&pol.third_party_ad_vendors_allowed) {
             Ok(vendor) => AdStrategy::ThirdPartyAnonymous(vendor),
             Err(_) => AdStrategy::LocalProcessAnonymous,
         },
         true => {
             println!("We have targed consent");
-            match find_vendor(&pol.third_party_processing) {
+            match find_vendor(&pol.third_party_ad_vendors_allowed) {
                 Ok(vendor) => AdStrategy::ThirdPartyTracked(vendor),
                 Err(_) => AdStrategy::LocalProcessTracked,
             }
@@ -159,7 +160,7 @@ impl Advertisement for AdServer {
         };
         let ad = match strategy {
             AdStrategy::ThirdPartyTracked(vendor) | AdStrategy::ThirdPartyAnonymous(vendor) => {
-                fetch_ad_from_third_party(vendor, tpd)
+                fetch_ad_from_third_party(vendor.as_str(), tpd)
             }
             AdStrategy::LocalProcessAnonymous | AdStrategy::LocalProcessTracked => {
                 local_process(tpd)

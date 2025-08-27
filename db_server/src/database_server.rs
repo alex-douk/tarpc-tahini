@@ -118,7 +118,7 @@ impl Database for DatabaseServer {
             message.policy().storage,
             message.policy().marketing_consent,
             message.policy().unprotected_image_gen,
-            serde_json::to_string(&message.policy().third_party_consent)
+            serde_json::to_string(&message.policy().third_party_ad_vendors_allowed)
                 .unwrap_or("{}".to_string()),
         );
 

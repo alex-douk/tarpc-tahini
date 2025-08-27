@@ -24,7 +24,7 @@ if "is_authenticated" not in st.session_state:
     st.session_state["is_authenticated"] = st.session_state.uuid is not None
 
 if "privacy_parameters" not in st.session_state:
-    st.session_state["privacy_parameters"] = {"storage": st.session_state.is_authenticated, "ads": False, "image_gen": False, "targeted_ads": False, "third_party_data_vendors" : dict([(vendor, False) for vendor in st.session_state["third_party_data_vendors"]])}
+    st.session_state["privacy_parameters"] = {"storage": st.session_state.is_authenticated, "ads": False, "image_gen": False, "targeted_ads": False, "allowed_third_party_data_vendors" : dict([(vendor, False) for vendor in st.session_state["third_party_data_vendors"]])}
 
 
 

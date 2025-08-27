@@ -15,7 +15,7 @@ pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 pub struct MarketingPolicy {
     pub no_storage: bool,
     pub targeted_ads_consent: bool,
-    pub third_party_processing: HashMap<String, bool>,
+    pub third_party_ad_vendors_allowed: Vec<String>,
 }
 
 impl Policy for MarketingPolicy {
@@ -40,11 +40,8 @@ impl Policy for MarketingPolicy {
                 Some(reason) => match reason {
                     //If it is, we check the inference reason
                     MarketingReason::Email => self.targeted_ads_consent,
-                    MarketingReason::ThirdPartyProcessing(vendor) => {
-                        match self.third_party_processing.get(vendor) {
-                            None => false,
-                            Some(b) => *b,
-                        }
+                    MarketingReason::ThirdPartyProcessing(ref vendor) => {
+                        self.third_party_ad_vendors_allowed.contains(vendor)
                     }
                 },
             },
