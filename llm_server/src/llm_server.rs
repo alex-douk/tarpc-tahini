@@ -50,13 +50,13 @@ static SYSTEM_PROMPT: &str = "You are a helpful assistant. You are tasked with r
 
 #[derive(Clone)]
 pub struct InferenceServer {
-    model: Arc<Mutex<model_backend::TextGeneration>>,
+    model: Arc<Mutex<()>>,
 }
 
 impl InferenceServer {
     pub fn new(tg: TextGeneration) -> Self {
         InferenceServer {
-            model: Arc::new(Mutex::new(tg)),
+            model: Arc::new(Mutex::new(())),
         }
     }
 }
@@ -72,7 +72,13 @@ impl Inference for InferenceServer {
             },
         );
         let mut locked_model = self.model.lock_owned().await;
-        let infered = locked_model.run(conv, prompt.nb_token as usize);
+        // let infered = locked_model.run(conv, prompt.nb_token as usize);
+
+        let infered : Result<String, String> = Ok(
+            "Hi! My name is Gemma. I'm usually happy to help but I can't right now.".to_string(),
+        );
+
+        drop(locked_model);
 
         match infered {
             Err(e) => {
@@ -88,6 +94,7 @@ impl Inference for InferenceServer {
                 }),
             },
         }
+
     }
 }
 
@@ -98,15 +105,15 @@ pub(crate) async fn wait_upon(fut: impl Future<Output = ()> + Send + 'static) {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Welcome to the LLM inference server!");
-    let pipeline = create_pipeline();
+    // let pipeline = create_pipeline();
+    let pipeline : Result<String, String> = Ok("".to_string());
     match pipeline {
-        Ok(model) => {
+        Ok(_) => {
             println!("Successfully created the pipeline!");
-
             let listener = TcpListener::bind(&(SERVER_ADDRESS, 5000)).await.unwrap();
             let codec_builder = LengthDelimitedCodec::builder();
             let server = InferenceServer {
-                model: Arc::new(Mutex::new(model)),
+                model: Arc::new(Mutex::new(())),
             };
             loop {
                 let (stream, _peer_addr) = listener.accept().await.unwrap();
