@@ -8,7 +8,6 @@ use tahini_tarpc::{TahiniSerialize, TahiniDeserialize};
 
 use crate::policies::MessagePolicy;
 
-//#[derive(TahiniType)]
 #[derive(TahiniDeserialize, Clone, Debug, TahiniType)]
 pub struct UserPrompt {
     pub conversation: BBoxConversation,
@@ -41,4 +40,4 @@ impl std::fmt::Display for LLMError {
 }
 
 impl std::error::Error for LLMError {}
-impl tahini_tarpc::traits::TahiniError for LLMError {}
+//impl tahini_tarpc::traits::TahiniError for LLMError {}

@@ -1,15 +1,15 @@
-use alohomora::policy::{AnyPolicy, FrontendPolicy, Policy, PolicyAnd, Reason};
+use alohomora::policy::{AnyPolicy, FrontendPolicy, Policy, PolicyAnd, Reason, SimplePolicy};
 
 ///Policy that is only allowed when sending the user its UUID, either via cookie or body
 ///Could be extended for tahini_check to include sending to DB
 #[derive(Clone)]
 pub struct UserIdWebPolicy;
 
-impl Policy for UserIdWebPolicy {
-    fn name(&self) -> String {
+impl SimplePolicy for UserIdWebPolicy {
+    fn simple_name(&self) -> String {
         "UUIDLoginPolicy".to_string()
     }
-    fn check(
+    fn simple_check(
         &self,
         _context: &alohomora::context::UnprotectedContext,
         reason: alohomora::policy::Reason<'_>,
@@ -21,18 +21,8 @@ impl Policy for UserIdWebPolicy {
             _ => false,
         }
     }
-    fn join(
-        &self,
-        other: alohomora::policy::AnyPolicy,
-    ) -> Result<alohomora::policy::AnyPolicy, ()> {
-        Ok(AnyPolicy::new(PolicyAnd::new(Self, other)))
-    }
-    fn join_logic(&self, _other: Self) -> Result<Self, ()>
-    where
-        Self: Sized,
-    {
-        Ok(Self)
-    }
+
+    fn simple_join_direct(&mut self, other: &mut Self) {}
 }
 
 impl FrontendPolicy for UserIdWebPolicy {

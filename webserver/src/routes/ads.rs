@@ -8,7 +8,7 @@ use alohomora::{
     pure::PrivacyPureRegion,
     rocket::{route, JsonResponse},
 };
-
+use alohomora::policy::AnyPolicyDyn;
 use tahini_tarpc::{traits::Fromable, transport::new_tahini_client_transport};
 
 use advertisement_tahini_utils::{
@@ -62,7 +62,7 @@ pub(crate) async fn send_to_marketing(
     uname: BBox<String, UsernamePolicy>,
     conv: BBoxConversation,
 ) -> BBox<String, AdPolicy> {
-    let payload = fold((uname.clone(), conv.clone()))
+    let payload = fold::<dyn AnyPolicyDyn, _>((uname.clone(), conv.clone()))
         .unwrap()
         .specialize_policy::<PolicyAnd<UsernamePolicy, MessagePolicy>>()
         .expect("For ad transfer, wrong policy coercion");

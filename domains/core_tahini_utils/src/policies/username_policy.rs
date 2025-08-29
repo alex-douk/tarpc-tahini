@@ -1,8 +1,6 @@
 use crate::policies::message_policy::InferenceReason;
 use alohomora::db::{BBoxFromValue, Value};
-use alohomora::policy::{
-    schema_policy, AnyPolicy, FrontendPolicy, Policy, PolicyAnd, Reason, SchemaPolicy
-};
+use alohomora::policy::{schema_policy, AnyPolicy, FrontendPolicy, Policy, PolicyAnd, Reason, SchemaPolicy, SimplePolicy};
 use tahini_tarpc::traits::PolicyFrom;
 use alohomora::rocket::{RocketCookie, RocketRequest};
 use serde_json::from_str;
@@ -23,16 +21,16 @@ pub struct UsernamePolicy {
     pub third_party_vendors_consent: HashMap<String, bool>,
 }
 
-impl Policy for UsernamePolicy {
-    fn name(&self) -> String {
+impl SimplePolicy for UsernamePolicy {
+    fn simple_name(&self) -> String {
         "UsernamePolicy".to_string()
     }
 
-    fn check(&self, context: &alohomora::context::UnprotectedContext, reason: Reason<'_>) -> bool {
+    fn simple_check(&self, context: &alohomora::context::UnprotectedContext, reason: Reason<'_>) -> bool {
         match reason {
             Reason::Response => true,
             Reason::DB(_, _) => true,
-            Reason::Custom(reason) => match reason.cast().downcast_ref::<InferenceReason>() {
+            Reason::Custom(reason) => match reason.downcast_ref::<InferenceReason>() {
                 None => false,
                 Some(reason) => match reason {
                     //TODO(douk): Check if verifying the third-party vendor list now makes sense.
@@ -46,37 +44,8 @@ impl Policy for UsernamePolicy {
         }
     }
 
-    fn join(
-        &self,
-        other: alohomora::policy::AnyPolicy,
-    ) -> Result<alohomora::policy::AnyPolicy, ()> {
-        if other.is::<UsernamePolicy>() {
-            self.join_logic(other.specialize().map_err(|_| ())?)
-                .map(|p| AnyPolicy::new(p))
-        } else if other.is::<MessagePolicy>() {
-            let spec = other.specialize::<MessagePolicy>();
-            if spec.is_err() {
-                return Err(());
-            }
-
-            Ok(AnyPolicy::new(PolicyAnd::new(self.clone(), spec.unwrap())))
-        } else {
-            Ok(AnyPolicy::new(PolicyAnd::new(self.clone(), other)))
-        }
-    }
-
-    fn join_logic(&self, other: Self) -> Result<Self, ()>
-    where
-        Self: Sized,
-    {
-        Ok(self.clone())
-    }
-
-    fn into_any(self) -> AnyPolicy
-    where
-        Self: Sized,
-    {
-        AnyPolicy::new(self)
+    fn simple_join_direct(&mut self, other: &mut Self) {
+        todo!("THIS WAS A NO-OP")
     }
 }
 
@@ -172,33 +141,17 @@ impl FrontendPolicy for UsernamePolicy {
 #[derive(TahiniDeserialize, TahiniSerialize, Clone, Debug)]
 pub struct AbsolutePolicy {}
 
-impl Policy for AbsolutePolicy {
-    fn name(&self) -> String {
+impl SimplePolicy for AbsolutePolicy {
+    fn simple_name(&self) -> String {
         "AbsolutePolicy".to_string()
     }
-    fn check(
+    fn simple_check(
         &self,
         _context: &alohomora::context::UnprotectedContext,
         _reason: Reason<'_>,
     ) -> bool {
         false
     }
-    fn join(
-        &self,
-        _other: alohomora::policy::AnyPolicy,
-    ) -> Result<alohomora::policy::AnyPolicy, ()> {
-        Ok(self.clone().into_any())
-    }
-    fn join_logic(&self, other: Self) -> Result<Self, ()>
-    where
-        Self: Sized,
-    {
-        Ok(other)
-    }
-    fn into_any(self) -> alohomora::policy::AnyPolicy
-    where
-        Self: Sized,
-    {
-        AnyPolicy::new(self)
-    }
+
+    fn simple_join_direct(&mut self, other: &mut Self) {}
 }

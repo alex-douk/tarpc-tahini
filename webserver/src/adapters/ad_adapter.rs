@@ -49,13 +49,12 @@ impl PolicyInto<MarketingPolicy> for
     fn into_policy(
         self, context: &ProtectedTahiniContext
         ) -> Result<MarketingPolicy, String> {
-        let (p1, p2) = self.0.extract_policies();
+        let (p1, p2) = self.0.into_inner();
         match context.service.as_str() {
             "Advertisement" => match context.rpc.as_str() {
                 "auction_bidding" => Ok(MarketingPolicy {
                     no_storage: p2.storage,
                     targeted_ads_consent: p1.targeted_ads_consent,
-
                     third_party_ad_vendors_allowed: p2.third_party_ad_vendors_allowed.clone(),
                 }),
                 _ => panic!("Transformation not allowed for this RPC"),

@@ -52,9 +52,9 @@ impl std::fmt::Display for DatabaseError {
         write!(f, "{}", string)
     }
 }
-impl tahini_tarpc::traits::TahiniError for DatabaseError {}
+//impl tahini_tarpc::traits::TahiniError for DatabaseError {}
 
-#[derive(TahiniSerialize, TahiniDeserialize, Debug, Clone)]
+#[derive(TahiniType, TahiniSerialize, TahiniDeserialize, Debug, Clone)]
 pub struct PolicyError;
 
 impl std::fmt::Display for PolicyError {
@@ -64,4 +64,4 @@ impl std::fmt::Display for PolicyError {
 }
 
 impl std::error::Error for PolicyError {}
-impl tahini_tarpc::traits::TahiniError for PolicyError {}
+//impl tahini_tarpc::traits::TahiniError for PolicyError {}

@@ -8,6 +8,8 @@ use database_tahini_utils::types::DatabaseError;
 use database_tahini_utils::types::PolicyError;
 use std::collections::HashMap;
 use std::sync::OnceLock;
+use alohomora::policy::AnyPolicyDyn;
+use alohomora::pure::{execute_pure, PrivacyPureRegion};
 use tarpc::context;
 
 use crate::policies::history::HistoryPolicy;
@@ -127,7 +129,17 @@ pub(crate) async fn get_history(
     //Verify if the path matches that of the cookie
     if is_authenticated {
         let ground_truth: PCon<String, UsernamePolicy> = cookies.get("user_id").unwrap().into();
-        is_authenticated = is_authenticated && (ground_truth == user_id);
+        let tmp = execute_pure::<dyn AnyPolicyDyn, _, _, _>(
+            (ground_truth, user_id.clone()),
+            PrivacyPureRegion::new(|(g, u): (String, String)| {
+                if g == u {
+                    Some(true)
+                } else {
+                    None
+                }
+            })
+        );
+        is_authenticated = is_authenticated && tmp.unwrap().fold_in().is_some();
     }
 
     let response = match DBCLIENT.get() {

@@ -1,5 +1,4 @@
-use alohomora::compose_policies;
-use alohomora::policy::{AnyPolicy, NoPolicy, Policy};
+use alohomora::policy::{AnyPolicy, AnyPolicyClone, AnyPolicyDyn, JoinAPI, NoPolicy, Policy, Specializable};
 use tahini_tarpc::transport::new_tahini_server_transport;
 use tahini_tarpc::server::{TahiniBaseChannel, TahiniChannel};
 use backend::MySqlBackend;
@@ -80,11 +79,11 @@ impl DatabaseServer {
 static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 fn parse_row_into_message(
-    row: &Vec<PCon<Value, AnyPolicy>>,
+    row: &Vec<PCon<Value, AnyPolicyClone>>,
 ) -> Result<PCon<Message, MessagePolicy>, String> {
     let role = from_value::<String, MessagePolicy>(row[3].clone())?;
     let content = from_value::<String, MessagePolicy>(row[4].clone())?;
-    let pair = fold((role, content)).map_err(|_| "Couldn't fold")?;
+    let pair = fold::<dyn AnyPolicyDyn, _>((role, content)).map_err(|_| "Couldn't fold")?;
     let pair = pair
         .specialize_policy::<MessagePolicy>()
         .expect("Couldn't specialize policy");
@@ -163,7 +162,7 @@ impl Database for DatabaseServer {
             .collect::<Result<Vec<_>, String>>()
             .expect("Couldn't parse rows into messages");
 
-        let parsed = fold(parsed)
+        let parsed = fold::<dyn AnyPolicyDyn, _>(parsed)
             .expect("Couldn't fold across messages of conversation")
             .specialize_policy::<MessagePolicy>()
             .expect("Couldn't join policies");
@@ -269,12 +268,7 @@ impl Database for DatabaseServer {
                             k,
                             v.into_iter()
                                 .reduce(|pol1, pol2| {
-                                    compose_policies(
-                                        Ok(Some(pol1.into_any())),
-                                        Ok(Some(pol2.into_any())),
-                                    )
-                                    .expect("Couldn't compose conv_id policies somehow")
-                                    .unwrap()
+                                    pol1.join(pol2)
                                     .specialize::<ConversationMetadataPolicy>()
                                     .expect("Couldn't specialize into the intended conv_id policy")
                                 })
@@ -282,14 +276,6 @@ impl Database for DatabaseServer {
                         )
                     })
                     .collect::<Vec<_>>()
-            },
-            Signature {
-                username: "alexandre.doukhan@brown.edu",
-                signature: "",
-            },
-            Signature {
-                username: "alexandre.doukhan@brown.edu",
-                signature: "",
             },
             Signature {
                 username: "alexandre.doukhan@brown.edu",

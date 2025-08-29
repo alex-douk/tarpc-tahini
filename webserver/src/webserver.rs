@@ -1,3 +1,5 @@
+#![feature(negative_impls)]
+
 use rocket::Build;
 use alohomora::rocket::{BBoxRocket, routes};
 use std::net::{IpAddr, Ipv4Addr};

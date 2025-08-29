@@ -1,15 +1,15 @@
-use alohomora::policy::{AnyPolicy, Policy, PolicyAnd, Reason, SchemaPolicy, schema_policy};
+use alohomora::policy::{AnyPolicy, Policy, PolicyAnd, Reason, SchemaPolicy, schema_policy, SimplePolicy};
 use tahini_tarpc::{TahiniDeserialize, TahiniSerialize};
 #[derive(TahiniDeserialize, TahiniSerialize, Clone, Debug)]
 #[schema_policy(table = "users", column = 0)]
 #[schema_policy(table = "conversations", column = 2)]
 pub struct UserIdDBPolicy;
 
-impl Policy for UserIdDBPolicy {
-    fn name(&self) -> String {
+impl SimplePolicy for UserIdDBPolicy {
+    fn simple_name(&self) -> String {
         "UserIdDBPolicy".to_string()
     }
-    fn check(
+    fn simple_check(
         &self,
         _context: &alohomora::context::UnprotectedContext,
         reason: alohomora::policy::Reason<'_>,
@@ -20,23 +20,7 @@ impl Policy for UserIdDBPolicy {
         }
     }
 
-    fn join(
-        &self,
-        other: alohomora::policy::AnyPolicy,
-    ) -> Result<alohomora::policy::AnyPolicy, ()> {
-        if other.is::<Self>() {
-            Ok(AnyPolicy::new(UserIdDBPolicy))
-        } else {
-            Ok(AnyPolicy::new(PolicyAnd::new(UserIdDBPolicy, other)))
-        }
-    }
-
-    fn join_logic(&self, _other: Self) -> Result<Self, ()>
-    where
-        Self: Sized,
-    {
-        Ok(Self)
-    }
+    fn simple_join_direct(&mut self, other: &mut Self) {}
 }
 
 impl SchemaPolicy for UserIdDBPolicy {

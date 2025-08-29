@@ -1,14 +1,14 @@
-use alohomora::policy::{AnyPolicy, Policy, PolicyAnd};
+use alohomora::policy::{AnyPolicy, Policy, PolicyAnd, SimplePolicy};
 
 #[derive(Clone)]
 pub struct HistoryPolicy;
 
-impl Policy for HistoryPolicy {
-    fn name(&self) -> String {
+impl SimplePolicy for HistoryPolicy {
+    fn simple_name(&self) -> String {
         "HistoryPolicy".to_string()
     }
 
-    fn check(
+    fn simple_check(
         &self,
         context: &alohomora::context::UnprotectedContext,
         reason: alohomora::policy::Reason<'_>,
@@ -28,24 +28,6 @@ impl Policy for HistoryPolicy {
         }
     }
 
-    fn join(
-        &self,
-        other: alohomora::policy::AnyPolicy,
-    ) -> Result<alohomora::policy::AnyPolicy, ()> {
-        if other.is::<HistoryPolicy>() {
-            self.join_logic(other.specialize::<HistoryPolicy>().unwrap())
-                .map(|x| AnyPolicy::new(x))
-        } else {
-            let and = PolicyAnd::new(Self, other);
-            Ok(AnyPolicy::new(and))
-        }
-    }
-
-    fn join_logic(&self, other: Self) -> Result<Self, ()>
-    where
-        Self: Sized,
-    {
-        Ok(other)
-    }
+    fn simple_join_direct(&mut self, other: &mut Self) {}
 }
 

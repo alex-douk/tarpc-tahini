@@ -1,5 +1,6 @@
 use alohomora::bbox::BBox as PCon;
 use alohomora::fold::fold;
+use alohomora::policy::AnyPolicyDyn;
 use alohomora::pure::PrivacyPureRegion as PPR;
 use advertisement_tahini_utils::policies::MarketingPolicy;
 use crate::parse_conversation_into_topics;
@@ -23,7 +24,7 @@ pub fn get_ad(data: crate::ThirdPartyProcessorData) -> PCon<String, MarketingPol
                 parse_conversation_into_topics(conv)
             )
         })),
-        Some(username) => fold((username, data.prompt))
+        Some(username) => fold::<dyn AnyPolicyDyn, _>((username, data.prompt))
             .unwrap()
             .into_ppr(PPR::new(|(uname_unboxed, conv_unboxed)| {
                 format!(

@@ -1,5 +1,5 @@
 use alohomora::db::{BBoxFromValue, Value};
-use alohomora::policy::{schema_policy, AnyPolicy, PolicyAnd};
+use alohomora::policy::{schema_policy, AnyPolicy, PolicyAnd, SimplePolicy};
 use tahini_tarpc::traits::PolicyFrom;
 use tahini_tarpc::{TahiniDeserialize, TahiniSerialize};
 
@@ -30,12 +30,12 @@ pub struct MessagePolicy {
     pub reinforcement_learning_consent: bool,
 }
 
-impl Policy for MessagePolicy {
-    fn name(&self) -> String {
+impl SimplePolicy for MessagePolicy {
+    fn simple_name(&self) -> String {
         "PromptPolicy".to_string()
     }
 
-    fn check(
+    fn simple_check(
         &self,
         _context: &alohomora::context::UnprotectedContext,
         reason: alohomora::policy::Reason<'_>,
@@ -44,7 +44,7 @@ impl Policy for MessagePolicy {
             Reason::DB(_, _) => self.storage,
             Reason::Response => true,
             //If we have a custom  reason, it needs to be an inference reason
-            Reason::Custom(reason) => match reason.cast().downcast_ref::<InferenceReason>() {
+            Reason::Custom(reason) => match reason.downcast_ref::<InferenceReason>() {
                 None => false,
                 Some(reason) => match reason {
                     //If it is, we check the inference reason
@@ -59,56 +59,12 @@ impl Policy for MessagePolicy {
         }
     }
 
-    fn join(
-        &self,
-        other: alohomora::policy::AnyPolicy,
-    ) -> Result<alohomora::policy::AnyPolicy, ()> {
-        if other.is::<MessagePolicy>() {
-            self.join_logic(other.specialize().map_err(|_| ())?)
-                .map(|pol| pol.into_any())
-        } else if other.is::<UsernamePolicy>() {
-            let spec = other.specialize::<UsernamePolicy>();
-            if spec.is_err() {
-                return Err(());
-            }
-
-            Ok(AnyPolicy::new(PolicyAnd::new(self.clone(), spec.unwrap())))
-        } else {
-            Ok(AnyPolicy::new(PolicyAnd::new(self.clone(), other)))
-        }
-    }
-
-    fn join_logic(&self, other: Self) -> Result<Self, ()>
-    where
-        Self: Sized,
-    {
-        //Merge the two policies
-        let mut intersect: HashSet<_> = self
-            .third_party_ad_vendors_allowed
-            .iter()
-            .cloned()
-            .collect();
-
-        for vendor in other.third_party_ad_vendors_allowed.iter() {
-            intersect.insert(vendor.clone());
-        }
-
-        //Take the AND of each
-        Ok(MessagePolicy {
-            third_party_ad_vendors_allowed: intersect.into_iter().collect(),
-            storage: self.storage && other.storage,
-            marketing_consent: self.marketing_consent && other.marketing_consent,
-            unprotected_image_gen: self.unprotected_image_gen && other.unprotected_image_gen,
-            reinforcement_learning_consent: self.reinforcement_learning_consent
-                && other.reinforcement_learning_consent,
-        })
-    }
-
-    fn into_any(self) -> alohomora::policy::AnyPolicy
-    where
-        Self: Sized,
-    {
-        AnyPolicy::new(self)
+    fn simple_join_direct(&mut self, other: &mut Self) {
+        self.storage = self.storage && other.storage;
+        self.marketing_consent = self.marketing_consent && other.marketing_consent;
+        self.third_party_ad_vendors_allowed.retain(|k| other.third_party_ad_vendors_allowed.contains(k));
+        self.unprotected_image_gen = self.unprotected_image_gen && other.unprotected_image_gen;
+        self.reinforcement_learning_consent = self.reinforcement_learning_consent && other.reinforcement_learning_consent;
     }
 }
 
@@ -132,9 +88,12 @@ impl FrontendPolicy for MessagePolicy {
 
 
 
-        let vendor_allow_list = request.cookies().get("third_party_ad_vendors_allowed").map_or_else(Vec::new, |c|
-            serde_json::from_str::<Vec<String>>(c.value()).expect("Couldn't parse the provided vendors list")
-            );
+        let vendor_allow_list = request.cookies().get("third_party_ad_vendors_allowed").map_or_else(
+            Vec::new,
+            |c| {
+                serde_json::from_str::<Vec<String>>(c.value()).expect("Couldn't parse the provided vendors list")
+            }
+        );
         // let mut third_party_ad_vendors_allowed = Vec::with_capacity(THIRD_PARTY_PROCESSORS.len());
         // for vendor in THIRD_PARTY_PROCESSORS {
         //     match request.cookies().get(vendor) {

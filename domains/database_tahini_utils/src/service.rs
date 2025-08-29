@@ -17,6 +17,7 @@ use alohomora::{
 pub trait Database {
     ///Stores a given message from the LLM conversation for a given (user_id, conversation_id)
     ///pair. Will use a local database policy on the server side for uuid and conv_id.
+    ///
     #[allow_client_transform]
     async fn store_prompt(
         uuid: PCon<String, UserIdDBPolicy>,
