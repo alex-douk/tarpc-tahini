@@ -83,29 +83,29 @@ pub(crate) async fn inference(
     };
     //Parse whether user knows their uuid or not
     //If user did not provide a UUID, we assume unauthenticated
-    let uuid = match cookies.get("user_id") {
-        None => {
-            println!("Assuming anonymous user");
-            get_default_user().await
-        }
-        Some(t) => {
-            println!("Authenticated user");
-            t.value().to_string()
-        }
-    };
+    // let uuid = match cookies.get("user_id") {
+    //     None => {
+    //         println!("Assuming anonymous user");
+    //         get_default_user().await
+    //     }
+    //     Some(t) => {
+    //         println!("Authenticated user");
+    //         t.value().to_string()
+    //     }
+    // };
 
     //User provided a wrong username/UUID pair
-    let ground_uid = fetch_user(username.clone()).await.ok();
-    if let false = ground_uid.is_some_and(|u| u == uuid) {
-        return JsonGuard(construct_answer(
-            Message {
-                role: "error".to_string(),
-                content: "LLM Internal error".to_string(),
-            },
-            None,
-            None,
-        ));
-    }
+    // let ground_uid = fetch_user(username.clone()).await.ok();
+    // if let false = ground_uid.is_some_and(|u| u == uuid) {
+    //     return JsonGuard(construct_answer(
+    //         Message {
+    //             role: "error".to_string(),
+    //             content: "LLM Internal error".to_string(),
+    //         },
+    //         None,
+    //         None,
+    //     ));
+    // }
 
     let conversation = data.conversation.clone();
     let payload = UserPrompt {
@@ -131,43 +131,43 @@ pub(crate) async fn inference(
     let tokens = tokens.unwrap();
     //TODO(douk): Change with #[checked] RPC annotation
     // let conv_id = match verify_if_send_to_db(tokens.policy()) {
-    let conv_id = match cookies.get("storage_consent") {
-        None => None,
-        Some(_) => Some(
-            store_to_database(
-                uuid.clone(),
-                data.conv_id.clone(),
-                conversation.last().unwrap().clone(),
-            )
-            .await,
-        ),
-    };
+    // let conv_id = match cookies.get("storage_consent") {
+    //     None => None,
+    //     Some(_) => Some(
+    //         store_to_database(
+    //             uuid.clone(),
+    //             data.conv_id.clone(),
+    //             conversation.last().unwrap().clone(),
+    //         )
+    //         .await,
+    //     ),
+    // };
 
-    if conv_id.is_some() {
-        store_to_database(uuid.clone(), conv_id.clone(), tokens.clone()).await;
-    }
+    // if conv_id.is_some() {
+    //     store_to_database(uuid.clone(), conv_id.clone(), tokens.clone()).await;
+    // }
 
     //If allowed to check AND 30% AD presence
     // let ad = match verify_if_send_to_marketing(tokens.policy()) {
 
-    let ad = match cookies.get("ad_consent") {
-        None => None,
-        Some(_) => {
-            let ad_username = cookies.get("targeted_ads_consent").map(|_| username);
-            let tpp_vendors =
-                cookies
-                    .get("allowed_third_party_data_vendors")
-                    .map_or_else(Vec::new, |c| {
-                        println!("Vendor value is {:?}", c.value());
-                        serde_json::from_str::<Vec<String>>(c.value())
-                            .expect("Couldn't parse the vendors list")
-                    });
-            println!("Vendors is {:?}", tpp_vendors);
-            Some(send_to_marketing(ad_username, conversation, tpp_vendors).await)
-        }
-    };
+    // let ad = match cookies.get("ad_consent") {
+    //     None => None,
+    //     Some(_) => {
+    //         let ad_username = cookies.get("targeted_ads_consent").map(|_| username);
+    //         let tpp_vendors =
+    //             cookies
+    //                 .get("allowed_third_party_data_vendors")
+    //                 .map_or_else(Vec::new, |c| {
+    //                     println!("Vendor value is {:?}", c.value());
+    //                     serde_json::from_str::<Vec<String>>(c.value())
+    //                         .expect("Couldn't parse the vendors list")
+    //                 });
+    //         println!("Vendors is {:?}", tpp_vendors);
+    //         Some(send_to_marketing(ad_username, conversation, tpp_vendors).await)
+    //     }
+    // };
 
-    JsonGuard(construct_answer(tokens, conv_id, ad))
+    JsonGuard(construct_answer(tokens, None, None))
 }
 
 // fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {

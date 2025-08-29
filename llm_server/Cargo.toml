@@ -41,6 +41,8 @@ candle-transformers = "0.7.0"
 name = "llm_server"
 path = "./src/llm_server.rs"
 
+[profile.release]
+debug = true
 
 [dependencies.half]
 version = "=2.4.0"
