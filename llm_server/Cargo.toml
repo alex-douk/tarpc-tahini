@@ -44,6 +44,10 @@ hoodini_server = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_
 name = "llm_server"
 path = "./src/llm_server.rs"
 
+[profile.release]
+debug = true
+
+
 
 [dependencies.half]
 version = "=2.4.0"

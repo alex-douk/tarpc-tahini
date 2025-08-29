@@ -90,17 +90,15 @@ pub(crate) async fn inference(
     };
     //Parse whether user knows their uuid or not
     //If user did not provide a UUID, we assume unauthenticated
-    let uuid = match cookies.get("user_id") {
-        None => {
-            println!("Assuming anonymous user");
-            get_default_user().await
-        }
-        //Weirdly enough, only implementation for From<BBoxCookie<'c, P: FrontendPolicy> for BBox<String, P>
-        Some(t) => {
-            println!("Authenticated user");
-            t.into()
-        }
-    };
+    // let uuid = match cookies.get("user_id") {
+    //     None => {
+    //         get_default_user().await
+    //     }
+    //     //Weirdly enough, only implementation for From<BBoxCookie<'c, P: FrontendPolicy> for BBox<String, P>
+    //     Some(t) => {
+    //         t.into()
+    //     }
+    // };
     let conversation = data.conversation.clone();
     let payload = UserPrompt {
         conversation: conversation.clone(),
@@ -127,46 +125,46 @@ pub(crate) async fn inference(
     }
     let tokens = tokens.unwrap();
     //TODO(douk): Change with #[checked] RPC annotation
-    let conv_id = match verify_if_send_to_db(tokens.policy()) {
-        false => None,
-        true => match store_to_database(
-            uuid.clone(),
-            data.conv_id.clone(),
-            conversation
-                .clone()
-                .into_ppr(PPR::new(|conv: Vec<Message>| conv.last().unwrap().clone())),
-        )
-        .await
-        {
-            Ok(conv_id) => Some(conv_id),
-            Err(e) => {
-                eprintln!("DB error: {}", e);
-                None
-            }
-        },
-    };
-    if conv_id.is_some() {
-        match store_to_database(
-            uuid.clone(),
-            conv_id.clone().unwrap().into_ppr(PPR::new(|x| Some(x))),
-            tokens.clone(),
-        )
-        .await
-        {
-            Ok(_) => (),
-            Err(e) => {
-                eprint!("Db error: {}", e);
-            }
-        }
-    }
+    // let conv_id = match verify_if_send_to_db(tokens.policy()) {
+    //     false => None,
+    //     true => match store_to_database(
+    //         uuid.clone(),
+    //         data.conv_id.clone(),
+    //         conversation
+    //             .clone()
+    //             .into_ppr(PPR::new(|conv: Vec<Message>| conv.last().unwrap().clone())),
+    //     )
+    //     .await
+    //     {
+    //         Ok(conv_id) => Some(conv_id),
+    //         Err(e) => {
+    //             eprintln!("DB error: {}", e);
+    //             None
+    //         }
+    //     },
+    // };
+    // if conv_id.is_some() {
+    //     match store_to_database(
+    //         uuid.clone(),
+    //         conv_id.clone().unwrap().into_ppr(PPR::new(|x| Some(x))),
+    //         tokens.clone(),
+    //     )
+    //     .await
+    //     {
+    //         Ok(_) => (),
+    //         Err(e) => {
+    //             eprint!("Db error: {}", e);
+    //         }
+    //     }
+    // }
 
-    //If allowed to check AND 30% AD presence
-    let ad = match verify_if_send_to_marketing(tokens.policy()) {
-        false => None,
-        true => Some(send_to_marketing(username, conversation).await),
-    };
-
-    construct_answer(&tokens, conv_id, ad)
+    // //If allowed to check AND 30% AD presence
+    // let ad = match verify_if_send_to_marketing(tokens.policy()) {
+    //     false => None,
+    //     true => Some(send_to_marketing(username, conversation).await),
+    // };
+    //
+    construct_answer(&tokens, None, None)
 }
 
 fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {

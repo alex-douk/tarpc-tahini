@@ -27,6 +27,10 @@ hoodini_server = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_
 path = "./src/database_server.rs"
 name = "db_server"
 
+[profile.release]
+debug = true
+
+
 [patch.crates-io]
 funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }
 

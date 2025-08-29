@@ -25,3 +25,6 @@ tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_li
 [[bin]]
 name="webserver"
 path="./src/webserver.rs"
+
+[profile.release]
+debug = true
