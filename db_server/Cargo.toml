@@ -10,7 +10,6 @@ tokio-util = "0.7.13"
 futures = "0.3.31"
 futures-util = "0.3.31"
 tarpc = "0.34.0"
-alohomora = {version = "0.1.0", git = "https://github.com/brownsys/Sesame", branch = "extensions_devel", default-features = false, features = ["alohomora_derive", "derive"]}
 database_tahini_utils = {version = "0.1.0", path = "../domains/database_tahini_utils/"}
 core_tahini_utils = {version = "0.1.0", path = "../domains/core_tahini_utils/"}
 slog = "2.7.0"
@@ -18,9 +17,10 @@ uuid = { version = "1.16.0", features = ["v4"] }
 toml = "0.8.20"
 serde = { version = "1.0.219", features = ["derive", "serde_derive"] }
 serde_json = "1.0.140"
-tahini_tarpc = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", branch = "standalone_tahini", features = ["derive"]}
-hoodini_server = {version = "0.1.0", git = "https://github.com/alex-douk/tahini_lib", branch = "standalone_tahini", features = ["sidecar"]}
-# hoodini_server = {version = "0.1.0", path = "../../tahini_lib/tahini_attest/crates/hoodini-server/", features = ["sidecar"]}
+
+alohomora = { git = "https://github.com/brownsys/Sesame.git", branch = "tahini-dev", default-features = false, features = ["derive"] }
+tahini_tarpc = { git = "https://github.com/alex-douk/tahini_lib.git", branch = "standalone_tahini", features = ["derive"]}
+hoodini_server = { git = "https://github.com/alex-douk/tahini_lib.git", branch = "standalone_tahini", features = ["sidecar"]}
 
 
 [[bin]]
