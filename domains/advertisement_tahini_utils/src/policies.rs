@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use alohomora::policy::{Policy, Reason};
+use alohomora::policy::{Policy, Reason, SimplePolicy};
 use tahini_tarpc::{TahiniSerialize, TahiniDeserialize};
 pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 
@@ -18,12 +18,12 @@ pub struct MarketingPolicy {
     pub third_party_ad_vendors_allowed: Vec<String>,
 }
 
-impl Policy for MarketingPolicy {
-    fn name(&self) -> String {
+impl SimplePolicy for MarketingPolicy {
+    fn simple_name(&self) -> String {
         "MarketingPolicy".to_string()
     }
 
-    fn check(
+    fn simple_check(
         &self,
         _context: &alohomora::context::UnprotectedContext,
         reason: alohomora::policy::Reason<'_>,
@@ -32,7 +32,7 @@ impl Policy for MarketingPolicy {
             Reason::DB(_, _) => !self.no_storage,
             Reason::Response => true,
             //If we have a custom  reason, it needs to be an inference reason
-            Reason::Custom(reason) => match reason.cast().downcast_ref::<MarketingReason>() {
+            Reason::Custom(reason) => match reason.downcast_ref::<MarketingReason>() {
                 None => {
                     println!("We are failing the downcast to MarketingReason");
                     false
@@ -54,6 +54,11 @@ impl Policy for MarketingPolicy {
         }
     }
 
+    fn simple_join_direct(&mut self, other: &mut Self) {
+        todo!("THIS WAS A NO OP (see comment below)")
+    }
+
+    /*
     fn join(
         &self,
         other: alohomora::policy::AnyPolicy,
@@ -67,6 +72,7 @@ impl Policy for MarketingPolicy {
     {
         Ok(self.clone())
     }
+     */
 }
 
 #[derive(TahiniSerialize, TahiniDeserialize, Clone, Debug)]

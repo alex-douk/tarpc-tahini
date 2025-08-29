@@ -71,7 +71,7 @@ async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, 
         Some(client) => client.inference(context, prompt).await?
     };
 
-    Ok(response.infered_tokens.transpose()?)
+    Ok(response.infered_tokens.fold_in()?)
 }
 
 #[route(POST, "/", data = "<data>")]
@@ -176,7 +176,7 @@ fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {
     };
     p.check(
         &context,
-        alohomora::policy::Reason::Custom(Box::new(InferenceReason::SendToDB)),
+        alohomora::policy::Reason::Custom(&InferenceReason::SendToDB),
     )
 }
 
@@ -187,7 +187,7 @@ fn verify_if_send_to_marketing<P: Policy>(p: &P) -> bool {
     };
     p.check(
         &context,
-        alohomora::policy::Reason::Custom(Box::new(InferenceReason::SendToMarketing)),
+        alohomora::policy::Reason::Custom(&InferenceReason::SendToMarketing),
     )
 }
 

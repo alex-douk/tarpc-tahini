@@ -1,5 +1,5 @@
 use alohomora::db::Value;
-use alohomora::policy::{schema_policy, AnyPolicy, PolicyAnd};
+use alohomora::policy::{schema_policy, AnyPolicy, PolicyAnd, SimplePolicy};
 use alohomora::{
     policy::{FrontendPolicy, Policy, Reason, SchemaPolicy},
     rocket::{RocketCookie, RocketRequest},
@@ -14,12 +14,12 @@ use tahini_tarpc::{TahiniDeserialize, TahiniSerialize};
 #[schema_policy(table = "conversations", column = 1)]
 pub struct ConversationMetadataPolicy;
 
-impl Policy for ConversationMetadataPolicy {
-    fn name(&self) -> String {
+impl SimplePolicy for ConversationMetadataPolicy {
+    fn simple_name(&self) -> String {
         "ConversationMetadataPolicy".to_string()
     }
 
-    fn check(&self, context: &alohomora::context::UnprotectedContext, reason: Reason<'_>) -> bool {
+    fn simple_check(&self, context: &alohomora::context::UnprotectedContext, reason: Reason<'_>) -> bool {
         match reason {
             // Reason::DB(query, _) => query.starts_with("INSERT") || query.starts_with("SELECT"),
             Reason::DB(_, _) => true,
@@ -34,30 +34,7 @@ impl Policy for ConversationMetadataPolicy {
         }
     }
 
-    fn join(&self, other: AnyPolicy) -> Result<AnyPolicy, ()> {
-        if other.is::<ConversationMetadataPolicy>() {
-            Ok(other)
-        } else {
-            Ok(AnyPolicy::new(PolicyAnd::new(
-                AnyPolicy::new(self.clone()),
-                other,
-            )))
-        }
-    }
-
-    fn join_logic(&self, other: Self) -> Result<Self, ()>
-    where
-        Self: Sized,
-    {
-        Ok(other)
-    }
-
-    fn into_any(self) -> AnyPolicy
-    where
-        Self: Sized,
-    {
-        AnyPolicy::new(self)
-    }
+    fn simple_join_direct(&mut self, other: &mut Self) {}
 }
 
 impl SchemaPolicy for ConversationMetadataPolicy {

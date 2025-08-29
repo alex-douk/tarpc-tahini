@@ -88,7 +88,7 @@ impl Inference for InferenceServer {
         // let mut ser = serde_json::ser::Serializer::new(&mut writer);
         // let _ =prompt.serialize(&mut ser);
         // println!("Using naive serializer, we get : {:?}", String::from_utf8(writer));
-        let boxed_response = parsed_conversation.into_ppr(inf).transpose();
+        let boxed_response = parsed_conversation.into_ppr(inf).fold_in();
 
         match boxed_response {
             Err(e) => {

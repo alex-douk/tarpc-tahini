@@ -4,6 +4,7 @@ use rand::seq::{IndexedRandom, IteratorRandom};
 use advertisement_tahini_utils::policies::MarketingReason;
 use advertisement_tahini_utils::policies::{MarketingPolicy, THIRD_PARTY_PROCESSORS};
 use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::any::Any;
 //Required for model locking across async tasks
 use tokio::sync::Mutex;
 use hoodini_server::CLIENT_MAP;
@@ -27,7 +28,7 @@ use alohomora::bbox::BBox as PCon;
 use alohomora::context::UnprotectedContext;
 use alohomora::fold::fold;
 use alohomora::pcr::{PrivacyCriticalRegion, Signature};
-use alohomora::policy::Policy;
+use alohomora::policy::{AnyPolicyDyn, Policy};
 use alohomora::policy::Reason;
 use alohomora::pure::PrivacyPureRegion as PPR;
 
@@ -130,7 +131,7 @@ fn local_process(data: ThirdPartyProcessorData) -> PCon<String, MarketingPolicy>
                 parse_conversation_into_topics(conv)
             )
         })),
-        Some(username) => fold((username, data.prompt))
+        Some(username) => fold::<dyn AnyPolicyDyn, _>((username, data.prompt))
             .unwrap()
             .into_ppr(PPR::new(|(uname_unboxed, conv_unboxed)| {
                 format!(
@@ -155,7 +156,7 @@ impl Advertisement for AdServer {
             username: prompt
                 .clone()
                 .into_ppr(PPR::new(|x: MarketingData| x.username))
-                .transpose(),
+                .fold_in(),
             prompt: prompt.into_ppr(PPR::new(|x: MarketingData| x.prompt)),
         };
         let ad = match strategy {
