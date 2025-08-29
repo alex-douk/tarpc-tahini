@@ -1,0 +1,220 @@
+#!/usr/bin/python
+
+
+
+import random
+import json
+import string
+from locust import HttpUser, TaskSet, between, task
+from faker import Faker
+import datetime
+fake = Faker()
+
+VENDORS = ["Meta_Ads", "Google_Ads"]
+
+def parse(b):
+    return "true" if b else "false"
+
+class CookieConfig():
+    def __init__(self, anonymous=False):
+        #Conversation based
+        self.storage_consent = True
+        self.ad_consent = True
+        self.image_gen = True 
+
+        #User based
+        self.targeted_ad_consent = False 
+        sample_size = random.randint(0, len(VENDORS))
+        self.third_party_ad_vendors = random.sample(VENDORS, k=sample_size)
+        self.user_id = None
+
+
+
+    def construct(self):
+        cookies =  dict()
+        cookies["storage"] = parse(self.storage_consent)
+        cookies["ads"] = parse(self.ad_consent)
+        cookies["image_gen"] = parse(self.image_gen)
+        cookies["targeted_ads"] = parse(self.targeted_ad_consent)
+        cookies["user_id"] = self.user_id
+        cookies["allowed_third_party_data_vendors"] = str(self.third_party_ad_vendors).replace("'", "\"")
+        return cookies
+
+
+    def shuffle_conv_params(self):
+        self.storage_consent = bool(random.getrandbits(1))
+        self.ad_consent = bool(random.getrandbits(1))
+        self.image_gen = bool(random.getrandbits(1))
+        sample_size = random.randint(0, len(VENDORS))
+        self.third_party_ad_vendors = random.sample(VENDORS, k=sample_size)
+
+    def set_uid(self, uid):
+        self.user_id = uid
+
+
+class AnonymousUser(HttpUser):
+    fixed_count = 1
+    def on_start(self):
+        self.current_chat = []
+        self.cookies = CookieConfig()
+        self.current_conv_id = None
+
+    @task(10)
+    def chat_llm(self):
+        headers={'Content-type': 'application/json',
+                 'Connection': 'keep-alive',
+                 'X-Accel-Buffering': 'no'}
+
+
+        self.current_chat = [{"role": "user", "content": "This a test prompt from the user"}]
+        payload = {
+            'user': 'anonymous',
+            'conv_id': self.current_conv_id,
+            'conversation': self.current_chat,
+            'nb_token': 300
+        }
+
+        cookies = self.cookies.construct()
+        resp = self.client.post(f"/chat", data= json.dumps(payload), headers=headers, cookies = cookies)
+        resp.raise_for_status()
+        resp_json = resp.json()
+        self.current_conv_id = resp_json.get("db_uuid")
+
+        tokens = (resp_json.get("infered_tokens"))
+        if tokens["content"] == "LLM Internal error":
+            raise ValueError
+
+    # @task(3)
+    # def start_new_chat(self):
+    #     self.current_chat = []
+    #     self.current_conv_id = None
+    #     self.update_cookie_config()
+
+
+    # @task(3)
+    # def update_cookie_config(self):
+    #     self.cookies.shuffle_conv_params()
+
+
+# class AuthenticatedUser(HttpUser):
+#     
+#     def on_start(self):
+#         self.current_chat = []
+#         self.cookies = CookieConfig()
+#         self.current_conv_id = None
+#         self.history = []
+#         self.__login("signup")
+#
+#
+#
+#     def __login(self, login_type):
+#         characters = string.ascii_uppercase + string.digits
+#         random_string = ''.join(random.choice(characters) for i in range(8))
+#         self.username = random_string
+#         headers={'Content-type': 'application/json',
+#                  'Connection': 'keep-alive',
+#                  'X-Accel-Buffering': 'no'}
+#
+#         cookies = self.cookies.construct()
+#         payload={"username": f"{self.username}"}
+#         resp = self.client.post(f"/account/{login_type}", data=json.dumps(payload), headers=headers, cookies=cookies)
+#         cookies = self.cookies.construct()
+#         resp.raise_for_status()
+#         resp_json = resp.json()
+#         self.user_id = resp.json().get("uuid")
+#         self.cookies.set_uid(self.user_id)
+#
+#
+#     @task(2)
+#     def cycle_login(self):
+#         self.history = []
+#         self.current_chat = []
+#         self.current_conv_id = None
+#         self.__login("login")
+#         self.get_history()
+#
+#
+#     @task(3)
+#     def update_cookie_config(self):
+#         self.cookies.shuffle_conv_params()
+#
+#     @task(5)
+#     def start_new_chat(self):
+#         self.current_chat = []
+#         self.current_conv_id = None
+#         self.update_cookie_config()
+#         self.chat_llm()
+#
+#
+#
+#     @task(1)
+#     def get_history(self):
+#         if self.user_id is None:
+#             return
+#         headers={'Content-type': 'application/json',
+#                  # 'Accept': 'text/event-stream', 
+#                  'Connection': 'keep-alive',
+#                  'X-Accel-Buffering': 'no'}
+#
+#         cookies = self.cookies.construct()
+#         resp = self.client.get(f"/history/{self.user_id}", headers=headers, cookies=cookies) 
+#         resp.raise_for_status()
+#         history = resp.json().get("history_list")
+#         if history is not None:
+#             self.history = history
+#
+#
+#     @task(3)
+#     def load_conversation(self):
+#         if len(self.history) > 0:
+#             target_conv = random.choice(self.history)
+#             headers={'Content-type': 'application/json',
+#                      'Connection': 'keep-alive',
+#                      'X-Accel-Buffering': 'no'}
+#
+#             cookies = self.cookies.construct()
+#             resp = self.client.get(f"/c/{target_conv}", headers=headers, cookies = cookies)
+#             resp.raise_for_status()
+#             conversation = resp.json().get("conv")
+#             if conversation is not None:
+#                 self.current_chat = conversation
+#                 self.current_conv_id = target_conv
+#
+#
+#     @task(2)
+#     def delete_conversation(self):
+#         if len(self.history) > 0 and self.user_id is not None:
+#             target_conv = random.choice(self.history)
+#             headers={'Content-type': 'application/json',
+#                      'Connection': 'keep-alive',
+#                      'X-Accel-Buffering': 'no'}
+#
+#             cookies = self.cookies.construct()
+#             self.client.get(f"/history/delete/{target_conv}",cookies=cookies) 
+#             self.history.remove(target_conv)
+#
+#     
+#
+#     @task(10)
+#     def chat_llm(self):
+#         headers={'Content-type': 'application/json',
+#                  'Connection': 'keep-alive',
+#                  'X-Accel-Buffering': 'no'}
+#
+#         self.current_chat.append({"role": "user", "content": "This a test prompt from the user"})
+#         payload = {
+#             'user': self.username,
+#             'conv_id': self.current_conv_id,
+#             'conversation': self.current_chat,
+#             'nb_token': 300
+#         }
+#
+#         cookies = self.cookies.construct()
+#         resp = self.client.post(f"/chat", data= json.dumps(payload), headers=headers, cookies = cookies)
+#         resp.raise_for_status()
+#         resp_json = resp.json()
+#         self.current_conv_id = resp_json.get("db_uuid")
+#
+#         if self.current_conv_id is not None and self.current_conv_id not in self.history:
+#             self.history.append(self.current_conv_id)
+#         self.current_chat.append(resp_json.get("infered_tokens"))
