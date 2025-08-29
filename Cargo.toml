@@ -1,7 +1,6 @@
 [workspace]
 members=["llm_server",
 "db_server",
-"simple_example",
 "ad_server",
 "webserver",
 "domains/advertisement_tahini_utils",
