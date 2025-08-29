@@ -22,6 +22,8 @@ advertisement_tahini_utils = { version = "0.1.0", path = "../domains/advertiseme
 path = "./src/advertisement_server.rs"
 name = "ad_server"
 
+[profile.release]
+debug = true
 
 [patch.crates-io]
 funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }

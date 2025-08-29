@@ -24,3 +24,6 @@ serde_json = "1.0.143"
 [[bin]]
 name="webserver"
 path="./src/webserver.rs"
+
+[profile.release]
+debug = true
