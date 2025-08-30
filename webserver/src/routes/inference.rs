@@ -83,16 +83,14 @@ pub(crate) async fn inference(
     };
     //Parse whether user knows their uuid or not
     //If user did not provide a UUID, we assume unauthenticated
-    // let uuid = match cookies.get("user_id") {
-    //     None => {
-    //         println!("Assuming anonymous user");
-    //         get_default_user().await
-    //     }
-    //     Some(t) => {
-    //         println!("Authenticated user");
-    //         t.value().to_string()
-    //     }
-    // };
+    let uuid = match cookies.get("user_id") {
+        None => {
+            get_default_user().await
+        }
+        Some(t) => {
+            t.value().to_string()
+        }
+    };
 
     //User provided a wrong username/UUID pair
     // let ground_uid = fetch_user(username.clone()).await.ok();
@@ -131,21 +129,21 @@ pub(crate) async fn inference(
     let tokens = tokens.unwrap();
     //TODO(douk): Change with #[checked] RPC annotation
     // let conv_id = match verify_if_send_to_db(tokens.policy()) {
-    // let conv_id = match cookies.get("storage_consent") {
-    //     None => None,
-    //     Some(_) => Some(
-    //         store_to_database(
-    //             uuid.clone(),
-    //             data.conv_id.clone(),
-    //             conversation.last().unwrap().clone(),
-    //         )
-    //         .await,
-    //     ),
-    // };
+    let conv_id = match cookies.get("storage_consent") {
+        None => None,
+        Some(_) => Some(
+            store_to_database(
+                uuid.clone(),
+                data.conv_id.clone(),
+                conversation.last().unwrap().clone(),
+            )
+            .await,
+        ),
+    };
 
-    // if conv_id.is_some() {
-    //     store_to_database(uuid.clone(), conv_id.clone(), tokens.clone()).await;
-    // }
+    if conv_id.is_some() {
+        store_to_database(uuid.clone(), conv_id.clone(), tokens.clone()).await;
+    }
 
     //If allowed to check AND 30% AD presence
     // let ad = match verify_if_send_to_marketing(tokens.policy()) {
