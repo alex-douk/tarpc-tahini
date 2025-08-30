@@ -90,15 +90,15 @@ pub(crate) async fn inference(
     };
     //Parse whether user knows their uuid or not
     //If user did not provide a UUID, we assume unauthenticated
-    // let uuid = match cookies.get("user_id") {
-    //     None => {
-    //         get_default_user().await
-    //     }
-    //     //Weirdly enough, only implementation for From<BBoxCookie<'c, P: FrontendPolicy> for BBox<String, P>
-    //     Some(t) => {
-    //         t.into()
-    //     }
-    // };
+    let uuid = match cookies.get("user_id") {
+        None => {
+            get_default_user().await
+        }
+        //Weirdly enough, only implementation for From<BBoxCookie<'c, P: FrontendPolicy> for BBox<String, P>
+        Some(t) => {
+            t.into()
+        }
+    };
     let conversation = data.conversation.clone();
     let payload = UserPrompt {
         conversation: conversation.clone(),
