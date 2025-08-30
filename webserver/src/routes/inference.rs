@@ -125,38 +125,38 @@ pub(crate) async fn inference(
     }
     let tokens = tokens.unwrap();
     //TODO(douk): Change with #[checked] RPC annotation
-    // let conv_id = match verify_if_send_to_db(tokens.policy()) {
-    //     false => None,
-    //     true => match store_to_database(
-    //         uuid.clone(),
-    //         data.conv_id.clone(),
-    //         conversation
-    //             .clone()
-    //             .into_ppr(PPR::new(|conv: Vec<Message>| conv.last().unwrap().clone())),
-    //     )
-    //     .await
-    //     {
-    //         Ok(conv_id) => Some(conv_id),
-    //         Err(e) => {
-    //             eprintln!("DB error: {}", e);
-    //             None
-    //         }
-    //     },
-    // };
-    // if conv_id.is_some() {
-    //     match store_to_database(
-    //         uuid.clone(),
-    //         conv_id.clone().unwrap().into_ppr(PPR::new(|x| Some(x))),
-    //         tokens.clone(),
-    //     )
-    //     .await
-    //     {
-    //         Ok(_) => (),
-    //         Err(e) => {
-    //             eprint!("Db error: {}", e);
-    //         }
-    //     }
-    // }
+    let conv_id = match verify_if_send_to_db(tokens.policy()) {
+        false => None,
+        true => match store_to_database(
+            uuid.clone(),
+            data.conv_id.clone(),
+            conversation
+                .clone()
+                .into_ppr(PPR::new(|conv: Vec<Message>| conv.last().unwrap().clone())),
+        )
+        .await
+        {
+            Ok(conv_id) => Some(conv_id),
+            Err(e) => {
+                eprintln!("DB error: {}", e);
+                None
+            }
+        },
+    };
+    if conv_id.is_some() {
+        match store_to_database(
+            uuid.clone(),
+            conv_id.clone().unwrap().into_ppr(PPR::new(|x| Some(x))),
+            tokens.clone(),
+        )
+        .await
+        {
+            Ok(_) => (),
+            Err(e) => {
+                eprint!("Db error: {}", e);
+            }
+        }
+    }
 
     // //If allowed to check AND 30% AD presence
     // let ad = match verify_if_send_to_marketing(tokens.policy()) {
