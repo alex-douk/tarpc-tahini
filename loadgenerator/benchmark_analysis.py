@@ -2,6 +2,7 @@
 
 import numpy as np
 import re
+import json
 SPANS = ["DB_Store RPC", "LLM RPC"]
 
 
@@ -47,3 +48,5 @@ with open("benchmark.log") as bench_file:
 
     bench_results = [(span, bench.median(), bench.tail_lat()) for (span, bench) in bench_store.items()]
     print(bench_results)
+    with open("results.json", 'a+') as dump_file:
+        json.dump(bench_results, dump_file)
