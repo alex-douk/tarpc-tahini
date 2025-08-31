@@ -3,6 +3,7 @@ use core_tahini_utils::types::{Conversation, Message};
 use database_tahini_utils::service::{DatabaseClient};
 use database_tahini_utils::types::DatabaseError;
 use std::sync::OnceLock;
+use std::time::Instant;
 use tarpc::context;
 
 use crate::SERVER_ADDRESS;
@@ -25,11 +26,14 @@ pub(crate) async fn initialize_db_client() {
     }
 }
 
+#[tracing::instrument(name="DB_Store RPC")]
 pub(crate) async fn store_to_database(
     uuid: String,
     conv_id: Option<String>,
-    message: Message, // submit_form: DatabaseStoreForm,
+    message: Message, 
+    context: tarpc::context::Context
 ) -> String {
+    let start = Instant::now();
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
@@ -40,42 +44,45 @@ pub(crate) async fn store_to_database(
                 .await
         }
     };
-
+    let elapsed = start.elapsed();
+    tracing::warn!(?elapsed, "Time for DB_Store RPC call");
     response.unwrap()
 }
 
 pub(crate) async fn register_user(
     username: String,
+    context: tarpc::context::Context
 ) -> Result<String, DatabaseError> {
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
         }
-        Some(client) => client.register_user(context::current(), username).await,
+        Some(client) => client.register_user(context, username).await,
     };
     response.unwrap()
 }
 
 pub(crate) async fn fetch_user(
     username: String,
+    context: tarpc::context::Context
 ) -> Result<String, DatabaseError> {
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
         }
-        Some(client) => client.fetch_user(context::current(), username).await,
+        Some(client) => client.fetch_user(context, username).await,
     };
 
     response.unwrap()
 }
 
-pub(crate) async fn get_default_user() -> String {
+pub(crate) async fn get_default_user(context: tarpc::context::Context) -> String {
     // let default_user = PCon::new("anonymous".to_string(), UsernamePolicy::default());
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
         }
-        Some(client) => client.fetch_user(context::current(), "anonymous".to_string()).await,
+        Some(client) => client.fetch_user(context, "anonymous".to_string()).await,
     };
     response.expect("Call to DB failed").expect("Couldn't find default user")
 }

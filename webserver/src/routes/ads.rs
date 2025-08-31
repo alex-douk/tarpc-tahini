@@ -40,22 +40,24 @@ pub(crate) async fn get_ads_vendors() -> JsonGuard<Vec<String>> {
     )
 }
 
-pub(crate) async fn send_to_marketing(uname: Option<String>, conv: Conversation, tpp_vendors: Vec<String>) -> String {
+pub(crate) async fn send_to_marketing(
+    uname: Option<String>,
+    conv: Conversation,
+    tpp_vendors: Vec<String>,
+    context: tarpc::context::Context,
+) -> String {
     //Let's set some bad defaults of targeted ads + all third party processors
     let payload = MarketingData {
         username: uname,
         prompt: marketing_parse_conv(conv),
-        third_party_ad_vendors_allowed:  tpp_vendors
+        third_party_ad_vendors_allowed: tpp_vendors,
     };
 
     let ad: Ad = match ADCLIENT.get() {
         None => {
             panic!("Ad client connection should already exist");
         }
-        Some(client) => client
-            .auction_bidding(context::current(), payload)
-            .await
-            .unwrap(),
+        Some(client) => client.auction_bidding(context, payload).await.unwrap(),
     };
     ad.ad
 }

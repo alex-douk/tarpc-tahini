@@ -195,15 +195,15 @@ impl Database for DatabaseServer {
          
 }
 
+#[inline]
 pub(crate) async fn wait_upon(fut: impl Future<Output = ()> + Send + 'static) {
+    // tokio::spawn(fut);
     fut.await
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Welcome to the LLM database server!");
-    //A hashmap that for a given username, yields a hashmap of all UUIDS : chats for that specific
-    //user
     let config = config::Config::new();
     let server = DatabaseServer::new(config);
     let listener = TcpListener::bind(&(SERVER_ADDRESS, 5002)).await.unwrap();

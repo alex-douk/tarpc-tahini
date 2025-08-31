@@ -1,4 +1,5 @@
 use crate::database::{fetch_user, register_user};
+use crate::routes::gen_context;
 use rocket::{http::Cookie, route, serde::json::Json as JsonGuard};
 // use alohomora::{
 //     bbox::BBox,
@@ -26,7 +27,8 @@ pub(crate) async fn login(
     data: JsonGuard<LoginForm>,
 ) -> JsonGuard<LoginResponse> {
     // let is_authenticated = cookies.get(name)
-    let uuid = fetch_user(data.username.clone()).await;
+    let context = gen_context();
+    let uuid = fetch_user(data.username.clone(), context).await;
     match uuid {
         Ok(uuid) => {
             let resp = LoginResponse {
@@ -44,7 +46,8 @@ pub(crate) async fn signup(
     cookies: &CookieJar<'_>,
     data: JsonGuard<LoginForm>,
 ) -> JsonGuard<LoginResponse> {
-    let uuid = register_user(data.username.clone()).await;
+    let context = gen_context();
+    let uuid = register_user(data.username.clone(), context).await;
     match uuid {
         Ok(uuid) => {
             let resp = LoginResponse {

@@ -2,6 +2,7 @@
 //Clone model just clones the reference
 use core_tahini_utils::types::{Conversation, Message};
 use std::sync::Arc;
+use std::thread;
 //Required for model locking across async tasks
 use tokio::sync::Mutex;
 
@@ -74,7 +75,7 @@ impl Inference for InferenceServer {
         let mut locked_model = self.model.lock_owned().await;
         // let infered = locked_model.run(conv, prompt.nb_token as usize);
 
-        let infered : Result<String, String> = Ok(
+        let infered: Result<String, String> = Ok(
             "Hi! My name is Gemma. I'm usually happy to help but I can't right now.".to_string(),
         );
 
@@ -94,7 +95,6 @@ impl Inference for InferenceServer {
                 }),
             },
         }
-
     }
 }
 
@@ -106,7 +106,7 @@ pub(crate) async fn wait_upon(fut: impl Future<Output = ()> + Send + 'static) {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Welcome to the LLM inference server!");
     // let pipeline = create_pipeline();
-    let pipeline : Result<String, String> = Ok("".to_string());
+    let pipeline: Result<String, String> = Ok("".to_string());
     match pipeline {
         Ok(_) => {
             println!("Successfully created the pipeline!");

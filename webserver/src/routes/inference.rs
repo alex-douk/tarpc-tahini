@@ -1,10 +1,14 @@
 use core_tahini_utils::types::{Conversation, Message, UserPrompt};
 use llm_tahini_utils::service::InferenceClient;
+use rand::Rng;
 use rocket::http::CookieJar;
 use rocket::route;
 use rocket::serde::json::Json as JsonGuard;
+use tarpc::context::Context;
+use tarpc::trace::TraceId;
 use std::sync::OnceLock;
 use std::time::Duration;
+use std::time::Instant;
 use std::time::SystemTime;
 use tarpc::context;
 
@@ -49,16 +53,21 @@ pub(crate) async fn initialize_llm_client() {
     }
 }
 
-async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<Message> {
-    let mut context = context::current();
-    context.deadline = SystemTime::now() + Duration::from_secs(45);
+#[tracing::instrument(name="LLM RPC")]
+async fn contact_llm_server(prompt: UserPrompt, ctxt: Context) -> anyhow::Result<Message> {
+    let context = super::gen_context();
+    let start = Instant::now();
     let response = match LLMCLIENT.get() {
         None => {
             panic!("LLM Client should already exist");
         }
-        Some(client) => client.inference(context, prompt).await?,
+        Some(client) => {
+            let fut = client.inference(context, prompt);
+            fut.await?
+        }
     };
-
+    let elapsed = start.elapsed();
+    tracing::info!(?elapsed, "Time for LLM RPC call");
     Ok(response.infered_tokens?)
 }
 
@@ -76,7 +85,9 @@ pub(crate) async fn inference(
 ) -> JsonGuard<InferenceResponse> {
     //Parse whether anonymous or connected user
     //Could probably handle that via some pre-hooks. A lot of boilerplate here
-
+    //
+    
+    let context = super::gen_context();
     let username = match &data.user {
         None => "anonymous".to_string(),
         Some(t) => t.clone(),
@@ -85,7 +96,7 @@ pub(crate) async fn inference(
     //If user did not provide a UUID, we assume unauthenticated
     let uuid = match cookies.get("user_id") {
         None => {
-            get_default_user().await
+            get_default_user(context).await
         }
         Some(t) => {
             t.value().to_string()
@@ -111,7 +122,8 @@ pub(crate) async fn inference(
         nb_token: data.nb_token,
     };
 
-    let tokens = contact_llm_server(payload).await;
+
+    let tokens = contact_llm_server(payload, context).await;
 
     //If inference error, do not go to DB, instead early return with None
     //If policy says no_db, do not go to DB, instead early return with None
@@ -136,13 +148,14 @@ pub(crate) async fn inference(
                 uuid.clone(),
                 data.conv_id.clone(),
                 conversation.last().unwrap().clone(),
+                context
             )
             .await,
         ),
     };
 
     if conv_id.is_some() {
-        store_to_database(uuid.clone(), conv_id.clone(), tokens.clone()).await;
+        store_to_database(uuid.clone(), conv_id.clone(), tokens.clone(), context).await;
     }
 
     //If allowed to check AND 30% AD presence
