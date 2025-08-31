@@ -10,10 +10,10 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 use alohomora::policy::AnyPolicyDyn;
 use alohomora::pure::{execute_pure, PrivacyPureRegion};
-use tarpc::context;
 
 use crate::policies::history::HistoryPolicy;
 use crate::policies::login_uuid::UserIdWebPolicy;
+use crate::routes::gen_context;
 use crate::SERVER_ADDRESS;
 use tahini_tarpc::transport::new_tahini_client_transport as new_transport;
 use tarpc::tokio_serde::formats::Json;
@@ -38,7 +38,8 @@ pub(crate) async fn initialize_db_client() {
 pub(crate) async fn store_to_database(
     uuid: PCon<String, UserIdWebPolicy>,
     conv_id: PCon<Option<String>, UserIdWebPolicy>,
-    message: PCon<Message, MessagePolicy>, // submit_form: DatabaseStoreForm,
+    message: PCon<Message, MessagePolicy>, 
+    context: tarpc::context::Context
 ) -> Result<PCon<String, UserIdWebPolicy>, PolicyError> {
     let response = match DBCLIENT.get() {
         None => {
@@ -46,7 +47,7 @@ pub(crate) async fn store_to_database(
         }
         Some(client) => {
             client
-                .store_prompt(context::current(), uuid, conv_id, message)
+                .store_prompt(context, uuid, conv_id, message)
                 .await
         }
     };
@@ -62,12 +63,13 @@ pub(crate) async fn store_to_database(
 
 pub(crate) async fn register_user(
     username: PCon<String, UsernamePolicy>,
+    context: tarpc::context::Context
 ) -> Result<PCon<String, UserIdWebPolicy>, DatabaseError> {
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
         }
-        Some(client) => client.register_user(context::current(), username).await,
+        Some(client) => client.register_user(context, username).await,
     };
 
     match response {
@@ -80,12 +82,13 @@ pub(crate) async fn register_user(
 
 pub(crate) async fn fetch_user(
     username: PCon<String, UsernamePolicy>,
+    context: tarpc::context::Context
 ) -> Result<PCon<String, UserIdWebPolicy>, DatabaseError> {
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
         }
-        Some(client) => client.fetch_user(context::current(), username).await,
+        Some(client) => client.fetch_user(context, username).await,
     };
 
     match response {
@@ -96,13 +99,13 @@ pub(crate) async fn fetch_user(
     }
 }
 
-pub(crate) async fn get_default_user() -> PCon<String, UserIdWebPolicy> {
+pub(crate) async fn get_default_user(context: tarpc::context::Context) -> PCon<String, UserIdWebPolicy> {
     let default_user = PCon::new("anonymous".to_string(), UsernamePolicy::default());
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
         }
-        Some(client) => client.fetch_user(context::current(), default_user).await,
+        Some(client) => client.fetch_user(context, default_user).await,
     };
     response
         .expect("Default user not found")
@@ -142,13 +145,14 @@ pub(crate) async fn get_history(
         is_authenticated = is_authenticated && tmp.unwrap().fold_in().is_some();
     }
 
+    let context = gen_context();
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
         }
         Some(client) => {
             client
-                .fetch_history_headers(tarpc::context::current(), user_id)
+                .fetch_history_headers(context, user_id)
                 .await
         }
     };
@@ -181,6 +185,7 @@ pub(crate) async fn fetch_conversation(
     cookies: BBoxCookieJar<'_, '_>,
     chat_id: PCon<String, UserIdWebPolicy>,
 ) -> JsonResponse<FetchConversation, ()> {
+    let context = gen_context();
     if cookies.get::<UsernamePolicy>("user_id").is_none() {
         return JsonResponse(FetchConversation { conv: None }, Context::empty());
     }
@@ -192,7 +197,7 @@ pub(crate) async fn fetch_conversation(
         }
         Some(client) => {
             client
-                .retrieve_prompt(tarpc::context::current(), user_id, chat_id)
+                .retrieve_prompt(context, user_id, chat_id)
                 .await
         }
     };
@@ -213,13 +218,14 @@ pub(crate) async fn delete_conversation(
     if cookies.get::<UsernamePolicy>("user_id").is_none() {}
     let user_id: PCon<String, UserIdWebPolicy> =
         cookies.get::<UserIdWebPolicy>("user_id").unwrap().into();
+    let context = gen_context();
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
         }
         Some(client) => {
             client
-                .delete_conversation(context::current(), (user_id, chat_id))
+                .delete_conversation(context, (user_id, chat_id))
                 .await
         }
     };

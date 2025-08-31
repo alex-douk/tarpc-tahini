@@ -61,6 +61,7 @@ pub(crate) async fn get_ads_vendors() -> JsonResponse<Vec<String>, ()> {
 pub(crate) async fn send_to_marketing(
     uname: BBox<String, UsernamePolicy>,
     conv: BBoxConversation,
+    context: tarpc::context::Context,
 ) -> BBox<String, AdPolicy> {
     let payload = fold::<dyn AnyPolicyDyn, _>((uname.clone(), conv.clone()))
         .unwrap()
@@ -83,7 +84,7 @@ pub(crate) async fn send_to_marketing(
             panic!("Ad client connection should already exist");
         }
         Some(client) => client
-            .auction_bidding(context::current(), payload)
+            .auction_bidding(context, payload)
             .await
             .unwrap(),
     };

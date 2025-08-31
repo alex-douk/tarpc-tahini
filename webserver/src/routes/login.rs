@@ -1,4 +1,4 @@
-use crate::{database::{fetch_user, register_user}, policies::login_uuid::UserIdWebPolicy};
+use crate::{database::{fetch_user, register_user}, policies::login_uuid::UserIdWebPolicy, routes::gen_context};
 use alohomora::{
     bbox::BBox,
     context::Context,
@@ -26,7 +26,8 @@ pub(crate) async fn login(
     data: BBoxJson<LoginForm>,
 ) -> alohomora::rocket::JsonResponse<LoginResponse, ()> {
     // let is_authenticated = cookies.get(name)
-    let uuid = fetch_user(data.username.clone()).await;
+    let context = gen_context();
+    let uuid = fetch_user(data.username.clone(), context).await;
     match uuid {
         Ok(uuid) => {
             let resp = LoginResponse {
@@ -44,7 +45,8 @@ pub(crate) async fn signup(
     cookies: BBoxCookieJar<'_, '_>,
     data: BBoxJson<LoginForm>,
 ) -> alohomora::rocket::JsonResponse<LoginResponse, ()> {
-    let uuid = register_user(data.username.clone()).await;
+    let context = gen_context();
+    let uuid = register_user(data.username.clone(), context).await;
     match uuid {
         Ok(uuid) => {
             let resp = LoginResponse {

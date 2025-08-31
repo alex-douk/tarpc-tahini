@@ -23,6 +23,7 @@ use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
+use crate::routes::gen_context;
 use crate::SERVER_ADDRESS;
 use crate::ads::send_to_marketing;
 use crate::database::get_default_user;
@@ -88,11 +89,12 @@ pub(crate) async fn inference(
         }),
         Some(t) => t.clone(),
     };
+    let context = gen_context();
     //Parse whether user knows their uuid or not
     //If user did not provide a UUID, we assume unauthenticated
     let uuid = match cookies.get("user_id") {
         None => {
-            get_default_user().await
+            get_default_user(context).await
         }
         //Weirdly enough, only implementation for From<BBoxCookie<'c, P: FrontendPolicy> for BBox<String, P>
         Some(t) => {
@@ -133,6 +135,7 @@ pub(crate) async fn inference(
             conversation
                 .clone()
                 .into_ppr(PPR::new(|conv: Vec<Message>| conv.last().unwrap().clone())),
+                context
         )
         .await
         {
@@ -148,6 +151,7 @@ pub(crate) async fn inference(
             uuid.clone(),
             conv_id.clone().unwrap().into_ppr(PPR::new(|x| Some(x))),
             tokens.clone(),
+            context
         )
         .await
         {
@@ -161,7 +165,7 @@ pub(crate) async fn inference(
     // //If allowed to check AND 30% AD presence
     // let ad = match verify_if_send_to_marketing(tokens.policy()) {
     //     false => None,
-    //     true => Some(send_to_marketing(username, conversation).await),
+    //     true => Some(send_to_marketing(username, conversation, context).await),
     // };
     //
     construct_answer(&tokens, None, None)
