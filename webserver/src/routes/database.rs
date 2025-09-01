@@ -8,6 +8,7 @@ use database_tahini_utils::types::DatabaseError;
 use database_tahini_utils::types::PolicyError;
 use std::collections::HashMap;
 use std::sync::OnceLock;
+use std::time::Instant;
 use alohomora::policy::AnyPolicyDyn;
 use alohomora::pure::{execute_pure, PrivacyPureRegion};
 
@@ -34,13 +35,14 @@ pub(crate) async fn initialize_db_client() {
         panic!("Client connection already exists");
     }
 }
-
+#[tracing::instrument(name="DB_Store RPC")]
 pub(crate) async fn store_to_database(
     uuid: PCon<String, UserIdWebPolicy>,
     conv_id: PCon<Option<String>, UserIdWebPolicy>,
     message: PCon<Message, MessagePolicy>, 
     context: tarpc::context::Context
 ) -> Result<PCon<String, UserIdWebPolicy>, PolicyError> {
+    let start = Instant::now();
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
@@ -52,13 +54,17 @@ pub(crate) async fn store_to_database(
         }
     };
 
-    match response {
+    let res = match response {
         Ok(res) => res.transpose().map(|x| {
             x.transform_into::<PCon<String, UserIdWebPolicy>>()
                 .expect("Couldn't convert to local type")
         }),
         Err(_) => Err(PolicyError),
-    }
+    };
+    let elapsed = start.elapsed();
+    tracing::warn!(?elapsed, "Time for DB_Store RPC call");
+    res
+
 }
 
 pub(crate) async fn register_user(

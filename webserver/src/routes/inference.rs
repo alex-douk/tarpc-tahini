@@ -15,6 +15,7 @@ use llm_tahini_utils::service::TahiniInferenceClient;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 use std::time::Duration;
+use std::time::Instant;
 use std::time::SystemTime;
 use tarpc::context;
 
@@ -61,16 +62,18 @@ pub(crate) async fn initialize_llm_client() {
         panic!("Client connection already exists");
     }
 }
-
+#[tracing::instrument(name="LLM RPC")]
 async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, MessagePolicy>> {
-    let mut context = context::current();
-    context.deadline = SystemTime::now() + Duration::from_secs(45);
+    let start = Instant::now();
+    let context = gen_context();
     let response = match LLMCLIENT.get() {
         None => {
             panic!("LLM Client should already exist");
         }
         Some(client) => client.inference(context, prompt).await?
     };
+    let elapsed = start.elapsed();
+    tracing::info!(?elapsed, "Time for LLM RPC call");
 
     Ok(response.infered_tokens.fold_in()?)
 }
@@ -163,12 +166,12 @@ pub(crate) async fn inference(
     }
 
     // //If allowed to check AND 30% AD presence
-    // let ad = match verify_if_send_to_marketing(tokens.policy()) {
-    //     false => None,
-    //     true => Some(send_to_marketing(username, conversation, context).await),
-    // };
+    let ad = match verify_if_send_to_marketing(tokens.policy()) {
+        false => None,
+        true => Some(send_to_marketing(username, conversation, context).await),
+    };
     //
-    construct_answer(&tokens, None, None)
+    construct_answer(&tokens, conv_id, ad)
 }
 
 fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {
