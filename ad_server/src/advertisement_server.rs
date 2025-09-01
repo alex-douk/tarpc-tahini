@@ -90,12 +90,12 @@ fn ad_strategy(targeted: bool, allowed_vendors: Vec<String>) -> AdStrategy {
 
 use stop_words::{LANGUAGE, get};
 
-pub fn parse_conversation_into_topics(conv: String) -> String {
-    let mut stop_words = get(LANGUAGE::English);
-    stop_words.push("user".to_string());
-    stop_words.push("model".to_string());
-    stop_words.push("It's".to_string());
-    stop_words.push("it's".to_string());
+pub fn parse_conversation_into_topics(_conv: String) -> String {
+    // let mut stop_words = get(LANGUAGE::English);
+    // stop_words.push("user".to_string());
+    // stop_words.push("model".to_string());
+    // stop_words.push("It's".to_string());
+    // stop_words.push("it's".to_string());
     // let text_rank = TextRank::new(TextRankParams::WithDefaults(&conv, &stop_words));
     // let ranked_keywords = text_rank.get_ranked_words(10);
     // let mut kw_iters = ranked_keywords.iter().skip(2);
