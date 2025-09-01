@@ -1,5 +1,5 @@
 use rocket::{route, serde::json::Json as JsonGuard};
-use std::{collections::HashMap, sync::OnceLock};
+use std::{collections::HashMap, sync::OnceLock, time::Instant};
 
 use advertisement_tahini_utils::{
     service::AdvertisementClient,
@@ -39,13 +39,14 @@ pub(crate) async fn get_ads_vendors() -> JsonGuard<Vec<String>> {
             .collect(),
     )
 }
-
+#[tracing::instrument(name="Ads RPC")]
 pub(crate) async fn send_to_marketing(
     uname: Option<String>,
     conv: Conversation,
     tpp_vendors: Vec<String>,
     context: tarpc::context::Context,
 ) -> String {
+    let start = Instant::now();
     //Let's set some bad defaults of targeted ads + all third party processors
     let payload = MarketingData {
         username: uname,
@@ -59,5 +60,7 @@ pub(crate) async fn send_to_marketing(
         }
         Some(client) => client.auction_bidding(context, payload).await.unwrap(),
     };
+    let elapsed = start.elapsed();
+    tracing::warn!(?elapsed, "Time for Ads RPC call");
     ad.ad
 }
