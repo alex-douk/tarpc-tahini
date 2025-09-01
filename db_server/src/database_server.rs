@@ -1,15 +1,8 @@
-use backend::MySqlBackend;
 //Clone model just clones the reference
 use config::Config;
 use database_tahini_utils::types::DatabaseError;
 use core_tahini_utils::types::{Conversation, Message};
 use mysql::{from_value, Value as SqlValue};
-
-use std::{
-    sync::Arc,
-};
-//Required for model locking across async tasks
-use tokio::sync::Mutex;
 use uuid::Uuid;
 
 mod backend;
@@ -34,24 +27,29 @@ use tokio::net::TcpListener;
 use database_tahini_utils::service::Database;
 //Database import
 use database_tahini_utils::types::CHATUID;
+use r2d2::Pool;
+
+use crate::backend::MySqlBackendManager;
 
 #[derive(Clone)]
 pub(crate) struct DatabaseServer {
-    conn: Arc<Mutex<MySqlBackend>>,
+    conn: Pool<MySqlBackendManager>,
 }
 
 impl DatabaseServer {
     pub fn new(config: Config) -> Self {
-        DatabaseServer {
-            conn: Arc::new(Mutex::new(
-                MySqlBackend::new(
+    let backend_manager = MySqlBackendManager::new(
                     config.username.as_str(),
                     config.password.as_str(),
                     config.database.as_str(),
                     config.prime,
-                )
-                .expect("Couldn't connect to DB"),
-            )),
+                );
+    let pool = r2d2::Pool::builder()
+        .max_size(15)
+        .build(backend_manager)
+        .unwrap();
+        DatabaseServer {
+            conn: pool
         }
     }
 }
@@ -81,7 +79,9 @@ impl Database for DatabaseServer {
             None => uuid_str,
             Some(t) => t
         };
-        let mut backend = self.conn.lock().await;
+
+        let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
+        // let backend = self.conn.get().expect("Couldn't acquire a DB connection").get_mut();
         let _ = backend.prep_exec(
             "SELECT * FROM users WHERE user_id = ? ",
             (uuid.clone(),),
@@ -104,23 +104,23 @@ impl Database for DatabaseServer {
 
     async fn retrieve_prompt(self, _context: tarpc::context::Context,uuid:String,conv_id:String) -> Option<Conversation> {
 
-         let mut backend = self.conn.lock().await;
-         let res = backend.prep_exec(
-             "SELECT * FROM conversations WHERE conversation_id = ? AND user_id = ? ORDER BY message_id ASC",
-             (conv_id, uuid),
-         );
-         let parsed = res
-             .iter()
-             .map(parse_row_into_message)
-             .collect::<Result<Vec<_>, String>>()
-             .expect("Couldn't parse rows into messages");
+        let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
+        let res = backend.prep_exec(
+         "SELECT * FROM conversations WHERE conversation_id = ? AND user_id = ? ORDER BY message_id ASC",
+         (conv_id, uuid),
+        );
+        let parsed = res
+         .iter()
+         .map(parse_row_into_message)
+         .collect::<Result<Vec<_>, String>>()
+         .expect("Couldn't parse rows into messages");
 
-         Some(parsed)
+        Some(parsed)
         
     }
 
     async fn fetch_user(self, _context: tarpc::context::Context,username:String) -> Result<String,DatabaseError> {
-        let mut backend = self.conn.lock().await;
+        let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
         let res = backend.prep_exec(
             "SELECT * FROM users where username = ?",
             (username.clone(),),
@@ -137,7 +137,7 @@ impl Database for DatabaseServer {
          _context: tarpc::context::Context,
          username: String
      ) -> Result<String, DatabaseError> {
-         let mut backend = self.conn.lock().await;
+        let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
          let res = backend.prep_exec(
              "SELECT * FROM users where username = ?",
              (username.clone(),),
@@ -167,7 +167,7 @@ impl Database for DatabaseServer {
          username: String,
      ) -> Vec<String> {
          //Group By conv_id : get boxed_conv_ids (actually, we want to policy only here)
-         let mut backend = self.conn.lock().await;
+        let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
          //TODO(douk): Check if there is a more elegant way to combine policies here
          let res = backend.prep_exec(
              "SELECT DISTINCT * FROM conversations where user_id = ?",
@@ -183,7 +183,7 @@ impl Database for DatabaseServer {
 
      async fn delete_conversation(self, _context: tarpc::context::Context,data:(String,String)) -> bool {
         let (user_id, conv_id) = data;
-        let mut backend = self.conn.lock().await;
+        let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
         let _ = backend.prep_exec(
             "DELETE FROM conversations WHERE user_id = ? AND conversation_id = ?",
             (user_id, conv_id),
