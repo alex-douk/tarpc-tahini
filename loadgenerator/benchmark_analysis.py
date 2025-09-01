@@ -3,7 +3,7 @@
 import numpy as np
 import re
 import json
-SPANS = ["DB_Store RPC", "LLM RPC"]
+SPANS = ["DB_Store RPC", "LLM RPC", "Ads RPC"]
 
 
 def extract_bench_line(line):
