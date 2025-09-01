@@ -78,3 +78,7 @@ clean:
   rm ./attest.log
 
 
+
+eval:
+  @just export_certificates {{justfile_dir()}}/eval_client/resources/certificates/
+  cd {{justfile_dir()}}/eval_client && cargo run --bin eval_client -- release
