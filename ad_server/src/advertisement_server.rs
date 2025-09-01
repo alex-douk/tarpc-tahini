@@ -1,7 +1,9 @@
+use rake::{Rake, StopWords};
 use rand::seq::{IndexedRandom, IteratorRandom};
 //Clone model just clones the reference
 
 use std::collections::HashMap;
+use std::sync::Arc;
 //Required for model locking across async tasks
 use advertisement_tahini_utils::THIRD_PARTY_PROCESSORS;
 
@@ -31,7 +33,9 @@ static META_AD: &str =
     "More interesting contents about {} await on [https://facebook.com](Facebook)!";
 
 #[derive(Clone)]
-struct AdServer;
+struct AdServer{
+    stop_words: Arc<rake::Rake>
+}
 
 enum AdStrategy {
     ThirdPartyTracked(String),
@@ -65,10 +69,11 @@ pub(crate) struct ThirdPartyProcessorData {
 fn fetch_ad_from_third_party(
     vendor: &str,
     data: ThirdPartyProcessorData,
+    rake: Arc<rake::Rake>
 ) -> String {
     match vendor {
-        "Google_Ads" => google_ads::get_ad(data),
-        "Meta_Ads" => meta_ads::get_ad(data),
+        "Google_Ads" => google_ads::get_ad(data, rake),
+        "Meta_Ads" => meta_ads::get_ad(data, rake),
         _ => unreachable!(),
     }
 }
@@ -88,37 +93,27 @@ fn ad_strategy(targeted: bool, allowed_vendors: Vec<String>) -> AdStrategy {
     }
 }
 
-use stop_words::{LANGUAGE, get};
+pub fn parse_conversation_into_topics(conv: String, rake: Arc<rake::Rake>) -> String {
 
-pub fn parse_conversation_into_topics(_conv: String) -> String {
-    // let mut stop_words = get(LANGUAGE::English);
-    // stop_words.push("user".to_string());
-    // stop_words.push("model".to_string());
-    // stop_words.push("It's".to_string());
-    // stop_words.push("it's".to_string());
-    // let text_rank = TextRank::new(TextRankParams::WithDefaults(&conv, &stop_words));
-    // let ranked_keywords = text_rank.get_ranked_words(10);
-    // let mut kw_iters = ranked_keywords.iter().skip(2);
-    // while let Some(t) = kw_iters.next() {
-    //     if !stop_words.contains(t) {
-    //         return t.to_string();
-    //     }
-    // }
-    "this topic".to_string()
-    // return ranked_keywords[0].clone();
+    let keywords = rake.run(conv.as_str());
+    let top_keyword = keywords.first();
+    match top_keyword {
+        None => "this topic".to_string(),
+        Some(kw) => kw.keyword.clone()
+    }
 }
 
-fn local_process(data: ThirdPartyProcessorData) -> String {
+fn local_process(data: ThirdPartyProcessorData, rake: Arc<rake::Rake>) -> String {
     match data.username {
         None => 
             format!(
                 "Find more about {} on [https://SomeRandomWebSite.com](https://brown.edu)",
-                parse_conversation_into_topics(data.prompt)
+                parse_conversation_into_topics(data.prompt, rake)
             )
         ,
         Some(username) => format!("Hi {}! You can find more about {} on [https://SomeRandomWebSite.com](https://brown.edu)",
                     username,
-                    parse_conversation_into_topics(data.prompt)
+                    parse_conversation_into_topics(data.prompt, rake)
                 )
     }
 }
@@ -136,10 +131,10 @@ impl Advertisement for AdServer {
         };
         let ad = match strategy {
             AdStrategy::ThirdPartyTracked(vendor) | AdStrategy::ThirdPartyAnonymous(vendor) => {
-                fetch_ad_from_third_party(vendor.as_str(), tpd)
+                fetch_ad_from_third_party(vendor.as_str(), tpd, self.stop_words)
             }
             AdStrategy::LocalProcessAnonymous | AdStrategy::LocalProcessTracked => {
-                local_process(tpd)
+                local_process(tpd, self.stop_words)
             }
         };
 
@@ -159,8 +154,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //A hashmap that for a given username, yields a hashmap of all UUIDS : chats for that specific
     //
     //
-    let stop_words = get(LANGUAGE::English);
-    let server = AdServer;
+    // let stop_words = get(LANGUAGE::English);
+    //
+    let stop_words = StopWords::from_file("stopwords.txt").expect("Couldn't load the stopwords list");
+    let rake = Rake::new(stop_words);
+    let server = AdServer{
+        stop_words: Arc::new(
+                        rake
+                    )
+    };
     let listener = TcpListener::bind(&(SERVER_ADDRESS, 8002)).await.unwrap();
     let codec_builder = LengthDelimitedCodec::builder();
     loop {

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::parse_conversation_into_topics;
 
 // fn parse_conversation_into_topics(conv: String) -> String {
@@ -7,16 +9,16 @@ use crate::parse_conversation_into_topics;
 //     ranked_keywords[0].clone()
 // }
 
-pub fn get_ad(data: crate::ThirdPartyProcessorData) -> String {
+pub fn get_ad(data: crate::ThirdPartyProcessorData, rake: Arc<rake::Rake>) -> String {
     match data.username {
         None => format!(
             "More people discussing {} on [Facebook](https://facebook.com)",
-            parse_conversation_into_topics(data.prompt)
+            parse_conversation_into_topics(data.prompt, rake)
         ),
         Some(username) => format!(
             "Hi {}! You can find more people discussing {} on [Facebook](https://facebook.com)",
             username,
-            parse_conversation_into_topics(data.prompt)
+            parse_conversation_into_topics(data.prompt, rake)
         ),
     }
 }
