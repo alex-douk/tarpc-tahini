@@ -66,7 +66,6 @@ fn fetch_ad_from_third_party(
     vendor: &str,
     data: ThirdPartyProcessorData,
 ) -> String {
-    println!("Vendor is {}", vendor);
     match vendor {
         "Google_Ads" => google_ads::get_ad(data),
         "Meta_Ads" => meta_ads::get_ad(data),
@@ -81,7 +80,6 @@ fn ad_strategy(targeted: bool, allowed_vendors: Vec<String>) -> AdStrategy {
             Err(_) => AdStrategy::LocalProcessAnonymous,
         },
         true => {
-            println!("We have targed consent");
             match find_vendor(&allowed_vendors) {
                 Ok(vendor) => AdStrategy::ThirdPartyTracked(vendor),
                 Err(_) => AdStrategy::LocalProcessTracked,

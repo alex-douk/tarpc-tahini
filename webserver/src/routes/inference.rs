@@ -169,11 +169,9 @@ pub(crate) async fn inference(
                 cookies
                     .get("allowed_third_party_data_vendors")
                     .map_or_else(Vec::new, |c| {
-                        println!("Vendor value is {:?}", c.value());
                         serde_json::from_str::<Vec<String>>(c.value())
                             .expect("Couldn't parse the vendors list")
                     });
-            println!("Vendors is {:?}", tpp_vendors);
             Some(send_to_marketing(ad_username, conversation, tpp_vendors, context).await)
         }
     };
