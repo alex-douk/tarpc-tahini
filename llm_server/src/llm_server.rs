@@ -76,7 +76,7 @@ impl Inference for InferenceServer {
         // let infered = locked_model.run(conv, prompt.nb_token as usize);
 
         let infered: Result<String, String> = Ok(
-            "Hi! My name is Gemma. I'm usually happy to help but I can't right now.".to_string(),
+            "Hi! My name is Gemma, an AI assistant here to help you. I'm usually available but I can't right now.".to_string(),
         );
 
         drop(locked_model);
