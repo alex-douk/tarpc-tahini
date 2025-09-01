@@ -40,7 +40,6 @@ with open("benchmark.log") as bench_file:
     for line in bench_file:
         for span in SPANS:
             if span in line:
-                print(f"Found a match for {span=}")
                 micro_val = extract_bench_line(line)
                 if micro_val is not None:
                     bench_store[span].append(micro_val)
