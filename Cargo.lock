@@ -19,6 +19,7 @@ dependencies = [
  "pest",
  "pest_generator",
  "pest_meta",
+ "rake",
  "rand 0.9.2",
  "stop-words",
  "tahini_tarpc",
@@ -4065,6 +4066,15 @@ name = "radium"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
+
+[[package]]
+name = "rake"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0102fcbb0ddcdfae9c70952278bd43d8fb024c0699fcdac42b535527d3fff39f"
+dependencies = [
+ "regex",
+]
 
 [[package]]
 name = "rand"

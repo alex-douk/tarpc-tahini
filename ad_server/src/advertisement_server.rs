@@ -1,3 +1,4 @@
+use rake::{Rake, StopWords};
 use rand::seq::{IndexedRandom, IteratorRandom};
 //Clone model just clones the reference
 
@@ -44,7 +45,10 @@ static META_AD: &str =
     "More interesting contents about {} await on [https://facebook.com](Facebook)!";
 
 #[derive(Clone)]
-struct AdServer;
+struct AdServer{
+    rake: Arc<Rake>
+
+}
 
 enum AdStrategy {
     ThirdPartyTracked(String),
@@ -78,10 +82,11 @@ pub(crate) struct ThirdPartyProcessorData {
 fn fetch_ad_from_third_party(
     vendor: &str,
     data: ThirdPartyProcessorData,
+    rake: Arc<Rake>
 ) -> PCon<String, MarketingPolicy> {
     match vendor {
-        "Google_Ads" => google_ads::get_ad(data),
-        "Meta_Ads" => meta_ads::get_ad(data),
+        "Google_Ads" => google_ads::get_ad(data, rake),
+        "Meta_Ads" => meta_ads::get_ad(data, rake),
         _ => unreachable!(),
     }
 }
@@ -103,30 +108,21 @@ fn ad_strategy(pol: &MarketingPolicy) -> AdStrategy {
 
 use stop_words::{LANGUAGE, get};
 
-pub fn parse_conversation_into_topics(conv: String) -> String {
-    // let mut stop_words = get(LANGUAGE::English);
-    // stop_words.push("user".to_string());
-    // stop_words.push("model".to_string());
-    // stop_words.push("It's".to_string());
-    // stop_words.push("it's".to_string());
-    // let text_rank = TextRank::new(TextRankParams::WithDefaults(&conv, &stop_words));
-    // let ranked_keywords = text_rank.get_ranked_words(10);
-    // let mut kw_iters = ranked_keywords.iter().skip(2);
-    // while let Some(t) = kw_iters.next() {
-    //     if !stop_words.contains(t) {
-    //         return t.to_string();
-    //     }
-    // }
-    "this topic".to_string()
-    // return ranked_keywords[0].clone();
+pub fn parse_conversation_into_topics(conv: String, rake: Arc<rake::Rake>) -> String {
+    let keywords = rake.run(conv.as_str());
+    let top_keyword = keywords.first();
+    match top_keyword {
+        None => "this topic".to_string(),
+        Some(kw) => kw.keyword.clone()
+    }
 }
 
-fn local_process(data: ThirdPartyProcessorData) -> PCon<String, MarketingPolicy> {
+fn local_process(data: ThirdPartyProcessorData, rake: Arc<Rake>) -> PCon<String, MarketingPolicy> {
     match data.username {
         None => data.prompt.into_ppr(PPR::new(|conv| {
             format!(
                 "Find more about {} on [https://SomeRandomWebSite.com](https://brown.edu)",
-                parse_conversation_into_topics(conv)
+                parse_conversation_into_topics(conv, rake)
             )
         })),
         Some(username) => fold::<dyn AnyPolicyDyn, _>((username, data.prompt))
@@ -135,7 +131,7 @@ fn local_process(data: ThirdPartyProcessorData) -> PCon<String, MarketingPolicy>
                 format!(
                     "Hi {}! You can find more about {} on [https://SomeRandomWebSite.com](https://brown.edu)",
                     uname_unboxed,
-                    parse_conversation_into_topics(conv_unboxed)
+                    parse_conversation_into_topics(conv_unboxed, rake)
                 )
             }))
             .specialize_policy()
@@ -159,10 +155,10 @@ impl Advertisement for AdServer {
         };
         let ad = match strategy {
             AdStrategy::ThirdPartyTracked(vendor) | AdStrategy::ThirdPartyAnonymous(vendor) => {
-                fetch_ad_from_third_party(vendor.as_str(), tpd)
+                fetch_ad_from_third_party(vendor.as_str(), tpd, self.rake)
             }
             AdStrategy::LocalProcessAnonymous | AdStrategy::LocalProcessTracked => {
-                local_process(tpd)
+                local_process(tpd, self.rake)
             }
         };
 
@@ -182,8 +178,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //A hashmap that for a given username, yields a hashmap of all UUIDS : chats for that specific
     //
     //
-    let stop_words = get(LANGUAGE::English);
-    let server = AdServer;
+     let stop_words = StopWords::from_file("stopwords.txt").expect("Couldn't load the stopwords list");
+    let rake = Rake::new(stop_words);
+    let server = AdServer{
+        rake: Arc::new(
+                        rake
+                    )
+    };
     let listener = TcpListener::bind(&(SERVER_ADDRESS, 8002)).await.unwrap();
     let codec_builder = LengthDelimitedCodec::builder();
     loop {

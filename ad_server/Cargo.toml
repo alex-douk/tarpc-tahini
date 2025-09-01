@@ -20,6 +20,7 @@ advertisement_tahini_utils = { version = "0.1.0", path = "../domains/advertiseme
 alohomora = { git = "https://github.com/brownsys/Sesame.git", branch = "tahini-dev", default-features = false, features = ["derive"] }
 tahini_tarpc = { git = "https://github.com/alex-douk/tahini_lib.git", branch = "standalone_tahini", features = ["derive"]}
 hoodini_server = { git = "https://github.com/alex-douk/tahini_lib.git", branch = "standalone_tahini", features = ["sidecar"]}
+rake = "0.2.0"
 
 
 [[bin]]

@@ -1,8 +1,11 @@
+use std::sync::Arc;
+
 use alohomora::bbox::BBox as PCon;
 use alohomora::fold::fold;
 use alohomora::policy::AnyPolicyDyn;
 use alohomora::pure::PrivacyPureRegion as PPR;
 use advertisement_tahini_utils::policies::MarketingPolicy;
+use rake::Rake;
 use crate::parse_conversation_into_topics;
 
 static GOOGLE_AD_ANONYMOUS: &str = "Find more about {} on [https://google.com](Google)";
@@ -16,12 +19,12 @@ static GOOGLE_AD_TARGETED: &str =
 //     ranked_keywords[0].clone()
 // }
 
-pub fn get_ad(data: crate::ThirdPartyProcessorData) -> PCon<String, MarketingPolicy> {
+pub fn get_ad(data: crate::ThirdPartyProcessorData, rake: Arc<Rake>) -> PCon<String, MarketingPolicy> {
     match data.username {
         None => data.prompt.into_ppr(PPR::new(|conv| {
             format!(
                 "Find more about {} on [Google](https://google.com)",
-                parse_conversation_into_topics(conv)
+                parse_conversation_into_topics(conv, rake)
             )
         })),
         Some(username) => fold::<dyn AnyPolicyDyn, _>((username, data.prompt))
@@ -30,7 +33,7 @@ pub fn get_ad(data: crate::ThirdPartyProcessorData) -> PCon<String, MarketingPol
                 format!(
                     "Hi {}! You can find more about {} on [Google](https://google.com)",
                     uname_unboxed,
-                    parse_conversation_into_topics(conv_unboxed)
+                    parse_conversation_into_topics(conv_unboxed, rake)
                 )
             }))
             .specialize_policy()

@@ -15,6 +15,7 @@ setup_llm:
 setup_ads:
   mkdir -p {{justfile_dir()}}/runtime/ad_server/
   cp {{justfile_dir()}}/target/release/ad_server {{justfile_dir()}}/runtime/ad_server
+  cp {{justfile_dir()}}ad_server/stopwords.txt {{justfile_dir()}}/runtime/ad_server
 
 export_certificates CERTIFICATE_DIR:
   mkdir -p {{CERTIFICATE_DIR}}

@@ -1,8 +1,11 @@
+use std::sync::Arc;
+
 use alohomora::bbox::BBox as PCon;
 use alohomora::fold::fold;
 use alohomora::policy::AnyPolicyDyn;
 use alohomora::pure::PrivacyPureRegion as PPR;
 use advertisement_tahini_utils::policies::MarketingPolicy;
+use rake::Rake;
 // use keyword_extraction::yake::{Yake, YakeParams};
 // use stop_words::{get, LANGUAGE};
 use crate::parse_conversation_into_topics;
@@ -14,12 +17,12 @@ use crate::parse_conversation_into_topics;
 //     ranked_keywords[0].clone()
 // }
 
-pub fn get_ad(data: crate::ThirdPartyProcessorData) -> PCon<String, MarketingPolicy> {
+pub fn get_ad(data: crate::ThirdPartyProcessorData, rake: Arc<Rake>) -> PCon<String, MarketingPolicy> {
     match data.username {
         None => data.prompt.into_ppr(PPR::new(|conv| {
             format!(
                 "More people discussing {} on [Facebook](https://facebook.com)",
-                parse_conversation_into_topics(conv)
+                parse_conversation_into_topics(conv, rake)
             )
         })),
         Some(username) => fold::<dyn AnyPolicyDyn, _>((username, data.prompt))
@@ -28,7 +31,7 @@ pub fn get_ad(data: crate::ThirdPartyProcessorData) -> PCon<String, MarketingPol
                 format!(
                     "Hi {}! You can find more people discussing {} on [Facebook](https://facebook.com)",
                     uname_unboxed,
-                    parse_conversation_into_topics(conv_unboxed)
+                    parse_conversation_into_topics(conv_unboxed, rake)
                 )
             }))
             .specialize_policy()
