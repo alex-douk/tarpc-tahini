@@ -1,4 +1,5 @@
 use alohomora::policy::{AnyPolicy, AnyPolicyClone, AnyPolicyDyn, JoinAPI, NoPolicy, Policy, Specializable};
+use r2d2::Pool;
 use tahini_tarpc::transport::new_tahini_server_transport;
 use tahini_tarpc::server::{TahiniBaseChannel, TahiniChannel};
 use backend::MySqlBackend;
@@ -52,26 +53,30 @@ use alohomora::pure::PrivacyPureRegion as PPR;
 use database_tahini_utils::service::Database;
 //Database import
 use database_tahini_utils::types::{CHATUID, DatabaseStoreForm};
+
+use crate::backend::MySqlBackendManager;
 pub type UserMap<T> = HashMap<String, T>;
 pub type ChatHistory = HashMap<u32, PCon<String, ConversationMetadataPolicy>>;
 
 #[derive(Clone)]
 pub(crate) struct DatabaseServer {
-    conn: Arc<Mutex<MySqlBackend>>,
+    conn: Pool<MySqlBackendManager>
 }
 
 impl DatabaseServer {
     pub fn new(config: Config) -> Self {
-        DatabaseServer {
-            conn: Arc::new(Mutex::new(
-                MySqlBackend::new(
+    let backend_manager = MySqlBackendManager::new(
                     config.username.as_str(),
                     config.password.as_str(),
                     config.database.as_str(),
                     config.prime,
-                )
-                .expect("Couldn't connect to DB"),
-            )),
+                );
+    let pool = r2d2::Pool::builder()
+        .max_size(15)
+        .build(backend_manager)
+        .unwrap();
+        DatabaseServer {
+            conn: pool
         }
     }
 }
@@ -103,7 +108,7 @@ impl Database for DatabaseServer {
             None => uuid_str,
             Some(t) => t,
         }));
-        let mut backend = self.conn.lock().await;
+        let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
         let row = backend.prep_exec(
             "SELECT * FROM users WHERE user_id = ? ",
             (uuid.clone(),),
@@ -150,7 +155,7 @@ impl Database for DatabaseServer {
         uuid: PCon<String, UserIdDBPolicy>,
         conv_id: PCon<String, UserIdDBPolicy>,
     ) -> Option<BBoxConversation> {
-        let mut backend = self.conn.lock().await;
+        let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
         let res = backend.prep_exec(
             "SELECT * FROM conversations WHERE conversation_id = ? AND user_id = ? ORDER BY message_id ASC",
             (conv_id, uuid),
@@ -174,7 +179,7 @@ impl Database for DatabaseServer {
         _context: tarpc::context::Context,
         username: PCon<String, UsernamePolicy>,
     ) -> Result<PCon<String, UserIdDBPolicy>, DatabaseError> {
-        let mut backend = self.conn.lock().await;
+        let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
         let res = backend.prep_exec(
             "SELECT * FROM users where username = ?",
             (username.clone(),),
@@ -193,7 +198,7 @@ impl Database for DatabaseServer {
         _context: tarpc::context::Context,
         username: PCon<String, UsernamePolicy>,
     ) -> Result<PCon<String, UserIdDBPolicy>, DatabaseError> {
-        let mut backend = self.conn.lock().await;
+        let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
         let res = backend.prep_exec(
             "SELECT * FROM users where username = ?",
             (username.clone(),),
@@ -226,7 +231,7 @@ impl Database for DatabaseServer {
     ) -> Vec<PCon<String, ConversationMetadataPolicy>> {
         //Group By conv_id : get boxed_conv_ids (actually, we want to policy only here)
         let mut conv_id_map = PCon::new(HashMap::new(), AbsolutePolicy {});
-        let mut backend = self.conn.lock().await;
+        let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
         //TODO(douk): Check if there is a more elegant way to combine policies here
         let res = backend.prep_exec(
             "SELECT DISTINCT * FROM conversations where user_id = ?",
@@ -339,7 +344,7 @@ impl Database for DatabaseServer {
     //     self,
     //     context: tarpc::context::Context,
     // ) -> PCon<String, UsernamePolicy> {
-    //     let mut backend = self.conn.lock().await;
+    //     let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
     //     let res = backend.prep_exec(
     //         "SELECT * FROM users where username = ?",
     //         ("anonymous",),
@@ -354,7 +359,7 @@ impl Database for DatabaseServer {
         (user_id, conv_id): (PCon<String, UserIdDBPolicy>, PCon<String, UserIdDBPolicy>),
     ) -> bool {
         // let (user_id, conv_id) = (delete.uuid, delete.conv_id);
-        let mut backend = self.conn.lock().await;
+        let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
         let _ = backend.prep_exec(
             "DELETE FROM conversations WHERE user_id = ? AND conversation_id = ?",
             (user_id, conv_id),

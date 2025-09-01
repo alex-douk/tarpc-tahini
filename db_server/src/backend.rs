@@ -178,3 +178,55 @@ impl MySqlBackend {
     //     self.do_insert(table, vals, true, context)
     // }
 }
+
+#[derive(Debug)]
+pub struct DbConnError;
+
+impl std::fmt::Display for DbConnError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Db connection error")
+    }
+}
+
+impl std::error::Error for DbConnError {}
+
+pub struct MySqlBackendManager {
+    db_user: String,
+    db_password: String,
+    db_name: String,
+    prime: bool,
+}
+
+impl MySqlBackendManager {
+    pub fn new(db_user: &str,  db_password: &str, db_name: &str, prime: bool) -> Self {
+        Self {
+            db_user: String::from(db_user),
+            db_password: String::from(db_password),
+            db_name: String::from(db_name),
+            prime
+        }
+    }
+}
+
+
+impl r2d2::ManageConnection for MySqlBackendManager {
+    type Connection = MySqlBackend;
+    type Error = DbConnError;
+    fn connect(&self) -> Result<Self::Connection, Self::Error> {
+        MySqlBackend::new(
+            self.db_user.as_str(),
+            self.db_password.as_str(),
+            self.db_name.as_str(),
+            self.prime,
+        )
+        .map_err(|_| DbConnError)
+    }
+
+    fn has_broken(&self, _conn: &mut Self::Connection) -> bool {
+        false
+    }
+
+    fn is_valid(&self, _conn: &mut Self::Connection) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
