@@ -12,4 +12,3 @@ project_metadata.toml
 rust-toolchain.toml
 scrutinizer-config.toml
 *.json
-*.txt
