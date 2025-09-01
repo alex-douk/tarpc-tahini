@@ -23,7 +23,7 @@ class CookieConfig():
         self.image_gen = True 
 
         #User based
-        self.targeted_ad_consent = False 
+        self.targeted_ads_consent = False 
         sample_size = random.randint(0, len(VENDORS))
         self.third_party_ad_vendors = random.sample(VENDORS, k=sample_size)
         self.user_id = None
@@ -32,10 +32,10 @@ class CookieConfig():
 
     def construct(self):
         cookies =  dict()
-        cookies["storage"] = parse(self.storage_consent)
-        cookies["ads"] = parse(self.ad_consent)
+        cookies["storage_consent"] = parse(self.storage_consent)
+        cookies["ad_consent"] = parse(self.ad_consent)
         cookies["image_gen"] = parse(self.image_gen)
-        cookies["targeted_ads"] = parse(self.targeted_ad_consent)
+        cookies["targeted_ads_consent"] = parse(self.targeted_ads_consent)
         cookies["user_id"] = self.user_id
         cookies["allowed_third_party_data_vendors"] = str(self.third_party_ad_vendors).replace("'", "\"")
         return cookies
