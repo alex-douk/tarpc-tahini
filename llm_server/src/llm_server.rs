@@ -57,17 +57,17 @@ static SYSTEM_PROMPT: &str = "You are a helpful assistant. You are tasked with r
 
 #[derive(Clone)]
 pub struct InferenceServer {
-    // model: Arc<Mutex<model_backend::TextGeneration>>,
-    model: Arc<Mutex<()>>,
+    model: Arc<Mutex<model_backend::TextGeneration>>,
+    // model: Arc<Mutex<()>>,
 }
 
-// impl InferenceServer {
-    // pub fn new(tg: TextGeneration) -> Self {
-    //     InferenceServer {
-    //         model: Arc::new(Mutex::new(tg)),
-    //     }
-    // }
-// }
+impl InferenceServer {
+    pub fn new(tg: TextGeneration) -> Self {
+        InferenceServer {
+            model: Arc::new(Mutex::new(tg)),
+        }
+    }
+}
 
 impl Inference for InferenceServer {
     async fn inference(self, _context: tarpc::context::Context, prompt: UserPrompt) -> LLMResponse {
@@ -85,12 +85,8 @@ impl Inference for InferenceServer {
                     content: SYSTEM_PROMPT.to_string(),
                 },
             );
-            Ok::<String, String>(
-            "Hi! My name is Gemma, an AI assistant here to help you. I'm usually available but I can't right now.".to_string(),
-            )
+            locked_model.run(unboxed_prompt, prompt.nb_token as usize)
         });
-
-        drop(locked_model);
 
         // Keeping it here in case i ever need it later
         // let mut writer = Vec::with_capacity(128);
@@ -129,17 +125,17 @@ pub(crate) async fn wait_upon(fut: impl Future<Output = ()> + Send + 'static) {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Welcome to the LLM inference server!");
-    // let pipeline = create_pipeline();
-    let pipeline: Result<(), String> = Ok(());
+    let pipeline = create_pipeline();
+    // let pipeline: Result<(), String> = Ok(());
 
     match pipeline {
-        Ok(_) => {
+        Ok(model) => {
             println!("Successfully created the pipeline!");
 
             let listener = TcpListener::bind(&(SERVER_ADDRESS, 5000)).await.unwrap();
             let codec_builder = LengthDelimitedCodec::builder();
             let server = InferenceServer {
-                model: Arc::new(Mutex::new(())),
+                model: Arc::new(Mutex::new(model)),
             };
             loop {
                 let (stream, _peer_addr) = listener.accept().await.unwrap();
