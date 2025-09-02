@@ -35,14 +35,14 @@ pub(crate) async fn initialize_db_client() {
         panic!("Client connection already exists");
     }
 }
-#[tracing::instrument(name="DB_Store RPC")]
+// #[tracing::instrument(name="DB_Store RPC")]
 pub(crate) async fn store_to_database(
     uuid: PCon<String, UserIdWebPolicy>,
     conv_id: PCon<Option<String>, UserIdWebPolicy>,
     message: PCon<Message, MessagePolicy>, 
     context: tarpc::context::Context
 ) -> Result<PCon<String, UserIdWebPolicy>, PolicyError> {
-    let start = Instant::now();
+    // let start = Instant::now();
     let response = match DBCLIENT.get() {
         None => {
             panic!("Client should already exist");
@@ -61,8 +61,8 @@ pub(crate) async fn store_to_database(
         }),
         Err(_) => Err(PolicyError),
     };
-    let elapsed = start.elapsed();
-    tracing::warn!(?elapsed, "Time for DB_Store RPC call");
+    // let elapsed = start.elapsed();
+    // tracing::warn!(?elapsed, "Time for DB_Store RPC call");
     res
 
 }

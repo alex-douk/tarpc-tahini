@@ -30,7 +30,7 @@ fn prepare_server() -> BBoxRocket<Build>{
 
 #[rocket::main]
 async fn main() {
-    let guard = init_tracing();
+    // let guard = init_tracing();
     routes::database::initialize_db_client().await;
     routes::ads::initialize_ad_client().await;
     routes::inference::initialize_llm_client().await;
@@ -38,7 +38,7 @@ async fn main() {
         println!("Failed to launch fronting server");
         drop(e)
     }
-    drop(guard)
+    // drop(guard)
 }
 
 fn init_tracing() -> WorkerGuard{

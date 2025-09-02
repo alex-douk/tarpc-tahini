@@ -58,13 +58,13 @@ pub(crate) async fn get_ads_vendors() -> JsonResponse<Vec<String>, ()> {
     )
 }
 
-#[tracing::instrument(name="Ads RPC")]
+// #[tracing::instrument(name="Ads RPC")]
 pub(crate) async fn send_to_marketing(
     uname: BBox<String, UsernamePolicy>,
     conv: BBoxConversation,
     context: tarpc::context::Context,
 ) -> BBox<String, AdPolicy> {
-    let start = Instant::now();
+    // let start = Instant::now();
     let payload = fold::<dyn AnyPolicyDyn, _>((uname.clone(), conv.clone()))
         .unwrap()
         .specialize_policy::<PolicyAnd<UsernamePolicy, MessagePolicy>>()
@@ -94,8 +94,8 @@ pub(crate) async fn send_to_marketing(
     let res = ad.transform_into::<AdAdapter>()
         .expect("Couldn't transform the data because of context")
         .0;
-    let elapsed = start.elapsed();
-    tracing::warn!(?elapsed, "Time for Ads RPC call");
+    // let elapsed = start.elapsed();
+    // tracing::warn!(?elapsed, "Time for Ads RPC call");
     res
 
 }
