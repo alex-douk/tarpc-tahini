@@ -260,8 +260,7 @@ async fn retrieve_conversation(client: &TahiniDatabaseClient, uuid: PCon<String,
 //     response.map(|_| ()).map_err(|_| ())
 // }
 
-#[tracing::instrument("DB Benchmark")]
-pub fn benchmark_db(nb_iters: usize, rounds: usize) {
+pub async fn benchmark_db(nb_iters: usize, rounds: usize) {
     let mut conv_ids: HashSet<String> = HashSet::new();
 
     let _conversation = crate::ads::gen_conversation(rounds);
@@ -292,7 +291,6 @@ pub fn benchmark_db(nb_iters: usize, rounds: usize) {
         },
     );
 
-    block_on(async {
         for _ in 0..(nb_iters/super::ROUNDS) {
             let conversation = crate::ads::gen_conversation(rounds);
             let policy = MessagePolicy {
@@ -312,15 +310,12 @@ pub fn benchmark_db(nb_iters: usize, rounds: usize) {
             let unboxed = conv_id.into_pcr(pcr, ());
             conv_ids.insert(unboxed);
         }
-        println!("DB_Store done")
-    });
+        println!("DB_Store done");
 
-    block_on(async {
         let conv_ids = conv_ids.drain();
         for (i, cid) in conv_ids.enumerate(){
             let boxed_cid = PCon::new(cid, UserIdDBPolicy);
             retrieve_conversation(&client, uuid.clone(), boxed_cid, i).await;
         }
-    });
     println!("DB Benchmark done");
 }

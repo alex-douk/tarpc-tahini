@@ -54,6 +54,7 @@ async fn contact_llm_server(
     prompt: UserPrompt,
     iter: usize
 ) {
+    println!("Iteration {}", iter);
     let context = tarpc::context::current();
     let start = Instant::now();
     let _res = client.inference(context, prompt).await;
@@ -61,7 +62,7 @@ async fn contact_llm_server(
     tracing::info!(?elapsed, "Time for LLM RPC call{}", iter);
 }
 
-pub fn benchmark_llm(nb_iter: usize, rounds: usize) {
+pub async fn benchmark_llm(nb_iter: usize, rounds: usize) {
     let policy = MessagePolicy {
         storage: true,
         marketing_consent: true,
@@ -74,12 +75,8 @@ pub fn benchmark_llm(nb_iter: usize, rounds: usize) {
         nb_token: 250,
     };
     let client = block_on(async { initialize_llm_client().await });
-    block_on(
-        async {
-            for i in 0..nb_iter {
-                let _ = contact_llm_server(&client, prompt.clone(), i).await;
-            }
-        }
-    );
+    for i in 0..nb_iter {
+        let _ = contact_llm_server(&client, prompt.clone(), i).await;
+    }
     println!("LLM Benchmark done");
 }

@@ -14,9 +14,9 @@ const ROUNDS: usize = 5;
 #[tokio::main]
 async fn main() {
     let guard = init_tracing();
-    llm::benchmark_llm(NB_ITER, ROUNDS);
-    db::benchmark_db(NB_ITER, ROUNDS);
-    ads::benchmark_ads(NB_ITER, ROUNDS);
+    llm::benchmark_llm(NB_ITER, ROUNDS).await;
+    db::benchmark_db(NB_ITER, ROUNDS).await;
+    ads::benchmark_ads(NB_ITER, ROUNDS).await;
     drop(guard)
 }
 

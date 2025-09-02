@@ -58,8 +58,7 @@ async fn contact_ad_server(
     res.map(|_| ()).map_err(|_| "Call failed".to_string())
 }
 
-#[tracing::instrument("Ads Benchmark")]
-pub fn benchmark_ads(nb_iter: usize, rounds: usize) {
+pub async fn benchmark_ads(nb_iter: usize, rounds: usize) {
     let _policy = MessagePolicy {
         storage: true,
         marketing_consent: true,
@@ -82,12 +81,8 @@ pub fn benchmark_ads(nb_iter: usize, rounds: usize) {
     let payload = BBox::new(data, pol);
 
     let client = block_on(async { initialize_ad_client().await });
-    block_on(
-        async {
-            for i in 0..nb_iter {
-                let _ = contact_ad_server(&client, payload.clone(), i).await;
-            }
-        }
-    );
+    for i in 0..nb_iter {
+        let _ = contact_ad_server(&client, payload.clone(), i).await;
+    }
     println!("Ads Benchmark done");
 }
