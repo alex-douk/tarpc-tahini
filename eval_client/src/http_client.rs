@@ -68,7 +68,7 @@ async fn main() {
         let start = Instant::now();
         let _resp = client.post(chat_url.clone()).json(&payload).send().await;
         let elapsed = start.elapsed();
-        tracing::info!(?elapsed, "Time for DB_Store RPC call");
+        tracing::info!(?elapsed, "Time for end-to-end RPC call");
 
     }
     drop(guard)
