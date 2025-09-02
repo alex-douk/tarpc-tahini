@@ -54,7 +54,7 @@ async fn contact_ad_server(
     let start = Instant::now();
     let res = client.auction_bidding(context, prompt).await;
     let elapsed = start.elapsed();
-    tracing::info!(?elapsed, "Time for LLM RPC call {}", iter);
+    tracing::info!(?elapsed, "Time for Ads RPC call {}", iter);
     res.map(|_| ()).map_err(|_| "Call failed".to_string())
 }
 
