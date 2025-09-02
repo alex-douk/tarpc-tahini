@@ -52,16 +52,15 @@ async fn initialize_llm_client() -> TahiniInferenceClient {
 async fn contact_llm_server(
     client: &TahiniInferenceClient,
     prompt: UserPrompt,
-) -> Result<(), String> {
+    iter: usize
+) {
     let context = tarpc::context::current();
     let start = Instant::now();
-    let res = client.inference(context, prompt).await;
+    let _res = client.inference(context, prompt).await;
     let elapsed = start.elapsed();
-    tracing::info!(?elapsed, "Time for LLM RPC call");
-    res.map(|_| ()).map_err(|_| "Call failed".to_string())
+    tracing::info!(?elapsed, "Time for LLM RPC call{}", iter);
 }
 
-#[tracing::instrument("LLM Benchmark")]
 pub fn benchmark_llm(nb_iter: usize, rounds: usize) {
     let policy = MessagePolicy {
         storage: true,
@@ -77,8 +76,8 @@ pub fn benchmark_llm(nb_iter: usize, rounds: usize) {
     let client = block_on(async { initialize_llm_client().await });
     block_on(
         async {
-            for _ in 0..nb_iter {
-                let _ = contact_llm_server(&client, prompt.clone()).await;
+            for i in 0..nb_iter {
+                let _ = contact_llm_server(&client, prompt.clone(), i).await;
             }
         }
     );

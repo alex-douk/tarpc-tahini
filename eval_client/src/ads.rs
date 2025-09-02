@@ -2,11 +2,11 @@ use std::{net::{IpAddr, Ipv4Addr}, time::Instant};
 use advertisement_tahini_utils::{policies::MarketingPolicy, service::TahiniAdvertisementClient, types::MarketingData};
 use alohomora::bbox::BBox;
 use core_tahini_utils::{
-    funcs::marketing_parse_conv, policies::MessagePolicy, types::{Message, UserPrompt}
+    funcs::marketing_parse_conv, policies::MessagePolicy, types::{Message}
 };
 use futures::executor::block_on;
-use llm_tahini_utils::service::TahiniInferenceClient;
-use tahini_tarpc::{client::new, transport::new_tahini_client_transport as new_transport};
+
+use tahini_tarpc::{transport::new_tahini_client_transport as new_transport};
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
@@ -48,18 +48,19 @@ async fn initialize_ad_client() -> TahiniAdvertisementClient {
 async fn contact_ad_server(
     client: &TahiniAdvertisementClient,
     prompt: BBox<MarketingData, MarketingPolicy>,
+    iter: usize
 ) -> Result<(), String> {
     let context = tarpc::context::current();
     let start = Instant::now();
     let res = client.auction_bidding(context, prompt).await;
     let elapsed = start.elapsed();
-    tracing::info!(?elapsed, "Time for LLM RPC call");
+    tracing::info!(?elapsed, "Time for LLM RPC call {}", iter);
     res.map(|_| ()).map_err(|_| "Call failed".to_string())
 }
 
 #[tracing::instrument("Ads Benchmark")]
 pub fn benchmark_ads(nb_iter: usize, rounds: usize) {
-    let policy = MessagePolicy {
+    let _policy = MessagePolicy {
         storage: true,
         marketing_consent: true,
         third_party_ad_vendors_allowed: Vec::new(),
@@ -83,8 +84,8 @@ pub fn benchmark_ads(nb_iter: usize, rounds: usize) {
     let client = block_on(async { initialize_ad_client().await });
     block_on(
         async {
-            for _ in 0..nb_iter {
-                let _ = contact_ad_server(&client, payload.clone()).await;
+            for i in 0..nb_iter {
+                let _ = contact_ad_server(&client, payload.clone(), i).await;
             }
         }
     );

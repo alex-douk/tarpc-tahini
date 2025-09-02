@@ -1,18 +1,18 @@
 use alohomora::bbox::BBox as PCon;
-use alohomora::context::Context;
+
 use alohomora::pcr::{PrivacyCriticalRegion, Signature};
-use alohomora::policy::AnyPolicyDyn;
-use alohomora::pure::{execute_pure, PrivacyPureRegion};
+
+use alohomora::pure::{PrivacyPureRegion};
 use core_tahini_utils::policies::{MessagePolicy, UsernamePolicy};
-use core_tahini_utils::types::{BBoxConversation, Message, UserPrompt};
+use core_tahini_utils::types::{Message};
 use database_tahini_utils::policies::UserIdDBPolicy;
 use database_tahini_utils::service::TahiniDatabaseClient;
-use database_tahini_utils::types::DatabaseError;
-use database_tahini_utils::types::PolicyError;
+
+
 use futures::executor::block_on;
 use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr};
-use std::sync::OnceLock;
+
 use std::time::Instant;
 use uuid::Uuid;
 
@@ -20,7 +20,7 @@ use uuid::Uuid;
 // use crate::policies::login_uuid::UserIdWebPolicy;
 // use crate::routes::gen_context;
 // use crate::SERVER_ADDRESS;
-use database_tahini_utils::types::CHATUID;
+
 use tahini_tarpc::transport::new_tahini_client_transport as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
@@ -84,12 +84,12 @@ pub(crate) async fn store_to_database(
 }
 
 
-async fn retrieve_conversation(client: &TahiniDatabaseClient, uuid: PCon<String, UserIdDBPolicy>, conv_id: PCon<String, UserIdDBPolicy>) {
+async fn retrieve_conversation(client: &TahiniDatabaseClient, uuid: PCon<String, UserIdDBPolicy>, conv_id: PCon<String, UserIdDBPolicy>, iter: usize) {
     let context = tarpc::context::current();
     let start = Instant::now();
-    let conv = client.retrieve_prompt(context, uuid, conv_id).await.expect("RPC call didnt work").expect("Conversation should exist");
+    let _conv = client.retrieve_prompt(context, uuid, conv_id).await.expect("RPC call didnt work").expect("Conversation should exist");
     let elapsed = start.elapsed();
-    tracing::warn!(?elapsed, "Time for DB_Read RPC call");
+    tracing::warn!(?elapsed, "Time for DB_Read RPC call {}", iter);
 }
 
 
@@ -264,8 +264,8 @@ async fn retrieve_conversation(client: &TahiniDatabaseClient, uuid: PCon<String,
 pub fn benchmark_db(nb_iters: usize, rounds: usize) {
     let mut conv_ids: HashSet<String> = HashSet::new();
 
-    let conversation = crate::ads::gen_conversation(rounds);
-    let policy = MessagePolicy {
+    let _conversation = crate::ads::gen_conversation(rounds);
+    let _policy = MessagePolicy {
         storage: true,
         marketing_consent: true,
         third_party_ad_vendors_allowed: Vec::new(),
@@ -293,7 +293,7 @@ pub fn benchmark_db(nb_iters: usize, rounds: usize) {
     );
 
     block_on(async {
-        for _ in 0..nb_iters {
+        for _ in 0..(nb_iters/super::ROUNDS) {
             let conversation = crate::ads::gen_conversation(rounds);
             let policy = MessagePolicy {
                 storage: true,
@@ -317,9 +317,9 @@ pub fn benchmark_db(nb_iters: usize, rounds: usize) {
 
     block_on(async {
         let conv_ids = conv_ids.drain();
-        for cid in conv_ids{
+        for (i, cid) in conv_ids.enumerate(){
             let boxed_cid = PCon::new(cid, UserIdDBPolicy);
-            retrieve_conversation(&client, uuid.clone(), boxed_cid).await;
+            retrieve_conversation(&client, uuid.clone(), boxed_cid, i).await;
         }
     });
     println!("DB Benchmark done");
