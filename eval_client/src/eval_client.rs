@@ -8,8 +8,8 @@ mod llm;
 mod db;
 mod adapters;
 
-const NB_ITER: usize = 20000;
-const ROUNDS: usize = 5;
+pub const NB_ITER: usize = 20000;
+pub const ROUNDS: usize = 5;
 
 #[tokio::main]
 async fn main() {

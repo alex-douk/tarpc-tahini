@@ -27,6 +27,8 @@ use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
 pub static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
+pub const NB_ITER: usize = 20000;
+pub const ROUNDS: usize = 5;
 
 async fn initialize_db_client() -> TahiniDatabaseClient {
     println!("Creating new DB client");
@@ -291,7 +293,7 @@ pub async fn benchmark_db(nb_iters: usize, rounds: usize) {
         },
     );
 
-        for _ in 0..(nb_iters/super::ROUNDS) {
+        for _ in 0..(nb_iters/ROUNDS) {
             let conversation = crate::ads::gen_conversation(rounds);
             let policy = MessagePolicy {
                 storage: true,

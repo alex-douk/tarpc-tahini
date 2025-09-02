@@ -13,7 +13,7 @@ use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
 pub static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
-fn gen_conversation(rounds: usize) -> Vec<Message> {
+pub fn gen_conversation(rounds: usize) -> Vec<Message> {
     let user_message = Message {
         role: "user".to_string(),
         content: "Hello! This is a sample message from a user".to_string(),
