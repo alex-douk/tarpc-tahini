@@ -46,6 +46,15 @@ async fn main() {
     let cookie_store = Arc::new(cookies);
     let client = ClientBuilder::new().
         cookie_provider(cookie_store).build().expect("Couldn't build client");
+
+    let username = Uuid::new_v4().to_string();
+    let chat_url = Url::parse("http://localhost:8000/account/signup").expect("Wrong URL");
+    let mut payload = HashMap::new();
+    payload.insert("username", username);
+    let resp = client.post(chat_url.clone()).json(&payload).send().await.unwrap();
+    let body: HashMap<String, String> = resp.json().await.expect("Couldn't read response");
+    let _uuid = body.get("uuid");
+
     let chat_url = Url::parse("http://localhost:8000/chat").expect("Wrong URL");
     let conv = crate::llm::gen_conversation(5);
     let payload = InferenceRequest {
@@ -55,17 +64,9 @@ async fn main() {
         nb_token: 300
     };
 
-    let username = Uuid::new_v4().to_string();
-    let chat_url = Url::parse("http://localhost:8000/account/signup").expect("Wrong URL");
-    let mut payload = HashMap::new();
-    payload.insert("username", username);
-    let resp = client.post(chat_url.clone()).json(&payload).send().await.unwrap();
-    let body: HashMap<String, String> = resp.json().await.expect("Couldn't read response");
-    let uuid = body.get("uuid");
-
     for _ in 0..NB_ITER {
         let start = Instant::now();
-        let resp = client.post(chat_url.clone()).json(&payload).send().await;
+        let _resp = client.post(chat_url.clone()).json(&payload).send().await;
         let elapsed = start.elapsed();
         tracing::info!(?elapsed, "Time for DB_Store RPC call");
 
