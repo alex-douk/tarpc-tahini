@@ -52,9 +52,7 @@ async fn initialize_llm_client() -> TahiniInferenceClient {
 async fn contact_llm_server(
     client: &TahiniInferenceClient,
     prompt: UserPrompt,
-    iter: usize
 ) {
-    println!("Iteration {}", iter);
     let context = tarpc::context::current();
     let start = Instant::now();
     let _res = client.inference(context, prompt).await;
