@@ -53,21 +53,20 @@ pub(crate) async fn initialize_llm_client() {
     }
 }
 
-#[tracing::instrument(name="LLM RPC")]
+// #[tracing::instrument(name="LLM RPC")]
 async fn contact_llm_server(prompt: UserPrompt, ctxt: Context) -> anyhow::Result<Message> {
-    let context = super::gen_context();
-    let start = Instant::now();
+    // let start = Instant::now();
     let response = match LLMCLIENT.get() {
         None => {
             panic!("LLM Client should already exist");
         }
         Some(client) => {
-            let fut = client.inference(context, prompt);
+            let fut = client.inference(ctxt, prompt);
             fut.await?
         }
     };
-    let elapsed = start.elapsed();
-    tracing::info!(?elapsed, "Time for LLM RPC call");
+    // let elapsed = start.elapsed();
+    // tracing::info!(?elapsed, "Time for LLM RPC call");
     Ok(response.infered_tokens?)
 }
 
