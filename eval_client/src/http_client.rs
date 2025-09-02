@@ -56,7 +56,7 @@ async fn main() {
     };
 
     let username = Uuid::new_v4().to_string();
-    let chat_url = Url::parse("http://localhost:8000/signup").expect("Wrong URL");
+    let chat_url = Url::parse("http://localhost:8000/account/signup").expect("Wrong URL");
     let mut payload = HashMap::new();
     payload.insert("username", username);
     let resp = client.post(chat_url.clone()).json(&payload).send().await.unwrap();
