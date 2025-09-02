@@ -19,6 +19,9 @@ use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
 
+const NB_ITER: usize = 20000;
+const ROUNDS: usize = 5;
+
 pub static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 async fn initialize_db_client() -> DatabaseClient {
@@ -257,7 +260,7 @@ pub async fn benchmark_db(nb_iters: usize, rounds: usize) {
         (c, uuid)
     });
 
-    for _ in 0..(nb_iters/super::ROUNDS) {
+    for _ in 0..(nb_iters/ROUNDS) {
         let conversation = crate::ads::gen_conversation(rounds);
         let mut conv_id = None;
         for message in conversation {
