@@ -23,7 +23,7 @@ pub fn gen_conversation(rounds: usize) -> Vec<Message> {
     };
 
     if rounds <= 1 {
-        return vec![user_message];
+        return vec![user_message, model_message];
     }
 
     let mut conv = Vec::with_capacity(rounds);

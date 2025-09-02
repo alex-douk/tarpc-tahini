@@ -3,7 +3,7 @@
 import numpy as np
 import re
 import json
-SPANS = ["DB_Store RPC", "LLM RPC", "Ads RPC"]
+SPANS = ["DB_Store RPC", "LLM RPC", "Ads RPC", "DB_Read RPC"]
 
 
 def extract_bench_line(line):
@@ -49,3 +49,4 @@ with open("benchmark.log") as bench_file:
     print(bench_results)
     with open("results.json", 'a+') as dump_file:
         json.dump(bench_results, dump_file)
+        dump_file.write(\n)
