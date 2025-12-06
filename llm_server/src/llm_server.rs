@@ -1,6 +1,7 @@
 #![feature(auto_traits, negative_impls, min_specialization)]
 //Clone model just clones the reference
 use core_tahini_utils::types::{Conversation, Message};
+use tokio_rustls::TlsAcceptor;
 use std::sync::Arc;
 use std::thread;
 //Required for model locking across async tasks
@@ -26,6 +27,8 @@ use tokio::net::TcpListener;
 mod model_backend;
 mod token_output_stream;
 mod utils;
+mod certificate;
+use crate::certificate::{load_certs, load_private_key, END_CERT, END_PRIVATEKEY};
 // mod quantized_gemma3;
 use crate::model_backend::{create_pipeline, TextGeneration};
 
@@ -51,44 +54,47 @@ static SYSTEM_PROMPT: &str = "You are a helpful assistant. You are tasked with r
 
 #[derive(Clone)]
 pub struct InferenceServer {
-    model: Arc<Mutex<model_backend::TextGeneration>>,
+    // model: Arc<Mutex<model_backend::TextGeneration>>,
 }
 
 impl InferenceServer {
-    pub fn new(tg: TextGeneration) -> Self {
-        InferenceServer {
-            model: Arc::new(Mutex::new(tg)),
-        }
-    }
+    // pub fn new(tg: TextGeneration) -> Self {
+    //     InferenceServer {
+    //         model: Arc::new(Mutex::new(tg)),
+    //     }
+    // }
 }
 
 impl Inference for InferenceServer {
     async fn inference(self, _context: tarpc::context::Context, prompt: UserPrompt) -> LLMResponse {
-        let mut conv = prompt.conversation;
-        conv.insert(
-            0,
-            Message {
-                role: "system".to_string(),
-                content: SYSTEM_PROMPT.to_string(),
-            },
-        );
-        let mut locked_model = self.model.lock_owned().await;
-        let infered = locked_model.run(conv, prompt.nb_token as usize);
-
-        match infered {
-            Err(e) => {
-                eprintln!("Got error {}", e);
-                LLMResponse {
-                    infered_tokens: Err(LLMError::InternalError),
-                }
-            }
-            Ok(tokens) => LLMResponse {
-                infered_tokens: Ok(Message {
-                    role: "model".to_string(),
-                    content: tokens,
-                }),
-            },
+        LLMResponse {
+            infered_tokens: Ok(Message { role: "assistant".to_string(), content: "Echo message!".to_string() })
         }
+        // let mut conv = prompt.conversation;
+        // conv.insert(
+        //     0,
+        //     Message {
+        //         role: "system".to_string(),
+        //         content: SYSTEM_PROMPT.to_string(),
+        //     },
+        // );
+        // let mut locked_model = self.model.lock_owned().await;
+        // let infered = locked_model.run(conv, prompt.nb_token as usize);
+        //
+        // match infered {
+        //     Err(e) => {
+        //         eprintln!("Got error {}", e);
+        //         LLMResponse {
+        //             infered_tokens: Err(LLMError::InternalError),
+        //         }
+        //     }
+        //     Ok(tokens) => LLMResponse {
+        //         infered_tokens: Ok(Message {
+        //             role: "model".to_string(),
+        //             content: tokens,
+        //         }),
+        //     },
+        // }
     }
 }
 
@@ -98,21 +104,28 @@ pub(crate) async fn wait_upon(fut: impl Future<Output = ()> + Send + 'static) {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    rustls::crypto::aws_lc_rs::default_provider().install_default().unwrap();
     println!("Welcome to the LLM inference server!");
-    let pipeline = create_pipeline();
+    // let pipeline = create_pipeline();
     // let pipeline: Result<String, String> = Ok("".to_string());
-    match pipeline {
-        Ok(model) => {
+    // match pipeline {
+    //     Ok(model) => {
             println!("Successfully created the pipeline!");
+            let cert = load_certs(END_CERT);
+            let key = load_private_key(END_PRIVATEKEY);
             let listener = TcpListener::bind(&(SERVER_ADDRESS, 5000)).await.unwrap();
+            let config = rustls::ServerConfig::builder().with_no_client_auth().with_single_cert(cert, key).unwrap();
+            let acceptor = TlsAcceptor::from(Arc::new(config));
+            println!("Created server TLS context");
             let codec_builder = LengthDelimitedCodec::builder();
             let server = InferenceServer {
-                model: Arc::new(Mutex::new(model)),
+                // model: Arc::new(Mutex::new(model)),
             };
             loop {
                 let (stream, _peer_addr) = listener.accept().await.unwrap();
+                let tls_stream = acceptor.accept(stream).await.unwrap();
                 println!("Accepted a connection");
-                let framed = codec_builder.new_framed(stream);
+                let framed = codec_builder.new_framed(tls_stream);
 
                 let transport = new_transport(framed, Json::default());
                 let fut = BaseChannel::with_defaults(transport)
@@ -120,9 +133,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .for_each(wait_upon);
                 tokio::spawn(fut);
             }
-        }
-        Err(ref x) => println!("Failed at creating the pipeline with error {:?}", x),
-    }
+        // }
+        // Err(ref x) => println!("Failed at creating the pipeline with error {:?}", x),
+    // }
 
     Ok(())
 }

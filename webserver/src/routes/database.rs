@@ -2,7 +2,8 @@ use rocket::{get, http::CookieJar, serde::json::Json as JsonGuard};
 use core_tahini_utils::types::{Conversation, Message};
 use database_tahini_utils::service::{DatabaseClient};
 use database_tahini_utils::types::DatabaseError;
-use std::sync::OnceLock;
+use tokio_rustls::TlsConnector;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 use tarpc::context;
 
@@ -16,8 +17,22 @@ pub static DBCLIENT: OnceLock<DatabaseClient> = OnceLock::new();
 
 pub(crate) async fn initialize_db_client() {
     println!("Creating new DB client");
+    let mut root_store = rustls::RootCertStore::empty();
+        for root in super::load_certs(super::END_CHAIN) {
+            root_store.add(root).unwrap();
+        }
+    println!("Loaded certificates");
+    let config = rustls::ClientConfig::builder()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+    println!("Created client TLS context");
+    let domain = rustls::pki_types::ServerName::try_from("localhost").unwrap();
+    let connector = TlsConnector::from(Arc::new(config));
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
+    println!("Got TCP stream");
+    let stream = connector.connect(domain, stream).await.unwrap();
+    println!("Got TLS stream");
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
     let client = DatabaseClient::new(Default::default(), transport)
         .spawn();

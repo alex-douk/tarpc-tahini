@@ -1,5 +1,6 @@
 use rocket::{route, serde::json::Json as JsonGuard};
-use std::{collections::HashMap, sync::OnceLock, time::Instant};
+use tokio_rustls::TlsConnector;
+use std::{collections::HashMap, sync::{Arc, OnceLock}, time::Instant};
 
 use advertisement_tahini_utils::{
     service::AdvertisementClient,
@@ -20,9 +21,19 @@ use tokio_util::codec::LengthDelimitedCodec;
 pub static ADCLIENT: OnceLock<AdvertisementClient> = OnceLock::new();
 
 pub(crate) async fn initialize_ad_client() {
+    let mut root_store = rustls::RootCertStore::empty();
+        for root in super::load_certs(super::END_CHAIN) {
+            root_store.add(root).unwrap();
+        }
+    let config = rustls::ClientConfig::builder()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+    let domain = rustls::pki_types::ServerName::try_from("localhost").unwrap();
+    let connector = TlsConnector::from(Arc::new(config));
     println!("Creating new AdCorp client");
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 8002)).await.unwrap();
+    let stream = connector.connect(domain, stream).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
     let client = AdvertisementClient::new(Default::default(), transport).spawn();
     if let Err(_) = ADCLIENT.set(client) {

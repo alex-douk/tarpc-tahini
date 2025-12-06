@@ -1,5 +1,6 @@
 use rake::{Rake, StopWords};
 use rand::seq::{IndexedRandom, IteratorRandom};
+use tokio_rustls::TlsAcceptor;
 //Clone model just clones the reference
 
 use std::collections::HashMap;
@@ -24,9 +25,12 @@ use tokio::net::TcpListener;
 use advertisement_tahini_utils::service::Advertisement;
 //Application-wide mods
 use advertisement_tahini_utils::types::{Ad, MarketingData};
+
+use crate::certificate::{load_certs, load_private_key, END_CERT, END_PRIVATEKEY};
 mod email;
 mod google_ads;
 mod meta_ads;
+mod certificate;
 
 static GOOGLE_AD: &str = "Find more about {} on [https://google.com](Google)";
 static META_AD: &str =
@@ -163,13 +167,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         rake
                     )
     };
+
+    let cert = load_certs(END_CERT);
+    let key = load_private_key(END_PRIVATEKEY);
     let listener = TcpListener::bind(&(SERVER_ADDRESS, 8002)).await.unwrap();
+    let config = rustls::ServerConfig::builder().with_no_client_auth().with_single_cert(cert, key).unwrap();
+    let acceptor = TlsAcceptor::from(Arc::new(config));
     let codec_builder = LengthDelimitedCodec::builder();
     loop {
         let (stream, _peer_addr) = listener.accept().await.unwrap();
+        let tls_stream = acceptor.accept(stream).await.unwrap();
         println!("Accepted a connection");
-        let framed = codec_builder.new_framed(stream);
-        
+        let framed = codec_builder.new_framed(tls_stream);
         let transport = new_transport(framed, Json::default());
 
         // let transport = new_transport(framed, Bincode::default());

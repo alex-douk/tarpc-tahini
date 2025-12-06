@@ -3,21 +3,23 @@ use config::Config;
 use database_tahini_utils::types::DatabaseError;
 use core_tahini_utils::types::{Conversation, Message};
 use mysql::{from_value, Value as SqlValue};
+use tokio_rustls::TlsAcceptor;
 use uuid::Uuid;
 
 mod backend;
 mod config;
+mod certificate;
 
 //Channel transport Code
 use futures::{
-    Future, StreamExt,
+    task::ArcWake, Future, StreamExt
 };
 use tarpc::{serde_transport::new as new_transport, server::{BaseChannel, Channel}};
 use tarpc::tokio_serde::formats::Json;
 use tokio_util::codec::LengthDelimitedCodec;
 
 //Network code
-use std::net::{IpAddr, Ipv4Addr};
+use std::{net::{IpAddr, Ipv4Addr}, sync::Arc};
 use tokio::net::TcpListener;
 
 //Sesame basics
@@ -29,7 +31,7 @@ use database_tahini_utils::service::Database;
 use database_tahini_utils::types::CHATUID;
 use r2d2::Pool;
 
-use crate::backend::MySqlBackendManager;
+use crate::{backend::MySqlBackendManager, certificate::{load_certs, load_private_key, END_CERT, END_PRIVATEKEY}};
 
 #[derive(Clone)]
 pub(crate) struct DatabaseServer {
@@ -206,12 +208,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Welcome to the LLM database server!");
     let config = config::Config::new();
     let server = DatabaseServer::new(config);
+    let cert = load_certs(END_CERT);
+    let key = load_private_key(END_PRIVATEKEY);
     let listener = TcpListener::bind(&(SERVER_ADDRESS, 5002)).await.unwrap();
+    let config = rustls::ServerConfig::builder().with_no_client_auth().with_single_cert(cert, key).unwrap();
+    let acceptor = TlsAcceptor::from(Arc::new(config));
     let codec_builder = LengthDelimitedCodec::builder();
     loop {
         let (stream, _peer_addr) = listener.accept().await.unwrap();
-        let framed = codec_builder.new_framed(stream);
-
+        let tls_stream = acceptor.accept(stream).await.unwrap();
+        let framed = codec_builder.new_framed(tls_stream);
         let transport = new_transport(framed, Json::default());
 
         // let transport = new_transport(framed, Bincode::default());

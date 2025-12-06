@@ -6,6 +6,8 @@ use rocket::route;
 use rocket::serde::json::Json as JsonGuard;
 use tarpc::context::Context;
 use tarpc::trace::TraceId;
+use tokio_rustls::TlsConnector;
+use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
 use std::time::Instant;
@@ -41,8 +43,18 @@ pub(crate) struct InferenceResponse {
 pub static LLMCLIENT: OnceLock<InferenceClient> = OnceLock::new();
 pub(crate) async fn initialize_llm_client() {
     println!("Creating new LLM client");
+    let mut root_store = rustls::RootCertStore::empty();
+        for root in super::load_certs(super::END_CHAIN) {
+            root_store.add(root).unwrap();
+        }
+    let config = rustls::ClientConfig::builder()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+    let domain = rustls::pki_types::ServerName::try_from("localhost").unwrap();
+    let connector = TlsConnector::from(Arc::new(config));
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5000)).await.unwrap();
+    let stream = connector.connect(domain, stream).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
 
     //Custom deadline for inference calls. Will also potentially allow for streaming

@@ -34,6 +34,9 @@ minijinja = "2.11.0"
 candle-core = "0.7.0"
 candle-nn = "0.7.0"
 candle-transformers = "0.7.0"
+tokio-rustls = { version = "0.26.4", features = ["aws-lc-rs"] }
+rustls-pemfile = "2.2.0"
+rustls = "0.23.35"
 # tracing = "0.1.41"
 # hoodini_server = {version = "0.1.0", path = "../../tahini_lib/tahini_attest/crates/hoodini-server/", features = ["sidecar"]}
 
