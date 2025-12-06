@@ -33,6 +33,7 @@ pub(crate) async fn initialize_ad_client() {
     println!("Creating new AdCorp client");
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 8002)).await.unwrap();
+    stream.set_nodelay(true).expect("Couldn't set TCP_NODELAY");
     let stream = connector.connect(domain, stream).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
     let client = AdvertisementClient::new(Default::default(), transport).spawn();

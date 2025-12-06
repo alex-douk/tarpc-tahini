@@ -30,6 +30,7 @@ pub(crate) async fn initialize_db_client() {
     let connector = TlsConnector::from(Arc::new(config));
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
+    stream.set_nodelay(true).expect("Couldn't set TCP_NODELAY");
     println!("Got TCP stream");
     let stream = connector.connect(domain, stream).await.unwrap();
     println!("Got TLS stream");

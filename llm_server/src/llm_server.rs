@@ -68,7 +68,7 @@ impl InferenceServer {
 impl Inference for InferenceServer {
     async fn inference(self, _context: tarpc::context::Context, prompt: UserPrompt) -> LLMResponse {
         LLMResponse {
-            infered_tokens: Ok(Message { role: "assistant".to_string(), content: "Echo message!".to_string() })
+            infered_tokens: Ok(Message { role: "model".to_string(), content: "This is a sample string".to_string() })
         }
         // let mut conv = prompt.conversation;
         // conv.insert(

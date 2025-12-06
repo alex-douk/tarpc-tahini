@@ -17,7 +17,7 @@ mod llm;
 mod db;
 mod ads;
 
-const NB_ITER: usize = 200_000;
+const NB_ITER: usize = 5_000;
 
 #[derive(Serialize)]
 pub(crate) struct InferenceRequest {
