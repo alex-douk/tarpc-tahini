@@ -1,4 +1,4 @@
-use alohomora::policy::Policy;
+use sesame::policy::Policy;
 use tahini_tarpc::traits::PolicyFrom;
 use tahini_tarpc::context::TahiniContext;
 use database_tahini_utils::policies::ConversationMetadataPolicy;

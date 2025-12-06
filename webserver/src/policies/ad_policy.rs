@@ -1,4 +1,4 @@
-use alohomora::policy::{Policy, Reason, SimplePolicy};
+use sesame::policy::{Policy, Reason, SimplePolicy};
 use tahini_tarpc::{TahiniDeserialize, TahiniSerialize};
 
 #[derive(TahiniSerialize, TahiniDeserialize, Clone)]
@@ -11,8 +11,8 @@ impl SimplePolicy for AdPolicy {
 
     fn simple_check(
         &self,
-        _context: &alohomora::context::UnprotectedContext,
-        reason: alohomora::policy::Reason<'_>,
+        _context: &sesame::context::UnprotectedContext,
+        reason: sesame::policy::Reason<'_>,
     ) -> bool {
         match reason {
             Reason::Response => true,

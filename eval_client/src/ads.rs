@@ -1,12 +1,12 @@
 use std::{net::{IpAddr, Ipv4Addr}, time::Instant};
 use advertisement_tahini_utils::{policies::MarketingPolicy, service::TahiniAdvertisementClient, types::MarketingData};
-use alohomora::bbox::BBox;
+use sesame::pcon::PCon;
 use core_tahini_utils::{
     funcs::marketing_parse_conv, policies::MessagePolicy, types::{Message}
 };
 use futures::executor::block_on;
 
-use tahini_tarpc::{transport::new_tahini_client_transport as new_transport};
+use tarpc::serde_transport::new as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
@@ -40,14 +40,13 @@ async fn initialize_ad_client() -> TahiniAdvertisementClient {
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
 
     let client = TahiniAdvertisementClient::new(Default::default(), transport)
-        .spawn()
-        .await;
+        .spawn();
     client
 }
 
 async fn contact_ad_server(
     client: &TahiniAdvertisementClient,
-    prompt: BBox<MarketingData, MarketingPolicy>,
+    prompt: PCon<MarketingData, MarketingPolicy>,
     iter: usize
 ) -> Result<(), String> {
     let context = tarpc::context::current();
@@ -78,7 +77,7 @@ pub async fn benchmark_ads(nb_iter: usize, rounds: usize) {
         third_party_ad_vendors_allowed: Vec::new()
     };
 
-    let payload = BBox::new(data, pol);
+    let payload = PCon::new(data, pol);
 
     let client = block_on(async { initialize_ad_client().await });
     for i in 0..nb_iter {

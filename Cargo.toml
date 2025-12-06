@@ -7,7 +7,7 @@ members=["llm_server",
 "domains/core_tahini_utils",
 "domains/llm_tahini_utils",
 "domains/database_tahini_utils", "eval_client",
-"eval_client"
+# "eval_client"
 ]
 resolver="2"
 

@@ -1,22 +1,23 @@
+use fizz_rs::{server_tls, CertificatePublic};
+use hoodini_server::fetch_credentials;
 use rake::{Rake, StopWords};
 use rand::seq::{IndexedRandom, IteratorRandom};
 //Clone model just clones the reference
 
 use advertisement_tahini_utils::policies::MarketingReason;
 use advertisement_tahini_utils::policies::{MarketingPolicy, THIRD_PARTY_PROCESSORS};
-use std::{collections::HashMap, str::FromStr, sync::Arc};
 use std::any::Any;
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 //Required for model locking across async tasks
 use tokio::sync::Mutex;
-use hoodini_server::CLIENT_MAP;
 
 //Channel transport Code
-use tahini_tarpc::server::{TahiniBaseChannel, TahiniChannel};
 use futures::{
-    Future, StreamExt,
     future::{self, Ready},
+    Future, StreamExt,
 };
-use tahini_tarpc::transport::new_tahini_server_transport as new_transport;
+use tahini_tarpc::server::{TahiniBaseChannel, TahiniChannel};
+use tarpc::serde_transport::new as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio_util::codec::LengthDelimitedCodec;
 
@@ -25,13 +26,12 @@ use std::net::{IpAddr, Ipv4Addr};
 use tokio::net::TcpListener;
 
 //Sesame basics
-use alohomora::bbox::BBox as PCon;
-use alohomora::context::UnprotectedContext;
-use alohomora::fold::fold;
-use alohomora::pcr::{PrivacyCriticalRegion, Signature};
-use alohomora::policy::{AnyPolicyDyn, Policy};
-use alohomora::policy::Reason;
-use alohomora::pure::PrivacyPureRegion as PPR;
+use sesame::context::UnprotectedContext;
+use sesame::critical::{CriticalRegion, Signature};
+use sesame::fold::fold;
+use sesame::pcon::PCon;
+use sesame::policy::{AnyPolicyDyn, Policy, Reason};
+use sesame::verified::VerifiedRegion as VR;
 
 use advertisement_tahini_utils::service::Advertisement;
 //Application-wide mods
@@ -45,9 +45,8 @@ static META_AD: &str =
     "More interesting contents about {} await on [https://facebook.com](Facebook)!";
 
 #[derive(Clone)]
-struct AdServer{
-    rake: Arc<Rake>
-
+struct AdServer {
+    rake: Arc<Rake>,
 }
 
 enum AdStrategy {
@@ -69,7 +68,10 @@ fn find_vendor(consent_map: &Vec<String>) -> Result<String, ()> {
         0 => Err(()),
         _ => {
             let mut rng = rand::rng();
-            allowed_vendor.choose(&mut rng).ok_or(()).map(|x: &&String| (**x).clone())
+            allowed_vendor
+                .choose(&mut rng)
+                .ok_or(())
+                .map(|x: &&String| (**x).clone())
         }
     }
 }
@@ -82,7 +84,7 @@ pub(crate) struct ThirdPartyProcessorData {
 fn fetch_ad_from_third_party(
     vendor: &str,
     data: ThirdPartyProcessorData,
-    rake: Arc<Rake>
+    rake: Arc<Rake>,
 ) -> PCon<String, MarketingPolicy> {
     match vendor {
         "Google_Ads" => google_ads::get_ad(data, rake),
@@ -97,29 +99,28 @@ fn ad_strategy(pol: &MarketingPolicy) -> AdStrategy {
             Ok(vendor) => AdStrategy::ThirdPartyAnonymous(vendor),
             Err(_) => AdStrategy::LocalProcessAnonymous,
         },
-        true => {
-            match find_vendor(&pol.third_party_ad_vendors_allowed) {
-                Ok(vendor) => AdStrategy::ThirdPartyTracked(vendor),
-                Err(_) => AdStrategy::LocalProcessTracked,
-            }
-        }
+        true => match find_vendor(&pol.third_party_ad_vendors_allowed) {
+            Ok(vendor) => AdStrategy::ThirdPartyTracked(vendor),
+            Err(_) => AdStrategy::LocalProcessTracked,
+        },
     }
 }
 
-use stop_words::{LANGUAGE, get};
+use stop_words::{get, LANGUAGE};
 
 pub fn parse_conversation_into_topics(conv: String, rake: Arc<rake::Rake>) -> String {
     let keywords = rake.run(conv.as_str());
     let top_keyword = keywords.first();
     match top_keyword {
         None => "this topic".to_string(),
-        Some(kw) => kw.keyword.clone()
+        Some(kw) => kw.keyword.clone(),
     }
 }
 
 fn local_process(data: ThirdPartyProcessorData, rake: Arc<Rake>) -> PCon<String, MarketingPolicy> {
     match data.username {
-        None => data.prompt.into_ppr(PPR::new(|conv| {
+        None => data.prompt.
+            into_verified(VR::new(|conv| {
             format!(
                 "Find more about {} on [https://SomeRandomWebSite.com](https://brown.edu)",
                 parse_conversation_into_topics(conv, rake)
@@ -127,7 +128,7 @@ fn local_process(data: ThirdPartyProcessorData, rake: Arc<Rake>) -> PCon<String,
         })),
         Some(username) => fold::<dyn AnyPolicyDyn, _>((username, data.prompt))
             .unwrap()
-            .into_ppr(PPR::new(|(uname_unboxed, conv_unboxed)| {
+            .into_verified(VR::new(|(uname_unboxed, conv_unboxed)| {
                 format!(
                     "Hi {}! You can find more about {} on [https://SomeRandomWebSite.com](https://brown.edu)",
                     uname_unboxed,
@@ -149,9 +150,9 @@ impl Advertisement for AdServer {
         let tpd = ThirdPartyProcessorData {
             username: prompt
                 .clone()
-                .into_ppr(PPR::new(|x: MarketingData| x.username))
+                .into_verified(VR::new(|x: MarketingData| x.username))
                 .fold_in(),
-            prompt: prompt.into_ppr(PPR::new(|x: MarketingData| x.prompt)),
+            prompt: prompt.into_verified(VR::new(|x: MarketingData| x.prompt)),
         };
         let ad = match strategy {
             AdStrategy::ThirdPartyTracked(vendor) | AdStrategy::ThirdPartyAnonymous(vendor) => {
@@ -178,27 +179,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //A hashmap that for a given username, yields a hashmap of all UUIDS : chats for that specific
     //
     //
-     let stop_words = StopWords::from_file("stopwords.txt").expect("Couldn't load the stopwords list");
+    let stop_words =
+        StopWords::from_file("stopwords.txt").expect("Couldn't load the stopwords list");
     let rake = Rake::new(stop_words);
-    let server = AdServer{
-        rake: Arc::new(
-                        rake
-                    )
+    let server = AdServer {
+        rake: Arc::new(rake),
     };
+
+    let public_cert = CertificatePublic::load_from_file("sidecar_cert.pem")
+        .expect("Couldn't find public sidecar certificate");
+    let ctxt = hoodini_server::fetch_credentials().map(|cred| {
+        server_tls::ServerTlsContext::new(public_cert, cred)
+            .expect("Couldn't create TLS-DC context")
+    });
+    // let server_tls_context = hoodini_server::fetch_credentials().map(|cred| {
+    //
+    // })
     let listener = TcpListener::bind(&(SERVER_ADDRESS, 8002)).await.unwrap();
     let codec_builder = LengthDelimitedCodec::builder();
     loop {
         let (stream, _peer_addr) = listener.accept().await.unwrap();
-        println!("Accepted a connection");
-        let framed = codec_builder.new_framed(stream);
-        
-        let transport = new_transport(framed, Json::default(), (*CLIENT_MAP).clone());
-
-        // let transport = new_transport(framed, Bincode::default());
-        let fut = TahiniBaseChannel::with_defaults(transport)
-            // .execute(server.serve());
-            .execute(server.clone().serve())
-            .for_each(wait_upon);
-        tokio::spawn(fut);
+        match ctxt {
+            None => {
+                let framed = codec_builder.new_framed(stream);
+                let transport = new_transport(framed, Json::default());
+                let fut = TahiniBaseChannel::with_defaults(transport)
+                    .execute(server.clone().serve())
+                    .for_each(wait_upon);
+                tokio::spawn(fut);
+            }
+            Some(ref tls_ctx) => {
+                let tls_stream = tls_ctx
+                    .accept_from_stream(stream)
+                    .await
+                    .expect("Couldn't establish TLS channel with client");
+                let framed = codec_builder.new_framed(tls_stream);
+                let transport = new_transport(framed, Json::default());
+                let fut = TahiniBaseChannel::with_defaults(transport)
+                    .execute(server.clone().serve())
+                    .for_each(wait_upon);
+                tokio::spawn(fut);
+            }
+        }
     }
 }

@@ -1,14 +1,13 @@
 use crate::policies::message_policy::InferenceReason;
-use alohomora::db::{BBoxFromValue, Value};
-use alohomora::policy::{schema_policy, AnyPolicy, FrontendPolicy, Policy, PolicyAnd, Reason, SchemaPolicy, SimplePolicy};
-use tahini_tarpc::traits::PolicyFrom;
-use alohomora::rocket::{RocketCookie, RocketRequest};
+use mysql::Value;
 use serde_json::from_str;
+use sesame::policy::{Join, Reason, SimplePolicy};
+use sesame_mysql::{schema_policy, PConFromValue, SchemaPolicy};
+use sesame_rocket::policy::FrontendPolicy;
 use std::collections::HashMap;
 use std::str::FromStr;
 use tahini_tarpc::{TahiniDeserialize, TahiniSerialize};
 
-use super::MessagePolicy;
 pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 
 ///This policy is user-and-session-bound and
@@ -26,7 +25,11 @@ impl SimplePolicy for UsernamePolicy {
         "UsernamePolicy".to_string()
     }
 
-    fn simple_check(&self, context: &alohomora::context::UnprotectedContext, reason: Reason<'_>) -> bool {
+    fn simple_check(
+        &self,
+        context: &sesame::context::UnprotectedContext,
+        reason: Reason<'_>,
+    ) -> bool {
         match reason {
             Reason::Response => true,
             Reason::DB(_, _) => true,
@@ -45,7 +48,18 @@ impl SimplePolicy for UsernamePolicy {
     }
 
     fn simple_join_direct(&mut self, other: &mut Self) {
-        todo!("THIS WAS A NO-OP")
+        self.targeted_ads_consent = self.targeted_ads_consent && other.targeted_ads_consent;
+        self.third_party_vendors_consent = self
+            .third_party_vendors_consent
+            .iter_mut()
+            .filter_map(|(k, v)| {
+                if other.third_party_vendors_consent.contains_key(k) {
+                    Some((k.clone(), v.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect();
     }
 }
 
@@ -55,8 +69,8 @@ impl SchemaPolicy for UsernamePolicy {
         Self: Sized,
     {
         let value = match table_name {
-            "users" => <String as BBoxFromValue>::from_value(row[3].clone()),
-            "conversations" => <String as BBoxFromValue>::from_value(row[9].clone()),
+            "users" => <String as PConFromValue>::from_value(row[3].clone()),
+            "conversations" => <String as PConFromValue>::from_value(row[9].clone()),
             _ => "{}".to_string(),
         };
         let hashmap = match from_str(value.as_str()) {
@@ -72,8 +86,8 @@ impl SchemaPolicy for UsernamePolicy {
         Self {
             third_party_vendors_consent: hashmap,
             targeted_ads_consent: match table_name {
-                "users" => BBoxFromValue::from_value(row[2].clone()),
-                "conversations" => BBoxFromValue::from_value(row[8].clone()),
+                "users" => PConFromValue::from_value(row[2].clone()),
+                "conversations" => PConFromValue::from_value(row[8].clone()),
                 _ => false,
             },
         }
@@ -81,21 +95,20 @@ impl SchemaPolicy for UsernamePolicy {
 }
 
 impl FrontendPolicy for UsernamePolicy {
-    fn from_cookie<'a, 'r>(
-        _name: &str,
-        _cookie: &'a RocketCookie<'static>,
-        request: &'a RocketRequest<'r>,
-    ) -> Self
+    fn from_request<'a, 'r>(request: &'a rocket::Request<'r>) -> Self
     where
         Self: Sized,
     {
         let mut hashmap = HashMap::with_capacity(THIRD_PARTY_PROCESSORS.len());
         for vendor in THIRD_PARTY_PROCESSORS {
             let cookie = request.cookies().get(vendor);
-            hashmap.insert(vendor.to_string(), match cookie {
-                None => false,
-                Some(c) => bool::from_str(c.value()).unwrap_or(false),
-            });
+            hashmap.insert(
+                vendor.to_string(),
+                match cookie {
+                    None => false,
+                    Some(c) => bool::from_str(c.value()).unwrap_or(false),
+                },
+            );
         }
         UsernamePolicy {
             third_party_vendors_consent: hashmap,
@@ -109,17 +122,24 @@ impl FrontendPolicy for UsernamePolicy {
         }
     }
 
-    fn from_request<'a, 'r>(request: &'a RocketRequest<'r>) -> Self
+    fn from_cookie<'a, 'r>(
+        name: &str,
+        cookie: &'a rocket::http::Cookie<'static>,
+        request: &'a rocket::Request<'r>,
+    ) -> Self
     where
         Self: Sized,
     {
         let mut hashmap = HashMap::with_capacity(THIRD_PARTY_PROCESSORS.len());
         for vendor in THIRD_PARTY_PROCESSORS {
             let cookie = request.cookies().get(vendor);
-            hashmap.insert(vendor.to_string(), match cookie {
-                None => false,
-                Some(c) => bool::from_str(c.value()).unwrap_or(false),
-            });
+            hashmap.insert(
+                vendor.to_string(),
+                match cookie {
+                    None => false,
+                    Some(c) => bool::from_str(c.value()).unwrap_or(false),
+                },
+            );
         }
         UsernamePolicy {
             third_party_vendors_consent: hashmap,
@@ -147,7 +167,7 @@ impl SimplePolicy for AbsolutePolicy {
     }
     fn simple_check(
         &self,
-        _context: &alohomora::context::UnprotectedContext,
+        _context: &sesame::context::UnprotectedContext,
         _reason: Reason<'_>,
     ) -> bool {
         false

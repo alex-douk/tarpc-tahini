@@ -1,4 +1,4 @@
-use alohomora::policy::Policy;
+use sesame::policy::Policy;
 use tahini_tarpc::traits::{PolicyFrom, PolicyInto};
 use database_tahini_utils::policies::UserIdDBPolicy;
 

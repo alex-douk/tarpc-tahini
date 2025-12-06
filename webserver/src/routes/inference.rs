@@ -1,25 +1,24 @@
-use alohomora::bbox::BBox;
-use alohomora::context::Context;
-use alohomora::context::UnprotectedContext;
-use alohomora::policy::Policy;
-use alohomora::pure::PrivacyPureRegion as PPR;
-use alohomora::rocket::BBoxCookieJar;
-use alohomora::rocket::BBoxJson;
-use alohomora::rocket::RequestBBoxJson;
-use alohomora::rocket::{JsonResponse, ResponseBBoxJson, route};
+use hoodini_client::DynamicAttestationVerifier;
+use rocket::http::ext::IntoCollection;
+use sesame::pcon::PCon;
+use sesame::context::Context;
+use sesame::context::UnprotectedContext;
+use sesame::policy::NoPolicy;
+use sesame::policy::Policy;
+use sesame::verified::VerifiedRegion as VR;
+use sesame_rocket::rocket::PConCookieJar;
+use sesame_rocket::rocket::PConJson;
+use sesame_rocket::rocket::RequestPConJson;
+use sesame_rocket::rocket::{JsonResponse, ResponsePConJson, route};
 use core_tahini_utils::policies::*;
 
-use core_tahini_utils::types::{BBoxConversation, Message, UserPrompt};
-use futures::stream::Once;
+use core_tahini_utils::types::{PConConversation, Message, UserPrompt};
 use llm_tahini_utils::service::TahiniInferenceClient;
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::OnceLock;
-use std::time::Duration;
-use std::time::Instant;
-use std::time::SystemTime;
-use tarpc::context;
 
-use tahini_tarpc::transport::new_tahini_client_transport as new_transport;
+use tarpc::serde_transport::new as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
@@ -32,38 +31,55 @@ use crate::database::store_to_database;
 use crate::policies::ad_policy::AdPolicy;
 use crate::policies::login_uuid::UserIdWebPolicy;
 
-#[derive(Clone, RequestBBoxJson)]
+#[derive(Clone, RequestPConJson)]
 pub(crate) struct InferenceRequest {
-    pub user: Option<BBox<String, UsernamePolicy>>,
-    pub conv_id: BBox<Option<String>, UserIdWebPolicy>,
-    pub conversation: BBoxConversation,
-    pub nb_token: u32,
+    pub user: Option<PCon<String, UsernamePolicy>>,
+    pub conv_id: PCon<Option<String>, UserIdWebPolicy>,
+    pub conversation: PConConversation,
+    pub nb_token: PCon<u32, NoPolicy>,
 }
 
-#[derive(Clone, ResponseBBoxJson)]
+#[derive(Clone, ResponsePConJson)]
 pub(crate) struct InferenceResponse {
-    infered_tokens: BBox<Message, MessagePolicy>,
-    ad: Option<BBox<String, AdPolicy>>,
-    db_uuid: Option<BBox<String, UserIdWebPolicy>>,
+    infered_tokens: PCon<Message, MessagePolicy>,
+    ad: Option<PCon<String, AdPolicy>>,
+    db_uuid: Option<PCon<String, UserIdWebPolicy>>,
 }
 
 pub static LLMCLIENT : OnceLock<TahiniInferenceClient> = OnceLock::new();
 pub(crate) async fn initialize_llm_client() {
     println!("Creating new LLM client");
     let codec_builder = LengthDelimitedCodec::builder();
-    let stream = TcpStream::connect((SERVER_ADDRESS, 5000)).await.unwrap();
-    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+    let tahini_verifier = DynamicAttestationVerifier::from_config(&Path::new("client_attestation_config.toml"))
+        .expect("Couldn't load Tahini client config");
+    let pub_cred_opt = tahini_verifier
+        .verify_binary(hoodini_client::ServiceName("Inference".to_string()))
+        .await.ok();
+    match pub_cred_opt {
+        None => {
 
-    //Custom deadline for inference calls. Will also potentially allow for streaming
-    //responses (but GitHub issues suggest tarpc is unable to do so)
-    let client = TahiniInferenceClient::new(Default::default(), transport)
-        .spawn().await;
-    if let Err(_) = LLMCLIENT.set(client) {
-        panic!("Client connection already exists");
+            let stream = TcpStream::connect((SERVER_ADDRESS, 5000)).await.unwrap();
+            println!("Sidecar is not running or attestation failed, we try and connect w/ TCP only");
+            let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+            let client = TahiniInferenceClient::new(Default::default(), transport).spawn();
+            if let Err(_) = LLMCLIENT.set(client) {
+                panic!("Client connection already exists");
+            }
+        },
+        Some(pub_creds) => {
+            let stream = TcpStream::connect((SERVER_ADDRESS, 5000)).await.unwrap();
+            let client_tls_ctx = fizz_rs::client_tls::ClientTlsContext::new(pub_creds, "sidecar_cert.pem").expect("Couldn't create client TLS context");
+            let tls_stream = client_tls_ctx.connect(stream, "localhost").await.expect("Couldn't create TLS channel");
+            let transport = new_transport(codec_builder.new_framed(tls_stream), Json::default());
+            let client = TahiniInferenceClient::new(Default::default(), transport).spawn();
+            if let Err(_) = LLMCLIENT.set(client) {
+                panic!("Client connection already exists");
+            }
+        }
     }
 }
 // #[tracing::instrument(name="LLM RPC")]
-async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, MessagePolicy>> {
+async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<PCon<Message, MessagePolicy>> {
     // let start = Instant::now();
     let context = gen_context();
     let response = match LLMCLIENT.get() {
@@ -80,13 +96,13 @@ async fn contact_llm_server(prompt: UserPrompt) -> anyhow::Result<BBox<Message, 
 
 #[route(POST, "/", data = "<data>")]
 pub(crate) async fn inference(
-    cookies: BBoxCookieJar<'_, '_>,
-    data: BBoxJson<InferenceRequest>,
-) -> alohomora::rocket::JsonResponse<InferenceResponse, ()> {
+    cookies: PConCookieJar<'_, '_>,
+    data: PConJson<InferenceRequest>,
+) -> sesame_rocket::rocket::JsonResponse<InferenceResponse, ()> {
     //Parse whether anonymous or connected user
     //Could probably handle that via some pre-hooks. A lot of boilerplate here
     let username = match &data.user {
-        None => BBox::new("anonymous".to_string(), UsernamePolicy {
+        None => PCon::new("anonymous".to_string(), UsernamePolicy {
             targeted_ads_consent: false,
             third_party_vendors_consent: HashMap::new(),
         }),
@@ -99,7 +115,7 @@ pub(crate) async fn inference(
         None => {
             get_default_user(context).await
         }
-        //Weirdly enough, only implementation for From<BBoxCookie<'c, P: FrontendPolicy> for BBox<String, P>
+        //Weirdly enough, only implementation for From<PConCookie<'c, P: FrontendPolicy> for PCon<String, P>
         Some(t) => {
             t.into()
         }
@@ -107,7 +123,7 @@ pub(crate) async fn inference(
     let conversation = data.conversation.clone();
     let payload = UserPrompt {
         conversation: conversation.clone(),
-        nb_token: data.nb_token,
+        nb_token: data.nb_token.clone().discard_box(),
     };
 
     let tokens = contact_llm_server(payload).await;
@@ -117,7 +133,7 @@ pub(crate) async fn inference(
     //Otherwise, go to DB then return
     if tokens.is_err() {
         return construct_answer(
-            &BBox::new(
+            &PCon::new(
                 Message {
                     role: "error".to_string(),
                     content: "LLM Internal error".to_string(),
@@ -137,7 +153,7 @@ pub(crate) async fn inference(
             data.conv_id.clone(),
             conversation
                 .clone()
-                .into_ppr(PPR::new(|conv: Vec<Message>| conv.last().unwrap().clone())),
+                .into_verified(VR::new(|conv: Vec<Message>| conv.last().unwrap().clone())),
                 context
         )
         .await
@@ -152,7 +168,7 @@ pub(crate) async fn inference(
     if conv_id.is_some() {
         match store_to_database(
             uuid.clone(),
-            conv_id.clone().unwrap().into_ppr(PPR::new(|x| Some(x))),
+            conv_id.clone().unwrap().into_verified(VR::new(|x| Some(x))),
             tokens.clone(),
             context
         )
@@ -181,7 +197,7 @@ fn verify_if_send_to_db<P: Policy>(p: &P) -> bool {
     };
     p.check(
         &context,
-        alohomora::policy::Reason::Custom(&InferenceReason::SendToDB),
+        sesame::policy::Reason::Custom(&InferenceReason::SendToDB),
     )
 }
 
@@ -192,14 +208,14 @@ fn verify_if_send_to_marketing<P: Policy>(p: &P) -> bool {
     };
     p.check(
         &context,
-        alohomora::policy::Reason::Custom(&InferenceReason::SendToMarketing),
+        sesame::policy::Reason::Custom(&InferenceReason::SendToMarketing),
     )
 }
 
 fn construct_answer(
-    inf_res: &BBox<Message, MessagePolicy>,
-    db_uid: Option<BBox<String, UserIdWebPolicy>>,
-    ad: Option<BBox<String, AdPolicy>>,
+    inf_res: &PCon<Message, MessagePolicy>,
+    db_uid: Option<PCon<String, UserIdWebPolicy>>,
+    ad: Option<PCon<String, AdPolicy>>,
 ) -> JsonResponse<InferenceResponse, ()> {
     JsonResponse(
         InferenceResponse {

@@ -1,7 +1,7 @@
 #![feature(negative_impls)]
 
 use rocket::Build;
-use alohomora::rocket::{BBoxRocket, routes};
+use sesame_rocket::rocket::{SesameRocket, routes};
 use std::net::{IpAddr, Ipv4Addr};
 use tracing::instrument::WithSubscriber;
 use tracing_appender::non_blocking::WorkerGuard;
@@ -19,9 +19,9 @@ use self::routes::*;
 pub static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 
-fn prepare_server() -> BBoxRocket<Build>{
+fn prepare_server() -> SesameRocket<Build>{
 
-    BBoxRocket::build().mount("/chat", routes![inference::inference])
+    SesameRocket::build().mount("/chat", routes![inference::inference])
         .mount("/history", routes![database::get_history, database::delete_conversation])
         .mount("/account", routes![login::login, login::signup])
         .mount("/c", routes![database::fetch_conversation])

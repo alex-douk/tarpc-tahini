@@ -1,9 +1,8 @@
-use alohomora::db::Value;
-use alohomora::policy::{schema_policy, AnyPolicy, PolicyAnd, SimplePolicy};
-use alohomora::{
-    policy::{FrontendPolicy, Policy, Reason, SchemaPolicy},
-    rocket::{RocketCookie, RocketRequest},
-};
+use mysql::Value;
+use rocket::{http::Cookie, Request};
+use sesame::policy::{AnyPolicy, Policy, PolicyAnd, Reason, SimplePolicy};
+use sesame_mysql::{schema_policy, SchemaPolicy};
+use sesame_rocket::policy::FrontendPolicy;
 use tahini_tarpc::{TahiniDeserialize, TahiniSerialize};
 
 ///A policy for conversational metadata (such as conversation id)
@@ -19,7 +18,11 @@ impl SimplePolicy for ConversationMetadataPolicy {
         "ConversationMetadataPolicy".to_string()
     }
 
-    fn simple_check(&self, context: &alohomora::context::UnprotectedContext, reason: Reason<'_>) -> bool {
+    fn simple_check(
+        &self,
+        context: &sesame::context::UnprotectedContext,
+        reason: Reason<'_>,
+    ) -> bool {
         match reason {
             // Reason::DB(query, _) => query.starts_with("INSERT") || query.starts_with("SELECT"),
             Reason::DB(_, _) => true,
@@ -49,15 +52,15 @@ impl SchemaPolicy for ConversationMetadataPolicy {
 impl FrontendPolicy for ConversationMetadataPolicy {
     fn from_cookie<'a, 'r>(
         _name: &str,
-        _cookie: &'a RocketCookie<'static>,
-        _request: &'a RocketRequest<'r>,
+        _cookie: &'a Cookie<'static>,
+        _request: &'a Request<'r>,
     ) -> Self
     where
         Self: Sized,
     {
         Self
     }
-    fn from_request<'a, 'r>(_request: &'a RocketRequest<'r>) -> Self
+    fn from_request<'a, 'r>(_request: &'a Request<'r>) -> Self
     where
         Self: Sized,
     {

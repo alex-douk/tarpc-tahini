@@ -1,5 +1,5 @@
 use crate::policies::MarketingPolicy;
-use alohomora::bbox::BBox;
+use sesame::pcon::PCon;
 use tahini_tarpc::TahiniType;
 use tahini_tarpc::{TahiniSerialize, TahiniDeserialize};
 
@@ -11,5 +11,5 @@ pub struct MarketingData {
 
 #[derive(TahiniDeserialize, Clone, Debug, TahiniType)]
 pub struct Ad {
-    pub ad: BBox<String, MarketingPolicy>,
+    pub ad: PCon<String, MarketingPolicy>,
 }

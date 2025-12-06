@@ -1,35 +1,35 @@
 use tahini_tarpc::TahiniType;
-use alohomora::bbox::BBox;
 use tahini_tarpc::{TahiniDeserialize, TahiniSerialize};
+use sesame::pcon::PCon;
 
 use core_tahini_utils::policies::MessagePolicy;
 use core_tahini_utils::types::Message;
 
 use crate::policies::UserIdDBPolicy;
 
-// use super::inference_types::BBoxConversation;
+// use super::inference_types::PConConversation;
 
 #[derive(TahiniDeserialize, Clone, TahiniType)]
 pub struct DatabaseStoreForm {
-    pub uuid: BBox<String, UserIdDBPolicy>,
-    pub conv_id: BBox<Option<String>, UserIdDBPolicy>,
-    pub message: BBox<Message, MessagePolicy>,
+    pub uuid: PCon<String, UserIdDBPolicy>,
+    pub conv_id: PCon<Option<String>, UserIdDBPolicy>,
+    pub message: PCon<Message, MessagePolicy>,
 }
 
 #[derive(TahiniDeserialize, Clone, TahiniType)]
 pub struct DatabaseRetrieveForm {
-    pub uuid: BBox<String, UserIdDBPolicy>,
+    pub uuid: PCon<String, UserIdDBPolicy>,
     pub conv_id: CHATUID,
 }
 
 #[derive(TahiniDeserialize, Clone, TahiniType)]
 pub struct DeleteForm {
-    pub uuid: BBox<String, UserIdDBPolicy>,
+    pub uuid: PCon<String, UserIdDBPolicy>,
     //TODO(douk): Change to conv metadata policy
-    pub conv_id: BBox<String, UserIdDBPolicy>
+    pub conv_id: PCon<String, UserIdDBPolicy>
 }
 
-pub type CHATUID = BBox<String, UserIdDBPolicy>;
+pub type CHATUID = PCon<String, UserIdDBPolicy>;
 
 #[derive(TahiniSerialize, TahiniDeserialize, Clone, TahiniType, Debug)]
 pub enum DatabaseError {

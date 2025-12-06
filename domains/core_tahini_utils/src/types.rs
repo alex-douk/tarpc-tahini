@@ -1,5 +1,5 @@
-use alohomora::bbox::BBox;
-use alohomora::rocket::{RequestBBoxJson, ResponseBBoxJson};
+use sesame::pcon::PCon;
+use sesame_rocket::rocket::{RequestPConJson, ResponsePConJson};
 use tahini_tarpc::{TahiniEnum, TahiniType};
 use std::collections::HashMap;
 // use serde::{TahiniSerialize, TahiniDeserialize};
@@ -10,21 +10,21 @@ use crate::policies::MessagePolicy;
 
 #[derive(TahiniDeserialize, Clone, Debug, TahiniType)]
 pub struct UserPrompt {
-    pub conversation: BBoxConversation,
+    pub conversation: PConConversation,
     pub nb_token: u32,
 }
 
 #[derive(TahiniDeserialize, Clone, Debug, TahiniType)]
 pub struct LLMResponse {
-    pub infered_tokens: BBox<Result<Message, LLMError>, MessagePolicy>,
+    pub infered_tokens: PCon<Result<Message, LLMError>, MessagePolicy>,
 }
 
-pub type BBoxConversation = BBox<Vec<Message>, MessagePolicy>;
+pub type PConConversation = PCon<Vec<Message>, MessagePolicy>;
 
-#[derive(TahiniSerialize, RequestBBoxJson, TahiniDeserialize, Clone, Debug, ResponseBBoxJson)]
+#[derive(TahiniSerialize, TahiniDeserialize, Clone, Debug, ResponsePConJson)]
 pub struct Message {
     pub role: String,
-    pub content: String,
+    pub content: String
 }
 
 #[derive(Debug, TahiniDeserialize, TahiniSerialize, Clone)]

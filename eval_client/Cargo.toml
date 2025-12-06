@@ -19,7 +19,7 @@ llm_tahini_utils = {version="0.1.0", path="../domains/llm_tahini_utils"}
 database_tahini_utils = {version = "0.1.0", path = "../domains/database_tahini_utils"}
 lazy_static = "1.5.0"
 
-alohomora = { git = "https://github.com/brownsys/Sesame.git", branch = "tahini-dev", default-features = false, features = ["derive"] }
+sesame = { git = "https://github.com/brownsys/Sesame.git", branch = "tahini-dev", default-features = false, features = ["derive"] }
 tahini_tarpc = { git = "https://github.com/alex-douk/tahini_lib.git", branch = "standalone_tahini", features = ["derive"]}
 tracing = "0.1.41"
 log = "0.4.27"

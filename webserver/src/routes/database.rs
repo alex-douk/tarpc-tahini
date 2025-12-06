@@ -1,22 +1,23 @@
-use alohomora::bbox::BBox as PCon;
-use alohomora::context::Context;
-use alohomora::rocket::{get, BBoxCookieJar, JsonResponse, ResponseBBoxJson};
+use hoodini_client::DynamicAttestationVerifier;
+use sesame::pcon::PCon;
+use sesame::context::Context;
+use sesame_rocket::rocket::{get, PConCookieJar, JsonResponse, ResponsePConJson};
 use core_tahini_utils::policies::{MessagePolicy, UsernamePolicy};
-use core_tahini_utils::types::{BBoxConversation, Message};
+use core_tahini_utils::types::{PConConversation, Message};
 use database_tahini_utils::service::TahiniDatabaseClient;
 use database_tahini_utils::types::DatabaseError;
 use database_tahini_utils::types::PolicyError;
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::OnceLock;
-use std::time::Instant;
-use alohomora::policy::AnyPolicyDyn;
-use alohomora::pure::{execute_pure, PrivacyPureRegion};
+use sesame::policy::AnyPolicyDyn;
+use sesame::verified::{execute_verified, VerifiedRegion as VR};
 
 use crate::policies::history::HistoryPolicy;
 use crate::policies::login_uuid::UserIdWebPolicy;
 use crate::routes::gen_context;
 use crate::SERVER_ADDRESS;
-use tahini_tarpc::transport::new_tahini_client_transport as new_transport;
+use tarpc::serde_transport::new as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
@@ -26,13 +27,33 @@ pub static DBCLIENT: OnceLock<TahiniDatabaseClient> = OnceLock::new();
 pub(crate) async fn initialize_db_client() {
     println!("Creating new DB client");
     let codec_builder = LengthDelimitedCodec::builder();
-    let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
-    let transport = new_transport(codec_builder.new_framed(stream), Json::default());
-    let client = TahiniDatabaseClient::new(Default::default(), transport)
-        .spawn()
-        .await;
-    if let Err(_) = DBCLIENT.set(client) {
-        panic!("Client connection already exists");
+    let tahini_verifier = DynamicAttestationVerifier::from_config(&Path::new("client_attestation_config.toml"))
+        .expect("Couldn't load Tahini client config");
+    let pub_cred_opt = tahini_verifier
+        .verify_binary(hoodini_client::ServiceName("Database".to_string()))
+        .await.ok();
+    match pub_cred_opt {
+        None => {
+
+            let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
+            println!("Sidecar is not running or attestation failed, we try and connect w/ TCP only");
+            let transport = new_transport(codec_builder.new_framed(stream), Json::default());
+            let client = TahiniDatabaseClient::new(Default::default(), transport).spawn();
+            if let Err(_) = DBCLIENT.set(client) {
+                panic!("Client connection already exists");
+            }
+        },
+        Some(pub_creds) => {
+            println!("Pub creds are {:?}", pub_creds);
+            let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
+            let client_tls_ctx = fizz_rs::client_tls::ClientTlsContext::new(pub_creds, "sidecar_cert.pem").expect("Couldn't create client TLS context");
+            let tls_stream = client_tls_ctx.connect(stream, "localhost").await.expect("Couldn't create TLS channel");
+            let transport = new_transport(codec_builder.new_framed(tls_stream), Json::default());
+            let client = TahiniDatabaseClient::new(Default::default(), transport).spawn();
+            if let Err(_) = DBCLIENT.set(client) {
+                panic!("Client connection already exists");
+            }
+        }
     }
 }
 // #[tracing::instrument(name="DB_Store RPC")]
@@ -123,14 +144,14 @@ pub(crate) async fn get_default_user(context: tarpc::context::Context) -> PCon<S
         .expect("Couldn't fetch default user")
 }
 
-#[derive(Clone, ResponseBBoxJson)]
+#[derive(Clone, ResponsePConJson)]
 pub struct HistoryResponse {
     history_list: Vec<PCon<String, HistoryPolicy>>,
 }
 
 #[get("/<user_id>")]
 pub(crate) async fn get_history(
-    cookies: BBoxCookieJar<'_, '_>,
+    cookies: PConCookieJar<'_, '_>,
     user_id: PCon<String, UsernamePolicy>,
 ) -> JsonResponse<HistoryResponse, bool> {
     //Verify the cookie is present
@@ -138,9 +159,9 @@ pub(crate) async fn get_history(
     //Verify if the path matches that of the cookie
     if is_authenticated {
         let ground_truth: PCon<String, UsernamePolicy> = cookies.get("user_id").unwrap().into();
-        let tmp = execute_pure::<dyn AnyPolicyDyn, _, _, _>(
+        let tmp = execute_verified::<dyn AnyPolicyDyn, _, _, _>(
             (ground_truth, user_id.clone()),
-            PrivacyPureRegion::new(|(g, u): (String, String)| {
+            VR::new(|(g, u): (String, String)| {
                 if g == u {
                     Some(true)
                 } else {
@@ -181,14 +202,14 @@ pub(crate) async fn get_history(
     }
 }
 
-#[derive(Clone, ResponseBBoxJson)]
+#[derive(Clone, ResponsePConJson)]
 pub struct FetchConversation {
-    conv: Option<BBoxConversation>,
+    conv: Option<PConConversation>,
 }
 
 #[get("/<chat_id>")]
 pub(crate) async fn fetch_conversation(
-    cookies: BBoxCookieJar<'_, '_>,
+    cookies: PConCookieJar<'_, '_>,
     chat_id: PCon<String, UserIdWebPolicy>,
 ) -> JsonResponse<FetchConversation, ()> {
     let context = gen_context();
@@ -218,7 +239,7 @@ pub(crate) async fn fetch_conversation(
 
 #[get("/delete/<chat_id>")]
 pub(crate) async fn delete_conversation(
-    cookies: BBoxCookieJar<'_, '_>,
+    cookies: PConCookieJar<'_, '_>,
     chat_id: PCon<String, UserIdWebPolicy>,
 ) -> Result<(), ()> {
     if cookies.get::<UsernamePolicy>("user_id").is_none() {}

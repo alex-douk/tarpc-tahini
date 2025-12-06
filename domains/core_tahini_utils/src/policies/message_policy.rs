@@ -1,14 +1,13 @@
-use alohomora::db::{BBoxFromValue, Value};
-use alohomora::policy::{schema_policy, AnyPolicy, PolicyAnd, SimplePolicy};
+use sesame::policy::{AnyPolicy, PolicyAnd, SimplePolicy};
+use sesame_mysql::{schema_policy, SchemaPolicy, PConFromValue};
 use tahini_tarpc::traits::PolicyFrom;
 use tahini_tarpc::{TahiniDeserialize, TahiniSerialize};
 
-use alohomora::{
-    policy::{FrontendPolicy, Policy, Reason, SchemaPolicy},
-    rocket::{RocketCookie, RocketRequest},
-};
+use rocket::{http::Cookie as RocketCookie, Request as RocketRequest};
+
+use sesame::policy::{Policy, Reason};
+use sesame_rocket::policy::FrontendPolicy;
 use serde_json::from_str;
-use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 use super::UsernamePolicy;
@@ -37,8 +36,8 @@ impl SimplePolicy for MessagePolicy {
 
     fn simple_check(
         &self,
-        _context: &alohomora::context::UnprotectedContext,
-        reason: alohomora::policy::Reason<'_>,
+        _context: &sesame::context::UnprotectedContext,
+        reason: sesame::policy::Reason<'_>,
     ) -> bool {
         match reason {
             Reason::DB(_, _) => self.storage,
@@ -134,11 +133,11 @@ impl FrontendPolicy for MessagePolicy {
 }
 
 impl SchemaPolicy for MessagePolicy {
-    fn from_row(_table_name: &str, row: &Vec<Value>) -> Self
+    fn from_row(_table_name: &str, row: &Vec<mysql::Value>) -> Self
     where
         Self: Sized,
     {
-        let value = <String as BBoxFromValue>::from_value(row[9].clone());
+        let value = <String as PConFromValue>::from_value(row[9].clone());
         let hashmap = match from_str(value.as_str()) {
             Ok(map) => map,
             Err(_) => {
@@ -151,9 +150,9 @@ impl SchemaPolicy for MessagePolicy {
         };
         MessagePolicy {
             third_party_ad_vendors_allowed: hashmap,
-            storage: BBoxFromValue::from_value(row[5].clone()),
-            marketing_consent: BBoxFromValue::from_value(row[6].clone()),
-            unprotected_image_gen: BBoxFromValue::from_value(row[7].clone()),
+            storage: PConFromValue::from_value(row[5].clone()),
+            marketing_consent: PConFromValue::from_value(row[6].clone()),
+            unprotected_image_gen: PConFromValue::from_value(row[7].clone()),
             reinforcement_learning_consent: false,
         }
     }

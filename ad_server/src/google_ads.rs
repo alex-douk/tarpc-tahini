@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use alohomora::bbox::BBox as PCon;
-use alohomora::fold::fold;
-use alohomora::policy::AnyPolicyDyn;
-use alohomora::pure::PrivacyPureRegion as PPR;
+use sesame::fold::fold;
+use sesame::pcon::PCon;
+use sesame::policy::AnyPolicyDyn;
+use sesame::verified::VerifiedRegion as VR;
 use advertisement_tahini_utils::policies::MarketingPolicy;
 use rake::Rake;
 use crate::parse_conversation_into_topics;
@@ -21,7 +21,7 @@ static GOOGLE_AD_TARGETED: &str =
 
 pub fn get_ad(data: crate::ThirdPartyProcessorData, rake: Arc<Rake>) -> PCon<String, MarketingPolicy> {
     match data.username {
-        None => data.prompt.into_ppr(PPR::new(|conv| {
+        None => data.prompt.into_verified(VR::new(|conv| {
             format!(
                 "Find more about {} on [Google](https://google.com)",
                 parse_conversation_into_topics(conv, rake)
@@ -29,7 +29,7 @@ pub fn get_ad(data: crate::ThirdPartyProcessorData, rake: Arc<Rake>) -> PCon<Str
         })),
         Some(username) => fold::<dyn AnyPolicyDyn, _>((username, data.prompt))
             .unwrap()
-            .into_ppr(PPR::new(|(uname_unboxed, conv_unboxed)| {
+            .into_verified(VR::new(|(uname_unboxed, conv_unboxed)| {
                 format!(
                     "Hi {}! You can find more about {} on [Google](https://google.com)",
                     uname_unboxed,

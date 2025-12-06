@@ -1,13 +1,13 @@
 use std::{net::{IpAddr, Ipv4Addr}, time::Instant};
 
-use alohomora::bbox::BBox;
+use sesame::pcon::PCon;
 use core_tahini_utils::{
     policies::MessagePolicy,
     types::{Message, UserPrompt},
 };
 use futures::executor::block_on;
 use llm_tahini_utils::service::TahiniInferenceClient;
-use tahini_tarpc::transport::new_tahini_client_transport as new_transport;
+use tarpc::serde_transport::new as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
@@ -44,8 +44,7 @@ async fn initialize_llm_client() -> TahiniInferenceClient {
     //Custom deadline for inference calls. Will also potentially allow for streaming
     //responses (but GitHub issues suggest tarpc is unable to do so)
     let client = TahiniInferenceClient::new(Default::default(), transport)
-        .spawn()
-        .await;
+        .spawn();
     client
 }
 
@@ -70,7 +69,7 @@ pub async fn benchmark_llm(nb_iter: usize, rounds: usize) {
         reinforcement_learning_consent: true,
     };
     let prompt = UserPrompt {
-        conversation: BBox::new(gen_conversation(rounds), policy),
+        conversation: PCon::new(gen_conversation(rounds), policy),
         nb_token: 250,
     };
     let client = block_on(async { initialize_llm_client().await });

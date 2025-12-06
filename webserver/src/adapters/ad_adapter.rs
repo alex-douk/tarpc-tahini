@@ -1,6 +1,6 @@
 use advertisement_tahini_utils::{policies::MarketingPolicy, types::Ad as RemoteAd};
-use alohomora::{
-    bbox::BBox,
+use sesame::{
+    pcon::PCon,
     policy::PolicyAnd,
 };
 
@@ -11,7 +11,7 @@ use core_tahini_utils::policies::{MessagePolicy, UsernamePolicy};
 use crate::policies::ad_policy::AdPolicy;
 use super::PolicyAdapter;
 
-pub struct AdAdapter(pub BBox<String, AdPolicy>);
+pub struct AdAdapter(pub PCon<String, AdPolicy>);
 
 impl TahiniTransformFrom<RemoteAd> for AdAdapter {
     fn transform_from(

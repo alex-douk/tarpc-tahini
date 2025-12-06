@@ -16,7 +16,7 @@ mod llm;
 mod db;
 mod ads;
 
-const NB_ITER: usize = 200_000;
+const NB_ITER: usize = 5_000;
 
 #[derive(Serialize)]
 pub(crate) struct InferenceRequest {
@@ -47,10 +47,10 @@ async fn main() {
         cookie_provider(cookie_store).build().expect("Couldn't build client");
 
     let username = Uuid::new_v4().to_string();
-    let chat_url = Url::parse("http://localhost:8000/signup").expect("Wrong URL");
+    let signup_url = Url::parse("http://localhost:8000/account/signup").expect("Wrong URL");
     let mut payload = HashMap::new();
     payload.insert("username", username);
-    let resp = client.post(chat_url.clone()).json(&payload).send().await.unwrap();
+    let resp = client.post(signup_url.clone()).json(&payload).send().await.unwrap();
     let body: HashMap<String, String> = resp.json().await.expect("Couldn't read response");
     let _uuid = body.get("uuid");
 

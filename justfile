@@ -7,15 +7,18 @@ setup_database:
   mkdir -p {{justfile_dir()}}/runtime/db_server/
   cp {{justfile_dir()}}/target/release/db_server {{justfile_dir()}}/runtime/db_server
   cp -r {{justfile_dir()}}/db_server/resources/ {{justfile_dir()}}/runtime/db_server
+  cp {{justfile_dir()}}/sidecar_cert.pem {{justfile_dir()}}/runtime/db_server
 
 setup_llm:
   mkdir -p {{justfile_dir()}}/runtime/llm_server/
   cp {{justfile_dir()}}/target/release/llm_server {{justfile_dir()}}/runtime/llm_server
+  cp {{justfile_dir()}}/sidecar_cert.pem {{justfile_dir()}}/runtime/llm_server
 
 setup_ads:
   mkdir -p {{justfile_dir()}}/runtime/ad_server/
   cp {{justfile_dir()}}/target/release/ad_server {{justfile_dir()}}/runtime/ad_server
   cp {{justfile_dir()}}/ad_server/stopwords.txt {{justfile_dir()}}/runtime/ad_server
+  cp {{justfile_dir()}}/sidecar_cert.pem {{justfile_dir()}}/runtime/ad_server
 
 export_certificates CERTIFICATE_DIR:
   mkdir -p {{CERTIFICATE_DIR}}

@@ -1,4 +1,4 @@
-use alohomora::policy::{AnyPolicy, Policy, PolicyAnd, SimplePolicy};
+use sesame::policy::{AnyPolicy, Policy, PolicyAnd, SimplePolicy};
 
 #[derive(Clone)]
 pub struct HistoryPolicy;
@@ -10,11 +10,11 @@ impl SimplePolicy for HistoryPolicy {
 
     fn simple_check(
         &self,
-        context: &alohomora::context::UnprotectedContext,
-        reason: alohomora::policy::Reason<'_>,
+        context: &sesame::context::UnprotectedContext,
+        reason: sesame::policy::Reason<'_>,
     ) -> bool {
         match reason {
-            alohomora::policy::Reason::Response => {
+            sesame::policy::Reason::Response => {
                 if context.route == "history" {
                     match context.data.downcast_ref::<bool>() {
                         Some(auth) => *auth,

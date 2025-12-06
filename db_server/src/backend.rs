@@ -1,15 +1,16 @@
-use alohomora::context::Context;
-use alohomora::db::{BBoxConn, BBoxOpts, BBoxParams, BBoxStatement, BBoxValue};
 use database_tahini_utils::types::PolicyError;
+use sesame::context::Context;
+use sesame_mysql::SesameConn;
+use sesame_mysql::{PConOpts, PConParams, PConStatement, PConValue};
 use std::collections::HashMap;
 use std::error::Error;
 use std::result::Result;
 
 pub struct MySqlBackend {
-    pub handle: BBoxConn,
+    pub handle: SesameConn,
     // pub log: slog::Logger,
     //_schema: String,
-    prep_stmts: HashMap<String, BBoxStatement>,
+    prep_stmts: HashMap<String, PConStatement>,
     db_user: String,
     db_password: String,
     db_name: String,
@@ -34,9 +35,9 @@ impl MySqlBackend {
         // );
         // let password = "";
         // println!("password is `{}`", password);
-        let mut db = BBoxConn::new(
+        let mut db = SesameConn::new(
             // this is the user and password from the config.toml file
-            BBoxOpts::from_url(&format!("mysql://{}:{}@127.0.0.1/", user, password)).unwrap(),
+            PConOpts::from_url(&format!("mysql://{}:{}@127.0.0.1/", user, password)).unwrap(),
         )
         .unwrap();
         assert_eq!(db.ping(), true);
@@ -70,8 +71,8 @@ impl MySqlBackend {
     }
 
     fn reconnect(&mut self) {
-        self.handle = BBoxConn::new(
-            BBoxOpts::from_url(&format!(
+        self.handle = SesameConn::new(
+            PConOpts::from_url(&format!(
                 "mysql://{}:{}@127.0.0.1/{}",
                 self.db_user, self.db_password, self.db_name
             ))
@@ -80,12 +81,12 @@ impl MySqlBackend {
         .unwrap();
     }
 
-    pub fn prep_exec<P: Into<BBoxParams>>(
+    pub fn prep_exec<P: Into<PConParams>>(
         &mut self,
         sql: &str,
         params: P,
         context: Context<()>,
-    ) -> Vec<Vec<BBoxValue>> {
+    ) -> Vec<Vec<PConValue>> {
         if !self.prep_stmts.contains_key(sql) {
             let stmt = self
                 .handle
@@ -94,39 +95,36 @@ impl MySqlBackend {
             self.prep_stmts.insert(sql.to_owned(), stmt);
         }
 
-        let params: BBoxParams = params.into();
-        loop {
-            match self.handle.exec_iter(
-                self.prep_stmts[sql].clone(),
-                params.clone(),
-                context.clone(),
-            ) {
-                Err(e) => {
-                    eprintln!("query \'{}\' failed ({}), reconnecting to database", sql, e);
-                }
-                Ok(res) => {
-                    let mut rows = vec![];
-                    for row in res {
-                        rows.push(row.unwrap().unwrap());
-                    }
-                    //debug!(self.log, "executed query {}, got {} rows", sql, rows.len());
-                    return rows;
-                }
+        let params: PConParams = params.into();
+        match self
+            .handle
+            .exec_iter(self.prep_stmts[sql].clone(), params, context.clone())
+        {
+            Err(e) => {
+                eprintln!("query \'{}\' failed ({}) ", sql, e);
+                panic!("Query_failed")
             }
-            self.reconnect();
+            Ok(res) => {
+                let mut rows = vec![];
+                for row in res {
+                    rows.push(row.unwrap().unwrap());
+                }
+                //debug!(self.log, "executed query {}, got {} rows", sql, rows.len());
+                return rows;
+            }
         }
     }
 
-    fn do_insert<P: Into<BBoxParams>>(
+    fn do_insert<P: Into<PConParams>>(
         &mut self,
         table: &str,
         vals: P,
         replace: bool,
         context: Context<()>,
     ) -> Result<(), PolicyError> {
-        let vals: BBoxParams = vals.into();
+        let vals: PConParams = vals.into();
         let mut param_count = 0;
-        if let BBoxParams::Positional(vec) = &vals {
+        if let PConParams::Positional(vec) = &vals {
             param_count = vec.len();
         }
 
@@ -140,27 +138,19 @@ impl MySqlBackend {
                 .collect::<Vec<&str>>()
                 .join(",")
         );
-        loop {
-            if let Err(e) = self
-                .handle
-                .exec_drop(q.clone(), vals.clone(), context.clone())
-            {
-                eprintln!(
-                    "failed to insert into {}, query {} ({}), reconnecting to database",
-                    table, q, e
-                );
-                if e.to_string().contains("policy check") {
-                    return Err(PolicyError);
-                }
-            } else {
-                break;
+        if let Err(e) = self.handle.exec_drop(q.clone(), vals, context.clone()) {
+            eprintln!(
+                "failed to insert into {}, query {} ({}), reconnecting to database",
+                table, q, e
+            );
+            if e.to_string().contains("policy check") {
+                return Err(PolicyError);
             }
-            self.reconnect();
         }
         Ok(())
     }
 
-    pub fn insert<P: Into<BBoxParams>>(
+    pub fn insert<P: Into<PConParams>>(
         &mut self,
         table: &str,
         vals: P,
@@ -198,16 +188,15 @@ pub struct MySqlBackendManager {
 }
 
 impl MySqlBackendManager {
-    pub fn new(db_user: &str,  db_password: &str, db_name: &str, prime: bool) -> Self {
+    pub fn new(db_user: &str, db_password: &str, db_name: &str, prime: bool) -> Self {
         Self {
             db_user: String::from(db_user),
             db_password: String::from(db_password),
             db_name: String::from(db_name),
-            prime
+            prime,
         }
     }
 }
-
 
 impl r2d2::ManageConnection for MySqlBackendManager {
     type Connection = MySqlBackend;

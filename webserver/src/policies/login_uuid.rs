@@ -1,4 +1,5 @@
-use alohomora::policy::{AnyPolicy, FrontendPolicy, Policy, PolicyAnd, Reason, SimplePolicy};
+use sesame::policy::{AnyPolicy, Policy, PolicyAnd, Reason, SimplePolicy};
+use sesame_rocket::policy::FrontendPolicy;
 
 ///Policy that is only allowed when sending the user its UUID, either via cookie or body
 ///Could be extended for tahini_check to include sending to DB
@@ -11,8 +12,8 @@ impl SimplePolicy for UserIdWebPolicy {
     }
     fn simple_check(
         &self,
-        _context: &alohomora::context::UnprotectedContext,
-        reason: alohomora::policy::Reason<'_>,
+        _context: &sesame::context::UnprotectedContext,
+        reason: sesame::policy::Reason<'_>,
     ) -> bool {
         match reason {
             Reason::Response => true,

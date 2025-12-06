@@ -1,8 +1,7 @@
-use alohomora::bbox::BBox as PCon;
+use sesame::pcon::PCon;
+use sesame::critical::{CriticalRegion, Signature, UncheckedCriticalRegion};
+use sesame::verified::VerifiedRegion as VR;
 
-use alohomora::pcr::{PrivacyCriticalRegion, Signature};
-
-use alohomora::pure::{PrivacyPureRegion};
 use core_tahini_utils::policies::{MessagePolicy, UsernamePolicy};
 use core_tahini_utils::types::{Message};
 use database_tahini_utils::policies::UserIdDBPolicy;
@@ -21,7 +20,7 @@ use uuid::Uuid;
 // use crate::routes::gen_context;
 // use crate::SERVER_ADDRESS;
 
-use tahini_tarpc::transport::new_tahini_client_transport as new_transport;
+use tarpc::serde_transport::new as new_transport;
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpStream;
 use tokio_util::codec::LengthDelimitedCodec;
@@ -36,8 +35,7 @@ async fn initialize_db_client() -> TahiniDatabaseClient {
     let stream = TcpStream::connect((SERVER_ADDRESS, 5002)).await.unwrap();
     let transport = new_transport(codec_builder.new_framed(stream), Json::default());
     let client = TahiniDatabaseClient::new(Default::default(), transport)
-        .spawn()
-        .await;
+        .spawn();
     client
 }
 
@@ -285,7 +283,7 @@ pub async fn benchmark_db(nb_iters: usize, rounds: usize) {
         (c, uuid)
     });
 
-    let pcr = PrivacyCriticalRegion::new(
+    let pcr = UncheckedCriticalRegion::new(
         |t: Option<String>, _, _| t.unwrap().clone(),
         Signature {
             username: "",
@@ -307,9 +305,9 @@ pub async fn benchmark_db(nb_iters: usize, rounds: usize) {
                 let boxed_message = PCon::new(message, policy.clone());
                 conv_id = store_to_database(&client, uuid.clone(), conv_id, boxed_message)
                     .await
-                    .into_ppr(PrivacyPureRegion::new(|x| Some(x)));
+                    .into_verified(VR::new(|x| Some(x)));
             }
-            let unboxed = conv_id.into_pcr(pcr, ());
+            let unboxed = conv_id.into_critical_unchecked(pcr, ());
             conv_ids.insert(unboxed);
         }
         println!("DB_Store done");

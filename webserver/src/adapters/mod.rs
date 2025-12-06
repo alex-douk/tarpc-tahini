@@ -1,6 +1,6 @@
 pub mod ad_adapter;
 pub mod database_adapters;
-use alohomora::policy::{Join, MutRefReflection, NotAPolicyContainer, OwnedReflection, Policy, PolicyDyn, RefReflection, Reflective, SimplePolicy};
+use sesame::policy::{Join, MutRefReflection, NotAPolicyContainer, OwnedReflection, Policy, PolicyDyn, RefReflection, Reflective, SimplePolicy};
 
 pub struct PolicyAdapter<P: Policy>(pub P);
 
@@ -42,8 +42,8 @@ impl<P: Policy> Policy for PolicyAdapter<P> {
     }
     fn check(
         &self,
-        context: &alohomora::context::UnprotectedContext,
-        reason: alohomora::policy::Reason<'_>,
+        context: &sesame::context::UnprotectedContext,
+        reason: sesame::policy::Reason<'_>,
     ) -> bool {
         self.0.check(context, reason)
     }

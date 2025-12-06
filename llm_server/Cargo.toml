@@ -35,9 +35,10 @@ candle-nn = "0.7.0"
 candle-transformers = "0.7.0"
 # tracing = "0.1.41"
 
-alohomora = { git = "https://github.com/brownsys/Sesame.git", branch = "tahini-dev", default-features = false, features = ["derive"] }
+sesame = { git = "https://github.com/brownsys/Sesame.git", branch = "tahini-dev", default-features = false, features = ["derive"] }
 tahini_tarpc = { git = "https://github.com/alex-douk/tahini_lib.git", branch = "standalone_tahini", features = ["derive"]}
-hoodini_server = { git = "https://github.com/alex-douk/tahini_lib.git", branch = "standalone_tahini", features = ["sidecar"]}
+hoodini_server = { git = "https://github.com/alex-douk/tahini_lib.git", branch = "standalone_tahini"}
+fizz_rs = {git = "https://github.com/alex-douk/fizz-rs.git", branch = "lib"}
 
 [[bin]]
 name = "llm_server"

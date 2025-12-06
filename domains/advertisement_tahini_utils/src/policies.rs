@@ -1,6 +1,5 @@
-use std::collections::HashMap;
 
-use alohomora::policy::{Policy, Reason, SimplePolicy};
+use sesame::policy::{Policy, Reason, SimplePolicy};
 use tahini_tarpc::{TahiniSerialize, TahiniDeserialize};
 pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 
@@ -25,8 +24,8 @@ impl SimplePolicy for MarketingPolicy {
 
     fn simple_check(
         &self,
-        _context: &alohomora::context::UnprotectedContext,
-        reason: alohomora::policy::Reason<'_>,
+        _context: &sesame::context::UnprotectedContext,
+        reason: sesame::policy::Reason<'_>,
     ) -> bool {
         match reason {
             Reason::DB(_, _) => !self.no_storage,
@@ -55,14 +54,16 @@ impl SimplePolicy for MarketingPolicy {
     }
 
     fn simple_join_direct(&mut self, other: &mut Self) {
-        todo!("THIS WAS A NO OP (see comment below)")
+        self.no_storage = self.no_storage && other.no_storage;
+        self.targeted_ads_consent = self.targeted_ads_consent && other.targeted_ads_consent;
+        self.third_party_ad_vendors_allowed.extend(other.third_party_ad_vendors_allowed.iter().map(|v| v.clone()));
     }
 
     /*
     fn join(
         &self,
-        other: alohomora::policy::AnyPolicy,
-    ) -> Result<alohomora::policy::AnyPolicy, ()> {
+        other: sesame::policy::AnyPolicy,
+    ) -> Result<sesame::policy::AnyPolicy, ()> {
         Ok(other)
     }
 

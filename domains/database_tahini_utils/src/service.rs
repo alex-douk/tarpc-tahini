@@ -2,16 +2,14 @@ use crate::{
     policies::{ConversationMetadataPolicy, UserIdDBPolicy},
     types::{CHATUID, DatabaseError, DatabaseRetrieveForm, DatabaseStoreForm, PolicyError},
 };
-use core_tahini_utils::types::BBoxConversation as PConConversation;
+use core_tahini_utils::types::PConConversation;
 use core_tahini_utils::{
     policies::{MessagePolicy, UsernamePolicy},
     types::Message,
 };
 
 use tahini_tarpc::{allow_client_transform, tahini_service, TahiniType, client::TahiniStub};
-use alohomora::{
-    bbox::BBox as PCon,
-};
+use sesame::pcon::PCon;
 
 #[tahini_service(domain = company)]
 pub trait Database {
