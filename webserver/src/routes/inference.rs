@@ -59,6 +59,7 @@ pub(crate) async fn initialize_llm_client() {
         None => {
 
             let stream = TcpStream::connect((SERVER_ADDRESS, 5000)).await.unwrap();
+            stream.set_nodelay(true).expect("Couldn't set NODELAY");
             println!("Sidecar is not running or attestation failed, we try and connect w/ TCP only");
             let transport = new_transport(codec_builder.new_framed(stream), Json::default());
             let client = TahiniInferenceClient::new(Default::default(), transport).spawn();
@@ -68,6 +69,7 @@ pub(crate) async fn initialize_llm_client() {
         },
         Some(pub_creds) => {
             let stream = TcpStream::connect((SERVER_ADDRESS, 5000)).await.unwrap();
+            stream.set_nodelay(true).expect("Couldn't set NODELAY");
             let client_tls_ctx = fizz_rs::client_tls::ClientTlsContext::new(pub_creds, "sidecar_cert.pem").expect("Couldn't create client TLS context");
             let tls_stream = client_tls_ctx.connect(stream, "localhost").await.expect("Couldn't create TLS channel");
             let transport = new_transport(codec_builder.new_framed(tls_stream), Json::default());
