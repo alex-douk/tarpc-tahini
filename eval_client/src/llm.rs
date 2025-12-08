@@ -33,6 +33,12 @@ pub fn gen_conversation(rounds: usize) -> Vec<Message> {
     conv
 }
 
+pub fn generate_one_long_message() -> Message {
+    Message { role: "user".to_string(), content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin ut lacus egestas, ultricies elit a, pretium sem. Aliquam aliquet et eros sit amet finibus. Duis id hendrerit ligula. Maecenas ullamcorper, nisl ac volutpat viverra, dui turpis laoreet purus, vitae consequat sem nisl nec nisi. Maecenas bibendum turpis at nisl tempor egestas. Sed eu enim id sem condimentum maximus sed ac diam. Nulla quis mi vitae ante pretium pulvinar. Aliquam dapibus elit ut interdum dignissim. Etiam orci turpis, venenatis ut odio eget, viverra luctus mauris.
+
+Morbi ultrices tempus massa. Praesent in enim neque. Suspendisse suscipit est ac purus feugiat, sit amet egestas est eleifend. Proin eget neque eget neque sagittis ultrices lacinia vitae erat. Donec justo turpis, euismod aliquet eros vel, consectetur fermentum velit. Proin blandit elit ut diam bibendum, ac efficitur enim mollis. Phasellus posuere nulla a fringilla tempus. Duis ut dui odio. Praesent ut justo quis diam dignissim ullamcorper ut mollis dui. Maecenas pulvinar, ligula quis eleifend commodo, mi felis vehicula purus, non accumsan arcu mi in odio. Cras dictum ultricies sem a gravida. Pellentesque lobortis nulla non ipsum auctor suscipit. In consectetur tellus at arcu eleifend, vitae ultrices enim ultricies. Phasellus id hendrerit nulla. Maecenas ultrices, ante at feugiat porttitor, mauris justo congue mauris, sed sollicitudin arcu nisl id tellus. ".to_string() }
+}
+
 async fn initialize_llm_client() -> InferenceClient {
     let codec_builder = LengthDelimitedCodec::builder();
     let stream = TcpStream::connect((SERVER_ADDRESS, 5000)).await.unwrap();

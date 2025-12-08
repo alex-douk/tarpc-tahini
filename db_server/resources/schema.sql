@@ -5,3 +5,5 @@ CREATE TABLE users ( user_id CHAR(36) PRIMARY KEY, username TEXT UNIQUE NOT NULL
 CREATE TABLE conversations (message_id SERIAL PRIMARY KEY, conversation_id CHAR(36), user_id CHAR(36) REFERENCES users(user_id) ON DELETE CASCADE, role VARCHAR(10), content TEXT NOT NULL);
 
 INSERT INTO users VALUES ("84a2f6aa-b658-4f13-98ec-0b9f14318808", "anonymous");
+CREATE VIEW conv_view AS SELECT DISTINCT conversation_id, user_id  FROM conversations;
+CREATE INDEX conv_id_index ON conversations (conversation_id, user_id);

@@ -168,18 +168,13 @@ impl Database for DatabaseServer {
          _context: tarpc::context::Context,
          username: String,
      ) -> Vec<String> {
-         //Group By conv_id : get boxed_conv_ids (actually, we want to policy only here)
         let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
-         //TODO(douk): Check if there is a more elegant way to combine policies here
          let res = backend.prep_exec(
-             "SELECT DISTINCT * FROM conversations where user_id = ?",
+             "SELECT DISTINCT conversation_id FROM conversations where user_id = ?",
              (username,),
          );
-
          //Map all message rows into conv_ids then remove duplicates
-         let mut conv_ids: Vec<_> = res.iter().map(|val| from_value(val[1].clone())).collect();
-         conv_ids.sort_unstable();
-         conv_ids.dedup();
+         let conv_ids: Vec<_> = res.iter().map(|val| from_value(val[0].clone())).collect();
          conv_ids
      }
 
