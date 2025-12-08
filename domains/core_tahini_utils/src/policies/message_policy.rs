@@ -19,8 +19,8 @@ pub static THIRD_PARTY_PROCESSORS: [&str; 2] = ["Meta_Ads", "Google_Ads"];
 ///Allowing to send anonymized data to Tahini-fied third-parties
 ///Allowing the use of unprotected third-party services (e.g. image gen)
 #[derive(TahiniSerialize, TahiniDeserialize, Clone, Debug, Default, PartialEq)]
-#[schema_policy(table = "conversations", column = 3)]
-#[schema_policy(table = "conversations", column = 4)]
+// #[schema_policy(table = "conversations", column = 3)]
+// #[schema_policy(table = "conversations", column = 4)]
 pub struct MessagePolicy {
     pub storage: bool,
     pub marketing_consent: bool,

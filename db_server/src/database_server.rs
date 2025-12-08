@@ -2,14 +2,17 @@ use backend::MySqlBackend;
 use fizz_rs::CertificatePublic;
 use r2d2::Pool;
 use sesame::policy::{
-    AnyPolicy, AnyPolicyClone, AnyPolicyDyn, JoinAPI, NoPolicy, Policy, PolicyAnd, Specializable,
+    AnyPolicy, AnyPolicyClone, AnyPolicyDyn, JoinAPI, NoPolicy, Policy, PolicyAnd, PolicyDyn,
+    Specializable,
 };
 use tahini_tarpc::server::{TahiniBaseChannel, TahiniChannel};
 //Clone model just clones the reference
 use config::Config;
 use core_tahini_utils::policies::AbsolutePolicy;
 use core_tahini_utils::policies::{MessagePolicy, UsernamePolicy};
-use database_tahini_utils::policies::{ConversationMetadataPolicy, UserIdDBPolicy};
+use database_tahini_utils::policies::{
+    ConversationAccessPolicy, ConversationMetadataPolicy, UserIdDBPolicy,
+};
 use database_tahini_utils::types::{DatabaseError, DatabaseRetrieveForm, DeleteForm, PolicyError};
 use hoodini_server;
 use mysql::Value;
@@ -167,7 +170,7 @@ impl Database for DatabaseServer {
         _context: tarpc::context::Context,
         uuid: PCon<String, UserIdDBPolicy>,
         conv_id: PCon<String, UserIdDBPolicy>,
-    ) -> Option<PConConversation> {
+    ) -> Option<PCon<Vec<Message>, ConversationAccessPolicy>> {
         let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
         let res = backend.prep_exec(
             "SELECT * FROM conversations WHERE conversation_id = ? AND user_id = ? ORDER BY message_id ASC",
@@ -182,7 +185,7 @@ impl Database for DatabaseServer {
 
         let parsed = fold::<dyn AnyPolicyDyn, _>(parsed)
             .expect("Couldn't fold across messages of conversation")
-            .specialize_policy::<MessagePolicy>()
+            .specialize_policy::<ConversationAccessPolicy>()
             .expect("Couldn't join policies");
 
         Some(parsed)
@@ -244,74 +247,66 @@ impl Database for DatabaseServer {
         self,
         _context: tarpc::context::Context,
         username: PCon<String, UsernamePolicy>,
-    ) -> Vec<PCon<String, ConversationMetadataPolicy>> {
-        //Group By conv_id : get boxed_conv_ids (actually, we want to policy only here)
-        let mut conv_id_map = PCon::new(
-            HashMap::new(),
-            AnyPolicy::default()
-        );
+    ) -> Vec<PCon<String, ConversationAccessPolicy>> {
+        // let mut map = HashMap::new();
         let mut backend = self.conn.get().expect("Couldn't acquire a DB connection");
-        //TODO(douk): Check if there is a more elegant way to combine policies here
         let res = backend.prep_exec(
-            "SELECT DISTINCT * FROM conversations where user_id = ?",
+            //TODO: Replace query with one of the following
+            //Unoptimized query but it does work and only retrieve a single row per conversation!
+            // "SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY message_id) as rn FROM conversations WHERE user_id = ?) ranked WHERE rn=1",
+
+            //Optimized query using a query optimizer online
+            // "SELECT c.message_id, c.conversation_id, c.user_id, c.role, c.content FROM conversations c INNER JOIN ( SELECT conversation_id, MIN(message_id) AS min_message_id FROM conversations WHERE user_id = ? GROUP BY conversation_id) first_messages ON c.conversation_id = first_messages.conversation_id AND c.message_id = first_messages.min_message_id WHERE c.user_id = ?",
+            //
+            "SELECT * FROM conv_view WHERE user_id = ?",
             (username,),
+            // "SELECT DISTINCT * FROM conversations where user_id = ?",
+            //
+
+            // (username,),
             Context::empty(),
         );
-        for row in res {
-            //Reconstruct the boxed conv_id  from that row
-            //
-            let mut row_iter = row.into_iter();
-            let _ = row_iter.next();
-            let conv_id =
-                from_value::<String, ConversationMetadataPolicy>(row_iter.next().unwrap())
-                    .expect("Couldn't convert conv_id to its type");
-            //Only Works because it's a fold left
-            let usable_map: PCon<
-                (HashMap<String, Vec<ConversationMetadataPolicy>>, String),
-                AnyPolicy,
-            > = fold((conv_id_map, conv_id.clone())).expect("Couldn't left-fold the map");
-            //Add to the list of messages that were in that conversation ID
-            conv_id_map = usable_map.into_verified(VR::new(
-                |(mut unboxed_map, id): (
-                    HashMap<String, Vec<ConversationMetadataPolicy>>,
-                    String,
-                )| {
-                    unboxed_map
-                        .entry(id)
-                        .or_insert_with(Vec::new)
-                        .push(conv_id.policy().clone());
-                    unboxed_map
-                },
-            ));
-            // .specialize_policy::<PolicyAnd<AbsolutePolicy, ConversationMetadataPolicy>>()
-            // .expect("Couldn't re-establish the main conv_id map");
-        }
-        let release = UncheckedCriticalRegion::new(
-            |mut unboxed_map: HashMap<String, Vec<ConversationMetadataPolicy>>, _p, _c| {
-                unboxed_map
-                    .drain()
-                    .map(|(k, v)| {
-                        PCon::new(
-                            k,
-                            v.into_iter()
-                                .reduce(|pol1, pol2| {
-                                    pol1.join(pol2)
-                                        .specialize::<ConversationMetadataPolicy>()
-                                        .expect(
-                                            "Couldn't specialize into the intended conv_id policy",
-                                        )
-                                })
-                                .unwrap(),
-                        )
-                    })
-                    .collect::<Vec<_>>()
-            },
-            Signature {
-                username: "alexandre.doukhan@brown.edu",
-                signature: "",
-            },
-        );
-        conv_id_map.into_critical_unchecked(release, ())
+
+        //TODO: Replace handler with the following code for handling unique rows.
+        res.into_iter()
+            .map(|row| {
+                let mut row_iter = row.into_iter();
+                let conv_id = row_iter.next().expect("Row is empty"); //conv_id
+                let conv_id = from_value::<String, ConversationAccessPolicy>(conv_id)
+                    .expect("Couldn't parse conv_id with policy");
+                conv_id
+            })
+            .collect()
+
+        // for row in res {
+        //     //Reconstruct the boxed conv_id  from that row
+        //     //
+        //     let mut row_iter = row.into_iter();
+        //     let _ = row_iter.next();
+        //     let conv_id =
+        //         from_value::<String, ConversationMetadataPolicy>(row_iter.next().unwrap())
+        //             .expect("Couldn't convert conv_id to its type");
+        //     //Only Works because it's a fold left
+        //     let usable_map: PCon<
+        //         (HashMap<String, Vec<ConversationMetadataPolicy>>, String),
+        //         AnyPolicy,
+        //     > = fold((conv_id_map, conv_id.clone())).expect("Couldn't left-fold the map");
+        //     //Add to the list of messages that were in that conversation ID
+        //     conv_id_map = usable_map.into_verified(VR::new(
+        //         |(mut unboxed_map, id): (
+        //             HashMap<String, Vec<ConversationMetadataPolicy>>,
+        //             String,
+        //         )| {
+        //             unboxed_map
+        //                 .entry(id)
+        //                 .or_insert_with(Vec::new)
+        //                 .push(conv_id.policy().clone());
+        //             unboxed_map
+        //         },
+        //     ));
+        //     // .specialize_policy::<PolicyAnd<AbsolutePolicy, ConversationMetadataPolicy>>()
+        //     // .expect("Couldn't re-establish the main conv_id map");
+        // }
         //For every row
         // for row in res {
         //     //Reconstruct the boxed conv_id  from that row

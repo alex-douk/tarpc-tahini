@@ -1568,6 +1568,7 @@ dependencies = [
  "random",
  "reqwest",
  "serde",
+ "serde_json",
  "sesame",
  "slog",
  "slog-async",
