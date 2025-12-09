@@ -1640,7 +1640,7 @@ dependencies = [
 [[package]]
 name = "fizz_rs"
 version = "0.1.0"
-source = "git+https://github.com/alex-douk/fizz-rs.git?branch=lib#b9f12109e2b87f080b6e87de61cb234a17bdaa8d"
+source = "git+https://github.com/alex-douk/fizz-rs.git?branch=lib#dfa2b3d5fe6cdd9d620f94bfef7ad393b78b986c"
 dependencies = [
  "bytes",
  "cc",

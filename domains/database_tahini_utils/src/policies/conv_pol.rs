@@ -117,11 +117,13 @@ impl SimplePolicy for ConversationAccessPolicy {
         reason: Reason<'_>,
     ) -> bool {
         match self.user_id {
-            None => {println!("Failing because id is none"); false},
+            None => {false},
             Some(ref auth_uid) => {
                 let is_correct_auth = match context.downcast_ref::<UserIDContextDataOut>() {
-                    None => {println!("Failing because downcast failed"); false},
-                    Some(uid) => uid.user_id.clone().eq(auth_uid),
+                    None => { false},
+                    Some(uid) => {
+                        uid.user_id.clone().eq(auth_uid)
+                    }
                 };
                 match reason {
                     Reason::Response => is_correct_auth,
@@ -154,14 +156,12 @@ impl SchemaPolicy for ConversationAccessPolicy {
         match table_name {
             "conversations" => {
                 let uid = mysql::from_value::<String>(row[2].clone());
-                println!("Creating ConversationAccessPolicy with uid {:?}", uid);
                 Self {
                     user_id: Some(uid),
                 }
             }
             "conv_view" => {
                 let uid = mysql::from_value::<String>(row[1].clone());
-                println!("Creating ConversationAccessPolicy with uid {:?}", uid);
                 Self {
                     user_id: Some(uid),
                 }

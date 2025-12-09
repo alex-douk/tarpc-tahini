@@ -130,6 +130,7 @@ pub(crate) async fn inference(
 
     let tokens = contact_llm_server(payload).await;
 
+
     //If inference error, do not go to DB, instead early return with None
     //If policy says no_db, do not go to DB, instead early return with None
     //Otherwise, go to DB then return

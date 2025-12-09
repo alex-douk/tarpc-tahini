@@ -222,10 +222,14 @@ pub(crate) async fn fetch_conversation(
                 SesameContext::new("fetch_conversation".to_string(), uid_context),
             )
         }
-        Ok(boxed_conv) => JsonResponse(
-            FetchConversation { conv: boxed_conv },
-            SesameContext::new("fetch_conversation".to_string(), uid_context),
-        ),
+        Ok(boxed_conv) => {
+            JsonResponse(
+                FetchConversation {
+                    conv: boxed_conv
+                },
+                SesameContext::new("fetch_conversation".to_string(), uid_context),
+            )
+        }
     }
 }
 

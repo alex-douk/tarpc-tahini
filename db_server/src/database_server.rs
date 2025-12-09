@@ -86,7 +86,7 @@ static SERVER_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 fn parse_row_into_message(
     row: Vec<PConValue>, // row: &Vec<PCon<Value, AnyPolicyClone>>,
-) -> Result<PCon<Message, MessagePolicy>, String> {
+) -> Result<PCon<Message, ConversationAccessPolicy>, String> {
     let mut row_owned = row.into_iter();
     let _ = row_owned.next();
     let _ = row_owned.next();
@@ -94,11 +94,11 @@ fn parse_row_into_message(
     let role_unparsed = row_owned.next().unwrap();
     let content_unparsed = row_owned.next().unwrap();
 
-    let role = from_value::<String, MessagePolicy>(role_unparsed)?;
-    let content = from_value::<String, MessagePolicy>(content_unparsed)?;
+    let role = from_value::<String, ConversationAccessPolicy>(role_unparsed)?;
+    let content = from_value::<String, ConversationAccessPolicy>(content_unparsed)?;
     let pair = fold::<dyn AnyPolicyDyn, _>((role, content)).map_err(|_| "Couldn't fold")?;
     let pair = pair
-        .specialize_policy::<MessagePolicy>()
+        .specialize_policy::<ConversationAccessPolicy>()
         .expect("Couldn't specialize policy");
     Ok(pair.into_verified(VR::new(|(role, content)| Message { role, content })))
 }

@@ -52,14 +52,14 @@ async fn main() {
     let cookies = policy_cookies();
     let cookie_store = Arc::new(cookies);
     let client = ClientBuilder::new()
-        .cookie_provider(cookie_store)
+        .cookie_provider(cookie_store.clone())
         .build()
         .expect("Couldn't build client");
 
     let username = Uuid::new_v4().to_string();
     let signup_url = Url::parse("http://localhost:8000/account/signup").expect("Wrong URL");
     let mut payload = HashMap::new();
-    payload.insert("username", username);
+    payload.insert("username", username.clone());
     let resp = client
         .post(signup_url.clone())
         .json(&payload)
@@ -67,10 +67,15 @@ async fn main() {
         .await
         .unwrap();
     let body: HashMap<String, String> = resp.json().await.expect("Couldn't read response");
-    let uuid = body.get("uuid");
+    let uuid = body.get("uuid").expect("Couldn't get user_id from signup");
+
+    println!("Signed up");
+
+    let global_url = Url::parse("http://localhost:8000").expect("Wrong url for webserver");
+    cookie_store.add_cookie_str(format!("user_id={}", uuid).as_str(), &global_url);
     // test_chat_endpoint(&client).await;
     // fill_read_endpoint(&client, uuid.expect("Couldn't get a user_id on signup")).await;
-    test_read_endpoint(&client, uuid.expect("Couldn't signup")).await;
+    test_read_endpoint(&client, &username, uuid).await;
 
     drop(guard)
 }
@@ -89,28 +94,33 @@ async fn test_chat_endpoint(client: &Client) {
         conversation: conv,
         nb_token: 300,
     };
-
+    
     for _ in 0..NB_ITER {
         let start = Instant::now();
-        let _resp = client.post(chat_url.clone()).json(&payload).send().await;
+        let resp = client.post(chat_url.clone()).json(&payload).send().await.expect("chat Post failed");
+        let body = resp.text().await.expect("Json body couldn't be parsed");
         let elapsed = start.elapsed();
         tracing::info!(?elapsed, "Time for end-to-end call");
     }
 }
 
-async fn test_read_endpoint(client: &Client, user_id: &String) {
+async fn test_read_endpoint(client: &Client, username: &String, user_id: &String) {
+    println!("Priming the database with conversations");
     let mut conv_ids = Vec::new();
-    for _ in 0..100 {
-        let conv_id = fill_read_endpoint(client, &user_id).await;
+    for _ in 0.. 100 {
+        let conv_id = fill_read_endpoint(client, &username, user_id).await;
         conv_ids.push(conv_id);
     }
 
+
+    println!("Priming has succeeeded");
     for conv_id in conv_ids {
         let read_url =
             Url::parse(format!("http://localhost:8000/c/{}", conv_id).as_str()).expect("Wrong URL");
-        for _ in 0..200 {
+        for i in 0.. 100 {
             let start = Instant::now();
-            let _resp = client.get(read_url.clone()).send().await;
+            let resp = client.get(read_url.clone()).send().await.expect("Fetch failed");
+            let body = resp.text().await.unwrap();
             let elapsed = start.elapsed();
             tracing::info!(?elapsed, "Time for end-to-end call");
         }
@@ -124,12 +134,12 @@ pub(crate) struct InferenceResponse {
     db_uuid: Option<String>
 }
 
-async fn fill_read_endpoint(client: &Client, user_id: &String) -> String {
+async fn fill_read_endpoint(client: &Client, username: &String, user_id: &String) -> String {
     let mut conv = Vec::new();
     conv.push(generate_one_long_message());
     let chat_url = Url::parse("http://localhost:8000/chat").expect("Wrong URL");
     let payload = InferenceRequest {
-        user: None,
+        user: Some(username.to_string()),
         conv_id: None,
         conversation: conv.clone(),
         nb_token: 300,
@@ -147,7 +157,7 @@ async fn fill_read_endpoint(client: &Client, user_id: &String) -> String {
     let db_uuid = body.db_uuid
         .expect("Couldn't get hands on the conversation_id");
     // // cookies.add_cookie_str(format!("db_uuid={}",db_uuid).as_str(), &global_url);
-    for _ in 0..(NB_ITER / 100) {
+    for _ in 0..50 {
         let payload = InferenceRequest {
             user: Some(user_id.clone()),
             conv_id: Some(db_uuid.clone()),
